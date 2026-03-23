@@ -1,15 +1,16 @@
-import React from 'react'
+// client/src/router/GuardedRoute.jsx
+import React from "react";
 import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
-const GuardedRoute = ({children }) => {
+const GuardedRoute = ({ children }) => {
+  const { token } = useSelector((state) => state.auth);
 
-    const user = useSelector(state => state.auth.user)
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
 
-    if (!user) {
-      return <Navigate to="/login" replace={true} />;
-    }
-    return children;
+  return children;
 };
 
-export default GuardedRoute
+export default GuardedRoute;

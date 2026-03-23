@@ -1,0 +1,28 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "media-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-03-02",
+  "observability": { "enabled": true },
+  "compatibility_flags": ["nodejs_compat"],
+
+  // ✅ bind R2 bucket vào Worker
+  "r2_buckets": [
+    { "binding": "R2_BUCKET", "bucket_name": "movie-cdn" }
+  ],
+
+  // ✅ env không nhạy cảm
+  "vars": {
+    "ALLOW_ORIGIN": "https://media-worker.hoang-media.workers.dev/"
+  }
+
+  /**
+   * Smart Placement
+   * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+   */
+  // "placement": { "mode": "smart" }
+}

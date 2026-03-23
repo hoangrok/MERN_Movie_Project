@@ -1,15 +1,165 @@
+:root {
+  --bg: #0b0b0f;
+  --panel: #121218;
+  --panel-2: #18181f;
+  --text: #f5f5f7;
+  --muted: #b8b8c2;
+  --line: rgba(255, 255, 255, 0.08);
+  --red: #e50914;
+  --red-hover: #f6121d;
+  --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+}
 
-body {
-  margin: 0;
-  padding: 0;
-  background-color: #0A0A0A;
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
-body {
-  overflow-x: hidden;
+body,
+#root {
+  min-height: 100%;
 }
 
-body::-webkit-scrollbar {
-  display: none;
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(229, 9, 20, 0.08), transparent 25%),
+    linear-gradient(180deg, #0b0b0f 0%, #09090c 100%);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(229, 9, 20, 0.28);
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0d11;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.section-title {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+}
+
+.netflix-title {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+}
+
+.poster-card {
+  display: block;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+}
+
+.poster-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: rgba(229, 9, 20, 0.28);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.34);
+}
+
+.poster-card img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.poster-card__body {
+  padding: 12px;
+}
+
+.poster-card__title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.poster-card__meta {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 11px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--red);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--red-hover);
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.12);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.18);
 }

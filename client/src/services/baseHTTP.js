@@ -1,9 +1,14 @@
-import axios from 'axios';
+import axios from "axios";
 
-export const baseHTTP = axios.create({
-    baseURL: 'https://api.themoviedb.org/3/',
-    params : {
-        api_key : '7c4829680c5dc82e506e4cf962a26187' ,
-        language : 'en-US'
-    }
+const baseHTTP = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  withCredentials: false,
 });
+
+baseHTTP.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export default baseHTTP;

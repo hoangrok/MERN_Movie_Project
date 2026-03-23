@@ -1,29 +1,26 @@
-import React, { useEffect, useState } from 'react'
-import './Card.scss'
-import TrailerModal from '../TrailerModal/TrailerModal';
-import { useDispatch, useSelector } from 'react-redux';
-import {getMovieTrailer} from '../../store/Slice/movie-slice'
+import React from "react";
+import "./Card.scss";
+import { Link } from "react-router-dom";
 
-const Card = ({movie,isLiked=false}) => {
-    const dispatch = useDispatch()
-    const trailer = useSelector(state => state.movie.trailer)
-    const [isTrailerActive, setTrailerActive] = useState(false)
+const FALLBACK_POSTER =
+  "https://dummyimage.com/400x600/222/ffffff&text=Poster";
 
-    const handleModal = async (statu) => {
-        setTrailerActive(statu)
-        dispatch(getMovieTrailer(movie))
-    }
+const Card = ({ movie }) => {
+  const img = movie?.poster || movie?.backdrop || FALLBACK_POSTER;
 
-    return (
-    <div className='movieCard' >
-        <img onClick={() => handleModal(true)} src={`https://image.tmdb.org/t/p/w500${movie.image}`} />
+  if (!movie?._id) return null;
 
-        {isTrailerActive &&
-           <TrailerModal movie={movie} handleModal={handleModal} isLiked={isLiked} trailer={trailer}/>
-        }
+  return (
+    <Link to={`/movie/${movie._id}`} className="movieCard">
+      <img
+        src={img}
+        alt={movie?.title || "movie"}
+        onError={(e) => {
+          e.currentTarget.src = FALLBACK_POSTER;
+        }}
+      />
+    </Link>
+  );
+};
 
-    </div>
-    )
-}
-
-export default Card
+export default Card;

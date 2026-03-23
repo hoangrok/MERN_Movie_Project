@@ -1,19 +1,16 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
-import createRoutes from './router/router'
-import { BrowserRouter as Router } from 'react-router-dom'
-import {store} from './store/store'
-import {Provider} from 'react-redux'
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { Provider } from "react-redux";
 
-const routes = createRoutes()
+import App from "./App";
+import { store } from "./store/store";
+import "./index.css";
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-    <Provider store={store}>
-      <Router >
-        {routes}
-        <App />
-      </Router>
-    </Provider>
-)
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <Provider store={store}>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </Provider>
+);

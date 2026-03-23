@@ -1,104 +1,138 @@
-import React from 'react'
-import Background from '../components/Background/Background'
-import { useFormik } from 'formik'
-import { inputSchemas } from '../schemas'
-import { Link } from 'react-router-dom'
-import Form from '../components/Form/Form'
-import '../../src/App.scss'
-import {register} from '../services/authService'
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
-const Register = () => {
+export default function Register() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
 
-  const navigate = useNavigate()
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
-  const {values , handleSubmit, handleBlur , handleChange , errors ,touched} = useFormik({
-    initialValues:{
-        username:"",
-        email:"",
-        password:"",
-        confirmpassword:"",
-    },
-    validationSchema:inputSchemas,
-})
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
-const inputs = [
-    {
-      id: 1,
-      name: "username",
-      label: "Username",
-      type: "text",
-      placeholder: "Enter your username",
-      value : values.username,
-      errorMessage : errors.username,
-      touched : touched.username
-    },
-    {
-      id: 2,
-      name: "email",
-      label: "Email",
-      type: "email",
-      placeholder: "Enter your email",
-      value : values.email,
-      errorMessage : errors.email,
-      touched : touched.email,
-    },
-    {
-      id: 3,
-      name: "password",
-      label: "Password",
-      type: "password",
-      placeholder: "Enter your password",
-      value : values.password,
-      errorMessage : errors.password,
-      touched : touched.password,        
-    },
-    {
-      id: 4,
-      name: "confirmpassword",
-      label: "Confirm Password",
-      type: "password",
-      placeholder: "Enter your Confirm Password",
-      value : values.confirmpassword,
-      errorMessage : errors.confirmpassword,
-      touched : touched.confirmpassword,            
-    },
-  ];
-
-  const checkValues = () => {
-   return Object.keys(values).every( (key) => values[key] !== "" )
-  }
-
-
-const registerHandler =async (e) => {
-    e.preventDefault()
-    if(checkValues()){
-      await register(values.email,values.password)
-      navigate("/login" , {
-        replace : true
-      })
+    if (form.password !== form.confirmPassword) {
+      alert("Mật khẩu xác nhận không khớp");
+      return;
     }
-  }
+
+    // tạm thời demo
+    navigate("/login");
+  };
+
   return (
-    <div>
-      <Background>
-        <div className='container'>
-          <h1 className='container__title'>Register</h1>
-          <Form inputs={inputs} 
-          onBlurHandler={handleBlur} 
-          onChangeHandler={handleChange} 
-          onClickHandler={registerHandler} 
-          buttonText="Register"/>
-          <div className='container__direct'>
-            <span className='container__direct__text' > Already have an account ? </span>
-            <Link className='container__direct__link' to="/login" 
-            >Sign In
-            </Link>
-          </div>
-        </div>
-      </Background>
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <h1 style={titleStyle}>Đăng ký</h1>
+
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            value={form.email}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+
+          <input
+            type="password"
+            name="password"
+            placeholder="Mật khẩu"
+            value={form.password}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+
+          <input
+            type="password"
+            name="confirmPassword"
+            placeholder="Xác nhận mật khẩu"
+            value={form.confirmPassword}
+            onChange={handleChange}
+            style={inputStyle}
+          />
+
+          <button type="submit" style={buttonStyle}>
+            Tạo tài khoản
+          </button>
+        </form>
+
+        <p style={textStyle}>
+          Đã có tài khoản?{" "}
+          <Link to="/login" style={linkStyle}>
+            Đăng nhập
+          </Link>
+        </p>
+      </div>
     </div>
-  )
+  );
 }
 
-export default Register
+const pageStyle = {
+  minHeight: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#0b0b0f",
+  padding: 24,
+};
+
+const cardStyle = {
+  width: "100%",
+  maxWidth: 420,
+  background: "#14141c",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 16,
+  padding: 28,
+  color: "#fff",
+  boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+};
+
+const titleStyle = {
+  margin: "0 0 20px",
+  color: "#fff",
+  fontSize: 32,
+  fontWeight: 800,
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#1c1c25",
+  color: "#fff",
+  outline: "none",
+};
+
+const buttonStyle = {
+  width: "100%",
+  padding: "12px 16px",
+  borderRadius: 10,
+  border: "none",
+  background: "#e50914",
+  color: "#fff",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const textStyle = {
+  marginTop: 18,
+  color: "rgba(255,255,255,0.72)",
+};
+
+const linkStyle = {
+  color: "#fff",
+  fontWeight: 700,
+  textDecoration: "none",
+};

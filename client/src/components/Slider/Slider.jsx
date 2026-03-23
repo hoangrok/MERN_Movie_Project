@@ -1,23 +1,32 @@
-import React from 'react'
-import './Slider.scss'
-import CardSlider from '../CardSlider/CardSlider'
+import React from "react";
+import "./Slider.scss";
+import CardSlider from "../CardSlider/CardSlider";
 
-const Slider = ({movies}) => {
+const Slider = ({ movies = [] }) => {
+  const getMovies = (from, to) => movies.slice(from, to);
 
-  const getMovies = (from,to) => {
-    return movies.slice(from,to)
-  }
+  const sections = [
+    { title: "Trending Now", items: getMovies(0, 10) },
+    { title: "Popular Movies", items: getMovies(10, 20) },
+    { title: "New Releases", items: getMovies(20, 30) },
+    { title: "My Suggestion", items: getMovies(30, 40) },
+    { title: "Epics Movies", items: getMovies(40, 50) },
+    { title: "Random Movies", items: getMovies(50, 60) },
+  ];
 
   return (
-    <div className='sliderContainer'>
-      <CardSlider movies={getMovies(0,10)} title="Trending Now" />
-      <CardSlider movies={getMovies(10,20)} title="Popular Movies" />
-      <CardSlider movies={getMovies(20,30)} title="New Releases" />
-      <CardSlider movies={getMovies(40,50)} title="Epics Movies" />
-      <CardSlider movies={getMovies(50,60)} title="Random Movies" />
-      <CardSlider movies={getMovies(30,40)} title="My Suggestion" />
+    <div className="sliderContainer">
+      {sections.map((section) =>
+        section.items.length > 0 ? (
+          <CardSlider
+            key={section.title}
+            movies={section.items}
+            title={section.title}
+          />
+        ) : null
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default Slider
+export default Slider;

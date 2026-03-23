@@ -1,19 +1,24 @@
-.movieCard{
-    max-width: 250px;
-    width: 250px;
-    cursor: pointer;
-    position: relative;
-    img{
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 5px;
-        z-index: 10;
-        transition: 0.2s all ease-in-out;
+.movieCard {
+  display: block;                // 🔥 quan trọng khi dùng Link
+  text-decoration: none;         // 🔥 bỏ gạch chân
+  color: inherit;
 
-        &:hover{
-            scale: 1.05;
-        }
+  max-width: 250px;
+  width: 250px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;              // 🔥 tránh zoom bị tràn
 
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+    z-index: 10;
+    transition: transform 0.25s ease;
+
+    &:hover {
+      transform: scale(1.05);   // 🔥 dùng transform chuẩn
     }
+  }
 }
