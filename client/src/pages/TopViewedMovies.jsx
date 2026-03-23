@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/TopViewedMovies.scss";
+import { API_URL } from "../utils/api";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -15,7 +16,7 @@ export default function TopViewedMovies() {
   useEffect(() => {
     const loadMovies = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/movies/top-viewed");
+        const res = await fetch(`${API_URL}/movies/top-viewed`);
         const data = await res.json();
 
         if (data.success) {

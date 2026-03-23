@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import Card from "../components/Card/Card";
 import "../assets/styles/Search.scss";
+import { API_URL } from "../utils/api";
 
 const FALLBACK_BACKDROP =
   "https://dummyimage.com/1600x900/111/ffffff&text=Search";
@@ -33,7 +34,7 @@ export default function Search() {
         setLoading(true);
 
         const res = await fetch(
-          `http://localhost:5000/api/movies?q=${encodeURIComponent(query.trim())}`
+          `${API_URL}/movies?q=${encodeURIComponent(query.trim())}`
         );
         const data = await res.json();
 

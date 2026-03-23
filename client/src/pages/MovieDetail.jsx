@@ -8,6 +8,7 @@ import {
   getContinueWatching,
   removeContinueWatching,
 } from "../utils/continueWatching";
+import { API_URL } from "../utils/api";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -63,7 +64,7 @@ export default function MovieDetail() {
       try {
         setError("");
 
-        const movieRes = await fetch(`http://localhost:5000/api/movies/${id}`);
+        const movieRes = await fetch(`${API_URL}/movies/${id}`);
         const movieData = await movieRes.json();
 
         if (!movieData.success) {
@@ -73,18 +74,14 @@ export default function MovieDetail() {
 
         setMovie(movieData.movie);
 
-        const relatedRes = await fetch(
-          `http://localhost:5000/api/movies/${id}/related`
-        );
+        const relatedRes = await fetch(`${API_URL}/movies/${id}/related`);
         const relatedData = await relatedRes.json();
 
         if (relatedData.success) {
           setRelated(relatedData.items || []);
         }
 
-        const streamRes = await fetch(
-          `http://localhost:5000/api/movies/${id}/stream`
-        );
+        const streamRes = await fetch(`${API_URL}/movies/${id}/stream`);
         const streamData = await streamRes.json();
 
         if (streamData.success) {

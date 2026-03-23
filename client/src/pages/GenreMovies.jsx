@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/GenreMovies.scss";
+import { API_URL } from "../utils/api";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -27,7 +28,7 @@ export default function GenreMovies() {
         setLoading(true);
 
         const query = encodeURIComponent(genreList.join(","));
-        const res = await fetch(`http://localhost:5000/api/movies?genre=${query}`);
+        const res = await fetch(`${API_URL}/movies?genre=${query}`);
         const data = await res.json();
 
         if (data.success) {

@@ -15,6 +15,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import auth from "../../utils/firebase-config";
 import toast from "react-hot-toast";
 import SearchMovie from "../SearchMovie/SearchMovie";
+import { API_URL } from "../../utils/api";
 
 const Navbar = ({ isScrolled }) => {
   const links = [
@@ -52,7 +53,7 @@ const Navbar = ({ isScrolled }) => {
   useEffect(() => {
     const loadGenres = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/movies/genres");
+        const res = await fetch(`${API_URL}/movies/genres`);
         const data = await res.json();
 
         if (data.success) {
@@ -249,7 +250,11 @@ const Navbar = ({ isScrolled }) => {
                 />
               </button>
 
-              <div className={`navbar__genre-mega ${showGenreDropdown ? "show" : ""}`}>
+              <div
+                className={`navbar__genre-mega ${
+                  showGenreDropdown ? "show" : ""
+                }`}
+              >
                 <div className="navbar__genre-mega-header">
                   <div>
                     <h3>Chọn nhiều thể loại</h3>
@@ -288,7 +293,9 @@ const Navbar = ({ isScrolled }) => {
                         <button
                           key={index}
                           type="button"
-                          className={`navbar__genre-card ${active ? "active" : ""}`}
+                          className={`navbar__genre-card ${
+                            active ? "active" : ""
+                          }`}
                           onClick={() => toggleGenre(genre)}
                         >
                           <span className="navbar__genre-dot" />
@@ -354,7 +361,9 @@ const Navbar = ({ isScrolled }) => {
               <div className="navbar__search-panel">
                 {suggestedGenres.length > 0 && (
                   <div className="navbar__search-tags">
-                    <div className="navbar__search-tags-title">Gợi ý thể loại</div>
+                    <div className="navbar__search-tags-title">
+                      Gợi ý thể loại
+                    </div>
                     <div className="navbar__search-tags-wrap">
                       {suggestedGenres.map((genre, index) => (
                         <button
