@@ -7,6 +7,7 @@ import {
   getContinueWatching,
   removeContinueWatching,
 } from "../utils/continueWatching";
+import { API_URL } from "../utils/api";
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -50,7 +51,7 @@ export default function MoviePlayer() {
         setLoading(true);
         setError("");
 
-        const movieRes = await fetch(`http://localhost:5000/api/movies/${id}`);
+        const movieRes = await fetch(`${API_URL}/movies/${id}`);
         const movieData = await movieRes.json();
         if (!movieData.success) {
           throw new Error(movieData.message || "Không lấy được movie");
@@ -59,14 +60,14 @@ export default function MoviePlayer() {
         const currentMovie = movieData.movie;
         setMovie(currentMovie);
 
-        const streamRes = await fetch(`http://localhost:5000/api/movies/${id}/stream`);
+        const streamRes = await fetch(`${API_URL}/movies/${id}/stream`);
         const streamData = await streamRes.json();
         if (!streamData.success) {
           throw new Error(streamData.message || "Không lấy được stream URL");
         }
         setStreamUrl(streamData.signedUrl);
 
-        const relatedRes = await fetch(`http://localhost:5000/api/movies?type=all`);
+        const relatedRes = await fetch(`${API_URL}/movies?type=all`);
         const relatedData = await relatedRes.json();
         if (relatedData.success) {
           const currentGenres = currentMovie?.genre || currentMovie?.genres || [];
@@ -261,7 +262,10 @@ export default function MoviePlayer() {
   const forward10 = () => {
     const video = videoRef.current;
     if (!video) return;
-    video.currentTime = Math.min(duration || video.duration || 0, video.currentTime + 10);
+    video.currentTime = Math.min(
+      duration || video.duration || 0,
+      video.currentTime + 10
+    );
   };
 
   const changeVolume = (e) => {
@@ -304,7 +308,9 @@ export default function MoviePlayer() {
   };
 
   const progressPercent = duration ? (current / duration) * 100 : 0;
-  const bufferedPercent = duration ? Math.min((buffered / duration) * 100, 100) : 0;
+  const bufferedPercent = duration
+    ? Math.min((buffered / duration) * 100, 100)
+    : 0;
 
   const genres = useMemo(() => movie?.genre || movie?.genres || [], [movie]);
 
@@ -415,7 +421,9 @@ export default function MoviePlayer() {
 
                   <div className="nf-controls-row">
                     <div className="nf-left">
-                      <button onClick={togglePlay}>{isPlaying ? "❚❚" : "▶"}</button>
+                      <button onClick={togglePlay}>
+                        {isPlaying ? "❚❚" : "▶"}
+                      </button>
                       <button onClick={rewind10}>« 10</button>
                       <button onClick={forward10}>10 »</button>
                       <button onClick={toggleMute}>
@@ -454,9 +462,15 @@ export default function MoviePlayer() {
                     <div className="movie-info-card__title-wrap">
                       <h1>{movie.title}</h1>
                       <div className="movie-badges">
-                        <span className="movie-badge movie-badge--accent">HD</span>
-                        <span className="movie-badge">{movie.year || "N/A"}</span>
-                        <span className="movie-badge">⭐ {movie.rating || "N/A"}</span>
+                        <span className="movie-badge movie-badge--accent">
+                          HD
+                        </span>
+                        <span className="movie-badge">
+                          {movie.year || "N/A"}
+                        </span>
+                        <span className="movie-badge">
+                          ⭐ {movie.rating || "N/A"}
+                        </span>
                         <span className="movie-badge">
                           {movie.duration || "N/A"} phút
                         </span>
@@ -464,7 +478,10 @@ export default function MoviePlayer() {
                     </div>
 
                     <div className="movie-actions">
-                      <button className="movie-action movie-action--primary" onClick={togglePlay}>
+                      <button
+                        className="movie-action movie-action--primary"
+                        onClick={togglePlay}
+                      >
                         {isPlaying ? "Tạm dừng" : "Phát"}
                       </button>
                       <button className="movie-action" onClick={toggleSave}>
@@ -502,7 +519,9 @@ export default function MoviePlayer() {
                         </div>
                         <div className="movie-fact">
                           <span className="label">Ngôn ngữ</span>
-                          <span className="value">{movie.original_language || "N/A"}</span>
+                          <span className="value">
+                            {movie.original_language || "N/A"}
+                          </span>
                         </div>
                         <div className="movie-fact">
                           <span className="label">Lượt xem</span>
@@ -593,14 +612,17 @@ export default function MoviePlayer() {
                           {item.year || "N/A"} • {item.duration || "N/A"} phút
                         </p>
                         <span>
-                          {(item.genre || item.genres || []).slice(0, 2).join(" • ") ||
-                            "Phim liên quan"}
+                          {(item.genre || item.genres || [])
+                            .slice(0, 2)
+                            .join(" • ") || "Phim liên quan"}
                         </span>
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="related-empty">Chưa có nội dung liên quan.</div>
+                  <div className="related-empty">
+                    Chưa có nội dung liên quan.
+                  </div>
                 )}
               </div>
             </div>
