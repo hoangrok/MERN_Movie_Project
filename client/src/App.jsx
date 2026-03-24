@@ -10,6 +10,7 @@ import TopViewedMovies from "./pages/TopViewedMovies";
 import GenreMovies from "./pages/GenreMovies";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import MyList from "./pages/MyList";
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
       <Route path="/genres" element={<GenreMovies />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/my-list" element={<MyList />} />
     </Routes>
   );
 }

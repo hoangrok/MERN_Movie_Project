@@ -1,11 +1,22 @@
-const { addtoLikedMovies, getLikedMovies, removeFromLikedMovies } = require('../controllers/UserControl');
+const router = require("express").Router();
 
-const router = require('express').Router();
+const {
+  registerUser,
+  loginUser,
+  getProfile,
+  addtoLikedMovies,
+  getLikedMovies,
+  removeFromLikedMovies,
+} = require("../controllers/UserControl");
 
+const { protect } = require("../middleware/authMiddleware");
 
-router.get('/liked/:email',getLikedMovies)
-router.post('/add',addtoLikedMovies)
-router.put('/remove',removeFromLikedMovies)
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+router.get("/profile", protect, getProfile);
+
+router.get("/liked", protect, getLikedMovies);
+router.post("/add", protect, addtoLikedMovies);
+router.put("/remove", protect, removeFromLikedMovies);
 
 module.exports = router;
-

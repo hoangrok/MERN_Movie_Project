@@ -1,12 +1,33 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  loginUser,
+  resetAuthState,
+} from "../store/Slice/auth-slice";
 
 export default function Login() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const { user, isLoading, isSuccess, isError, message } = useSelector(
+    (state) => state.auth
+  );
+
   const [form, setForm] = useState({
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    if (user && user.token) {
+      navigate("/");
+    }
+
+    return () => {
+      dispatch(resetAuthState());
+    };
+  }, [user, isSuccess, navigate, dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -18,10 +39,7 @@ export default function Login() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // Tạm thời demo UI
-    console.log("Login:", form);
-    navigate("/");
+    dispatch(loginUser(form));
   };
 
   return (
@@ -29,6 +47,10 @@ export default function Login() {
       <div style={overlayStyle} />
       <div style={boxStyle}>
         <h1 style={titleStyle}>Đăng nhập</h1>
+
+        {isError && (
+          <p style={{ color: "#ff6b6b", marginBottom: 14 }}>{message}</p>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
           <input
@@ -51,8 +73,8 @@ export default function Login() {
             required
           />
 
-          <button type="submit" style={buttonStyle}>
-            Đăng nhập
+          <button type="submit" style={buttonStyle} disabled={isLoading}>
+            {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
           </button>
         </form>
 

@@ -234,6 +234,108 @@ const createMovie = async (req, res) => {
 };
 
 // ==========================
+// UPDATE MOVIE (ADMIN)
+// ==========================
+const updateMovie = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payload = { ...req.body };
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(id);
+
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    if (payload.title && !payload.slug) {
+      payload.slug = createSlug(payload.title);
+    }
+
+    if (typeof payload.genre === "string") {
+      payload.genre = payload.genre
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
+    if (payload.slug) {
+      const existed = await Movie.findOne({
+        slug: payload.slug,
+        _id: { $ne: id },
+      });
+
+      if (existed) {
+        payload.slug = `${payload.slug}-${Date.now()}`;
+      }
+    }
+
+    const updatedMovie = await Movie.findByIdAndUpdate(id, payload, {
+      new: true,
+      runValidators: true,
+    });
+
+    return res.json({
+      success: true,
+      movie: updatedMovie,
+    });
+  } catch (err) {
+    console.error("updateMovie error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// ==========================
+// DELETE MOVIE (ADMIN)
+// ==========================
+const deleteMovie = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(id);
+
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    await Movie.findByIdAndDelete(id);
+
+    return res.json({
+      success: true,
+      message: "Movie deleted successfully",
+    });
+  } catch (err) {
+    console.error("deleteMovie error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// ==========================
 // STREAM URL
 // ==========================
 const getStreamUrl = async (req, res) => {
@@ -410,6 +512,8 @@ module.exports = {
   getGenres,
   getMovieById,
   createMovie,
+  updateMovie,
+  deleteMovie,
   getStreamUrl,
   getRelatedMovies,
   incrementView,

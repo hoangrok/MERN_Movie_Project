@@ -1,82 +1,233 @@
-// backend/controllers/uploadController.js
-const path = require("path");
-const fs = require("fs");
-const ffmpeg = require("fluent-ffmpeg");
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
-const r2 = require("../utils/r2");
+// 👉 COPY FULL FILE NÀY
 
-exports.uploadVideo = async (req, res) => {
-  try {
-    // ===== Auth / Admin check =====
-    if (!req.user || req.user.role !== "admin") {
-      return res.status(403).json({ success: false, message: "Forbidden" });
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { useSelector } from "react-redux";
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+export default function MovieDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+
+  const [movie, setMovie] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+
+  const [editForm, setEditForm] = useState({});
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
+
+  // ================= LOAD MOVIE =================
+  useEffect(() => {
+    fetchMovie();
+  }, [id]);
+
+  const fetchMovie = async () => {
+    const { data } = await axios.get(`${API_URL}/movies/${id}`);
+    setMovie(data.movie);
+    setEditForm({
+      ...data.movie,
+      genre: data.movie.genre?.join(", "),
+    });
+  };
+
+  // ================= HANDLE INPUT =================
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // ================= UPLOAD IMAGE =================
+  const handleUploadImage = async (file, field) => {
+    if (!file) return;
+
+    try {
+      if (field === "poster") setUploadingPoster(true);
+      if (field === "backdrop") setUploadingBackdrop(true);
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const { data } = await axios.post(
+        `${API_URL}/upload/image`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+
+      setEditForm((prev) => ({
+        ...prev,
+        [field]: data.url,
+      }));
+    } catch (err) {
+      alert("Upload lỗi");
+    } finally {
+      setUploadingPoster(false);
+      setUploadingBackdrop(false);
     }
+  };
 
-    // ===== Validate file =====
-    if (!req.files || !req.files.video) {
-      return res.status(400).json({ success: false, message: "No video uploaded" });
-    }
-    const file = req.files.video;
-    const allowedTypes = ["video/mp4"];
-    if (!allowedTypes.includes(file.mimetype)) {
-      return res.status(400).json({ success: false, message: "Invalid file type" });
-    }
-    if (file.size > 2 * 1024 * 1024 * 1024) { // max 2GB
-      return res.status(400).json({ success: false, message: "File too large" });
-    }
+  // ================= UPDATE =================
+  const handleUpdate = async (e) => {
+    e.preventDefault();
 
-    const fileName = `${Date.now()}-${file.name}`;
-    const tempDir = path.join(__dirname, "../tmp");
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    const tempPath = path.join(tempDir, fileName);
+    await axios.put(
+      `${API_URL}/movies/${movie._id}`,
+      {
+        ...editForm,
+        genre: editForm.genre.split(",").map((g) => g.trim()),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      }
+    );
 
-    await file.mv(tempPath);
+    alert("Updated!");
+    setShowModal(false);
+    fetchMovie();
+  };
 
-    // ===== Convert mp4 → HLS =====
-    const outputDir = path.join(tempDir, `${fileName}-hls`);
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+  // ================= DELETE =================
+  const handleDelete = async () => {
+    if (!confirm("Xóa phim?")) return;
 
-    await new Promise((resolve, reject) => {
-      ffmpeg(tempPath)
-        .outputOptions([
-          "-profile:v baseline",
-          "-level 3.0",
-          "-start_number 0",
-          "-hls_time 10",
-          "-hls_list_size 0",
-          "-f hls",
-        ])
-        .output(path.join(outputDir, "master.m3u8"))
-        .on("end", resolve)
-        .on("error", reject)
-        .run();
+    await axios.delete(`${API_URL}/movies/${movie._id}`, {
+      headers: {
+        Authorization: `Bearer ${user.token}`,
+      },
     });
 
-    // ===== Upload HLS files to R2 =====
-    const files = fs.readdirSync(outputDir);
-    for (const f of files) {
-      const filePath = path.join(outputDir, f);
-      await r2.send(
-        new PutObjectCommand({
-          Bucket: process.env.R2_BUCKET,
-          Key: `videos/${fileName}/${f}`,
-          Body: fs.readFileSync(filePath),
-          ContentType: f.endsWith(".m3u8")
-            ? "application/vnd.apple.mpegurl"
-            : "video/MP2T",
-        })
-      );
-    }
+    alert("Deleted!");
+    navigate("/");
+  };
 
-    const masterUrl = `https://media-worker.hoang-media.workers.dev/videos/${fileName}/master.m3u8`;
+  if (!movie) return <div>Loading...</div>;
 
-    // ===== Cleanup =====
-    fs.rmSync(tempPath);
-    fs.rmSync(outputDir, { recursive: true });
+  return (
+    <div style={{ padding: 20, color: "#fff" }}>
+      <h1>{movie.title}</h1>
 
-    return res.json({ success: true, hlsUrl: masterUrl });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
+      <img src={movie.poster} width={200} />
+
+      <p>{movie.description}</p>
+
+      {/* ADMIN */}
+      {user?.isAdmin && (
+        <div style={{ marginTop: 20 }}>
+          <button onClick={() => setShowModal(true)}>✏️ Edit</button>
+          <button onClick={handleDelete} style={{ marginLeft: 10 }}>
+            ❌ Delete
+          </button>
+        </div>
+      )}
+
+      {/* MODAL */}
+      {showModal && (
+        <div style={overlay}>
+          <form style={modal} onSubmit={handleUpdate}>
+            <h2>Edit Movie</h2>
+
+            <input
+              name="title"
+              value={editForm.title}
+              onChange={handleChange}
+              placeholder="Title"
+            />
+
+            <textarea
+              name="description"
+              value={editForm.description}
+              onChange={handleChange}
+              placeholder="Description"
+            />
+
+            <input
+              name="genre"
+              value={editForm.genre}
+              onChange={handleChange}
+              placeholder="Action, Drama"
+            />
+
+            {/* POSTER */}
+            <input
+              name="poster"
+              value={editForm.poster}
+              onChange={handleChange}
+              placeholder="Poster URL"
+            />
+
+            <label style={uploadBtn}>
+              {uploadingPoster ? "Uploading..." : "Upload Poster"}
+              <input
+                type="file"
+                hidden
+                onChange={(e) =>
+                  handleUploadImage(e.target.files[0], "poster")
+                }
+              />
+            </label>
+
+            {editForm.poster && <img src={editForm.poster} width={100} />}
+
+            {/* BACKDROP */}
+            <input
+              name="backdrop"
+              value={editForm.backdrop}
+              onChange={handleChange}
+              placeholder="Backdrop URL"
+            />
+
+            <label style={uploadBtn}>
+              {uploadingBackdrop ? "Uploading..." : "Upload Backdrop"}
+              <input
+                type="file"
+                hidden
+                onChange={(e) =>
+                  handleUploadImage(e.target.files[0], "backdrop")
+                }
+              />
+            </label>
+
+            {editForm.backdrop && <img src={editForm.backdrop} width={150} />}
+
+            <button type="submit">Save</button>
+            <button onClick={() => setShowModal(false)}>Cancel</button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// STYLE
+const overlay = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.7)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+};
+
+const modal = {
+  background: "#111",
+  padding: 20,
+  borderRadius: 10,
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  width: 400,
+};
+
+const uploadBtn = {
+  background: "#333",
+  padding: 10,
+  cursor: "pointer",
 };

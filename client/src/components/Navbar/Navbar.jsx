@@ -8,14 +8,13 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
-import { signOutFromFirebase } from "../../services/authService";
 import { logoutReducer } from "../../store/Slice/auth-slice";
 import { searchMovies, clearSearch } from "../../store/Slice/movie-slice";
-import { onAuthStateChanged } from "firebase/auth";
-import auth from "../../utils/firebase-config";
 import toast from "react-hot-toast";
-import SearchMovie from "../SearchMovie/SearchMovie";
 import { API_URL } from "../../utils/api";
+
+const FALLBACK_POSTER =
+  "https://dummyimage.com/200x300/222/ffffff&text=No+Image";
 
 const Navbar = ({ isScrolled }) => {
   const links = [
@@ -33,8 +32,9 @@ const Navbar = ({ isScrolled }) => {
   const searchBoxRef = useRef(null);
 
   const movies = useSelector((state) => state.movie.movies || []);
+  const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
+  const { user } = useSelector((state) => state.auth);
 
-  const [user, setUser] = useState(null);
   const [isMenuActive, setIsMenuActive] = useState(false);
   const [searchedInput, setSearchedInput] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
@@ -42,13 +42,6 @@ const Navbar = ({ isScrolled }) => {
   const [genres, setGenres] = useState([]);
   const [showGenreDropdown, setShowGenreDropdown] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser || null);
-    });
-    return () => unsub();
-  }, []);
 
   useEffect(() => {
     const loadGenres = async () => {
@@ -146,9 +139,10 @@ const Navbar = ({ isScrolled }) => {
       .slice(0, 6);
   }, [searchedInput, movies]);
 
-  const logOutHandler = async () => {
+  const resultsToShow = searchedMovies.length > 0 ? searchedMovies : quickSuggestions;
+
+  const logOutHandler = () => {
     dispatch(logoutReducer());
-    await signOutFromFirebase();
 
     toast("Logged Out Successfully", {
       icon: "👻",
@@ -257,8 +251,8 @@ const Navbar = ({ isScrolled }) => {
               >
                 <div className="navbar__genre-mega-header">
                   <div>
-                    <h3>Chọn nhiều thể loại</h3>
-                    <p>Lọc nội dung theo một hoặc nhiều thể loại</p>
+                    <h3>Chọn thể loại</h3>
+                    <p>Lọc nội dung theo sở thích của bạn</p>
                   </div>
 
                   <button
@@ -337,7 +331,7 @@ const Navbar = ({ isScrolled }) => {
 
               <input
                 type="text"
-                placeholder="Tìm phim, thể loại, mô tả..."
+                placeholder="Tìm phim, thể loại, mô tả,..."
                 value={searchedInput}
                 onChange={searchMovieHandler}
                 onFocus={() => {
@@ -360,10 +354,11 @@ const Navbar = ({ isScrolled }) => {
             {showSearchResult && searchedInput.trim() && (
               <div className="navbar__search-panel">
                 {suggestedGenres.length > 0 && (
-                  <div className="navbar__search-tags">
-                    <div className="navbar__search-tags-title">
+                  <div className="navbar__search-section">
+                    <div className="navbar__search-section-title">
                       Gợi ý thể loại
                     </div>
+
                     <div className="navbar__search-tags-wrap">
                       {suggestedGenres.map((genre, index) => (
                         <button
@@ -379,22 +374,55 @@ const Navbar = ({ isScrolled }) => {
                   </div>
                 )}
 
-                <SearchMovie
-                  showSearchResult={showSearchResult}
-                  setShowSearchResult={setShowSearchResult}
-                  searchedInput={searchedInput}
-                  selectedGenres={selectedGenres}
-                  quickSuggestions={quickSuggestions}
-                />
+                <div className="navbar__search-section">
+                  <div className="navbar__search-section-title navbar__search-section-title--result">
+                    Kết quả tìm kiếm
+                  </div>
+
+                  <div className="navbar__search-results">
+                    {resultsToShow.length > 0 ? (
+                      resultsToShow.map((movie) => (
+                        <Link
+                          key={movie._id}
+                          to={`/movie/${movie._id}`}
+                          className="navbar__search-item"
+                          onClick={() => setShowSearchResult(false)}
+                        >
+                          <div className="navbar__search-thumb">
+                            <img
+                              src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+                              alt={movie.title || "movie"}
+                              onError={(e) => {
+                                e.currentTarget.src = FALLBACK_POSTER;
+                              }}
+                            />
+                          </div>
+
+                          <div className="navbar__search-info">
+                            <h4>{movie.title}</h4>
+                            <span>
+                              {movie.year || "N/A"} •{" "}
+                              {(movie.genre || []).slice(0, 1).join("") || "Thu Dam"}
+                            </span>
+                            <p>{movie.description || "Không có mô tả"}</p>
+                          </div>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="navbar__search-empty">
+                        Không tìm thấy kết quả phù hợp
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
-          {user ? (
+          {user && user.token ? (
             <button
               className="navbar__footer--logout"
               onClick={logOutHandler}
-              title="Đăng xuất"
             >
               <FaPowerOff />
             </button>

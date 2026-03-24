@@ -8,11 +8,16 @@ const {
   getGenres,
   getMovieById,
   createMovie,
+  updateMovie,
+  deleteMovie,
   getStreamUrl,
   getRelatedMovies,
   incrementView,
   getTrending,
 } = require("../controllers/movieController");
+
+const { protect } = require("../middleware/authMiddleware");
+const { adminOnly } = require("../middleware/adminMiddleware");
 
 // List / Search
 router.get("/", getMovies);
@@ -23,11 +28,10 @@ router.get("/latest", getLatestMovies);
 router.get("/top-viewed", getTopViewedMovies);
 router.get("/genres", getGenres);
 
-// Movie detail
-router.get("/:id", getMovieById);
-
-// Create movie
-router.post("/", createMovie);
+// Admin CRUD
+router.post("/", protect, adminOnly, createMovie);
+router.put("/:id", protect, adminOnly, updateMovie);
+router.delete("/:id", protect, adminOnly, deleteMovie);
 
 // Signed stream url
 router.get("/:id/stream", getStreamUrl);
@@ -37,5 +41,8 @@ router.get("/:id/related", getRelatedMovies);
 
 // Increment views
 router.post("/:id/view", incrementView);
+
+// Movie detail
+router.get("/:id", getMovieById);
 
 module.exports = router;

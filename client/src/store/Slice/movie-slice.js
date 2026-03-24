@@ -116,8 +116,21 @@ const movieSlice = createSlice({
     },
     removeLikedMovie(state, action) {
       state.likedMovies = state.likedMovies.filter(
-        (m) => m._id !== action.payload.movie._id
+        (m) => m._id !== action.payload.movie._id && m.id !== action.payload.movie?.id
       );
+    },
+
+    // My List
+    getLikedMoviesStart(state) {
+      state.status = "pending";
+    },
+    getLikedMoviesSuccess(state, action) {
+      state.status = "success";
+      state.likedMovies = action.payload || [];
+    },
+    getLikedMoviesFail(state, action) {
+      state.status = "failed";
+      state.error = action.payload || "Get liked movies failed";
     },
   },
   extraReducers: (builder) => {
@@ -193,6 +206,9 @@ export const {
   clearSearch,
   addLikedMovie,
   removeLikedMovie,
+  getLikedMoviesStart,
+  getLikedMoviesSuccess,
+  getLikedMoviesFail,
 } = movieSlice.actions;
 
 export default movieSlice.reducer;

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import Hls from "hls.js";
+import axios from "axios";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/MovieDetailPlayer.css";
 import {
@@ -9,6 +11,7 @@ import {
   removeContinueWatching,
 } from "../utils/continueWatching";
 import { API_URL } from "../utils/api";
+import { updateLikedMovies } from "../store/Slice/auth-slice";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -29,8 +32,84 @@ function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+const modalOverlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.72)",
+  zIndex: 9999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+};
+
+const modalStyle = {
+  width: "100%",
+  maxWidth: 920,
+  maxHeight: "90vh",
+  overflowY: "auto",
+  background: "#0f1117",
+  color: "#fff",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 18,
+  padding: 24,
+  boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+};
+
+const adminGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 16,
+};
+
+const adminFieldStyle = {
+  display: "grid",
+  gap: 8,
+};
+
+const adminLabelStyle = {
+  fontSize: 14,
+  color: "rgba(255,255,255,0.72)",
+};
+
+const adminInputStyle = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#fff",
+  outline: "none",
+};
+
+const adminTextareaStyle = {
+  ...adminInputStyle,
+  minHeight: 120,
+  resize: "vertical",
+};
+
+const adminActionsStyle = {
+  display: "flex",
+  gap: 12,
+  justifyContent: "flex-end",
+  marginTop: 20,
+  flexWrap: "wrap",
+};
+
+const adminButtonStyle = {
+  border: "none",
+  borderRadius: 10,
+  padding: "12px 16px",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
 export default function MovieDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const hideTimerRef = useRef(null);
@@ -58,6 +137,26 @@ export default function MovieDetail() {
 
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("");
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
+
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    year: "",
+    rating: "",
+    duration: "",
+    genre: "",
+    poster: "",
+    backdrop: "",
+    hlsUrl: "",
+    isPublished: true,
+  });
 
   useEffect(() => {
     async function loadData() {
@@ -97,6 +196,37 @@ export default function MovieDetail() {
 
     loadData();
   }, [id]);
+
+  useEffect(() => {
+    if (!movie || !user?.likedMovies) {
+      setSaved(false);
+      return;
+    }
+
+    const exists = user.likedMovies.some(
+      (item) => String(item.id || item._id) === String(movie._id)
+    );
+
+    setSaved(exists);
+  }, [movie, user]);
+
+  useEffect(() => {
+    if (!movie) return;
+
+    setEditForm({
+      title: movie.title || "",
+      description: movie.description || "",
+      year: movie.year || "",
+      rating: movie.rating || "",
+      duration: movie.duration || "",
+      genre: Array.isArray(movie.genre) ? movie.genre.join(", ") : "",
+      poster: movie.poster || "",
+      backdrop: movie.backdrop || "",
+      hlsUrl: movie.hlsUrl || "",
+      isPublished:
+        typeof movie.isPublished === "boolean" ? movie.isPublished : true,
+    });
+  }, [movie]);
 
   useEffect(() => {
     if (!streamUrl) return;
@@ -404,6 +534,201 @@ export default function MovieDetail() {
     }
   };
 
+  const handleToggleSave = async () => {
+    if (!movie) return;
+
+    if (!user || !user.token) {
+      navigate("/login");
+      return;
+    }
+
+    if (saving) return;
+
+    try {
+      setSaving(true);
+
+      if (saved) {
+        const { data } = await axios.put(
+          `${API_URL}/users/remove`,
+          { movieId: movie._id },
+          {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
+          }
+        );
+
+        dispatch(updateLikedMovies(data.movies || []));
+        setSaved(false);
+      } else {
+        const payloadMovie = {
+          ...movie,
+          id: movie._id,
+        };
+
+        const { data } = await axios.post(
+          `${API_URL}/users/add`,
+          { movie: payloadMovie },
+          {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
+          }
+        );
+
+        dispatch(updateLikedMovies(data.movies || []));
+        setSaved(true);
+      }
+    } catch (err) {
+      console.error(
+        "handleToggleSave error:",
+        err.response?.data || err.message
+      );
+
+      if (err.response?.status === 401) {
+        navigate("/login");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleUploadImage = async (file, field) => {
+    if (!file || !user?.token) return;
+
+    try {
+      if (field === "poster") setUploadingPoster(true);
+      if (field === "backdrop") setUploadingBackdrop(true);
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const { data } = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+
+      if (data?.success && data?.url) {
+        setEditForm((prev) => ({
+          ...prev,
+          [field]: data.url,
+        }));
+      } else {
+        alert("Upload ảnh thất bại");
+      }
+    } catch (err) {
+      console.error(
+        "handleUploadImage error:",
+        err.response?.data || err.message
+      );
+      alert(err.response?.data?.message || "Upload ảnh thất bại");
+    } finally {
+      if (field === "poster") setUploadingPoster(false);
+      if (field === "backdrop") setUploadingBackdrop(false);
+    }
+  };
+
+  const handleOpenAdminModal = () => {
+    if (!user?.isAdmin) return;
+    setAdminMessage("");
+    setShowAdminModal(true);
+  };
+
+  const handleCloseAdminModal = () => {
+    if (adminLoading) return;
+    setShowAdminModal(false);
+    setAdminMessage("");
+  };
+
+  const handleUpdateMovie = async (e) => {
+    e.preventDefault();
+
+    if (!user?.isAdmin || !user?.token || !movie?._id) return;
+
+    try {
+      setAdminLoading(true);
+      setAdminMessage("");
+
+      const payload = {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        year: editForm.year === "" ? undefined : Number(editForm.year),
+        rating: editForm.rating === "" ? undefined : Number(editForm.rating),
+        duration:
+          editForm.duration === "" ? undefined : Number(editForm.duration),
+        genre: editForm.genre,
+        poster: editForm.poster.trim(),
+        backdrop: editForm.backdrop.trim(),
+        hlsUrl: editForm.hlsUrl.trim(),
+        isPublished: !!editForm.isPublished,
+      };
+
+      const { data } = await axios.put(
+        `${API_URL}/movies/${movie._id}`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+
+      if (data?.success && data?.movie) {
+        setMovie(data.movie);
+        setAdminMessage("Cập nhật phim thành công.");
+        setShowAdminModal(false);
+      } else {
+        setAdminMessage("Cập nhật thất bại.");
+      }
+    } catch (err) {
+      console.error(
+        "handleUpdateMovie error:",
+        err.response?.data || err.message
+      );
+      setAdminMessage(err.response?.data?.message || "Cập nhật thất bại.");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleDeleteMovie = async () => {
+    if (!user?.isAdmin || !user?.token || !movie?._id) return;
+
+    const confirmed = window.confirm(
+      `Bạn chắc chắn muốn xóa phim "${movie.title}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setAdminLoading(true);
+      await axios.delete(`${API_URL}/movies/${movie._id}`, {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+
+      alert("Xóa phim thành công.");
+      navigate("/");
+    } catch (err) {
+      console.error(
+        "handleDeleteMovie error:",
+        err.response?.data || err.message
+      );
+      alert(err.response?.data?.message || "Xóa phim thất bại.");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
   useEffect(() => {
     const onKey = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
@@ -491,6 +816,21 @@ export default function MovieDetail() {
           <span>/</span>
           <strong>{movie.title}</strong>
         </div>
+
+        {adminMessage && (
+          <div
+            style={{
+              marginBottom: 16,
+              background: "rgba(0,255,163,0.08)",
+              color: "#c9ffe8",
+              border: "1px solid rgba(0,255,163,0.18)",
+              borderRadius: 12,
+              padding: "12px 14px",
+            }}
+          >
+            {adminMessage}
+          </div>
+        )}
 
         <div className="movie-detail-layout">
           <main className="movie-detail-main">
@@ -659,8 +999,11 @@ export default function MovieDetail() {
                   <div className="movie-tags">
                     {movie.year ? <span>📅 {movie.year}</span> : null}
                     {movie.rating ? <span>⭐ {movie.rating}</span> : null}
-                    {movie.duration ? <span>⏱ {movie.duration} phút</span> : null}
+                    {movie.duration ? (
+                      <span>⏱ {movie.duration} phút</span>
+                    ) : null}
                     <span>HD</span>
+                    {movie.isPublished === false ? <span>Ẩn</span> : null}
                   </div>
                 </div>
 
@@ -671,15 +1014,39 @@ export default function MovieDetail() {
                   >
                     {isPlaying ? "Tạm dừng" : "Phát"}
                   </button>
+
                   <button
                     className="movie-action"
-                    onClick={() => setSaved((prev) => !prev)}
+                    onClick={handleToggleSave}
+                    disabled={saving}
                   >
-                    {saved ? "Đã lưu" : "Lưu phim"}
+                    {saving ? "Đang lưu..." : saved ? "Bỏ lưu" : "Lưu phim"}
                   </button>
+
                   <button className="movie-action" onClick={copyLink}>
                     {copied ? "Đã copy" : "Chia sẻ"}
                   </button>
+
+                  {user?.isAdmin && (
+                    <>
+                      <button
+                        className="movie-action"
+                        onClick={handleOpenAdminModal}
+                        style={{ background: "#3b82f6", color: "#fff" }}
+                      >
+                        ✏️ Sửa phim
+                      </button>
+
+                      <button
+                        className="movie-action"
+                        onClick={handleDeleteMovie}
+                        disabled={adminLoading}
+                        style={{ background: "#dc2626", color: "#fff" }}
+                      >
+                        {adminLoading ? "Đang xử lý..." : "🗑 Xóa phim"}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -789,13 +1156,291 @@ export default function MovieDetail() {
                     </Link>
                   ))
                 ) : (
-                  <div className="movie-side-empty">Chưa có nội dung liên quan.</div>
+                  <div className="movie-side-empty">
+                    Chưa có nội dung liên quan.
+                  </div>
                 )}
               </div>
             </div>
           </aside>
         </div>
       </div>
+
+      {showAdminModal && user?.isAdmin && (
+        <div style={modalOverlayStyle} onClick={handleCloseAdminModal}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: 28 }}>Sửa phim</h2>
+                <p
+                  style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.7)" }}
+                >
+                  Chỉnh sửa trực tiếp thông tin phim
+                </p>
+              </div>
+
+              <button
+                onClick={handleCloseAdminModal}
+                style={{
+                  ...adminButtonStyle,
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#fff",
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMovie}>
+              <div style={adminGridStyle}>
+                <div style={adminFieldStyle}>
+                  <label style={adminLabelStyle}>Tên phim</label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={editForm.title}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                    required
+                  />
+                </div>
+
+                <div style={adminFieldStyle}>
+                  <label style={adminLabelStyle}>Năm</label>
+                  <input
+                    type="number"
+                    name="year"
+                    value={editForm.year}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+                </div>
+
+                <div style={adminFieldStyle}>
+                  <label style={adminLabelStyle}>Rating</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    name="rating"
+                    value={editForm.rating}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+                </div>
+
+                <div style={adminFieldStyle}>
+                  <label style={adminLabelStyle}>Thời lượng (phút)</label>
+                  <input
+                    type="number"
+                    name="duration"
+                    value={editForm.duration}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+                </div>
+
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
+                  <label style={adminLabelStyle}>
+                    Thể loại (cách nhau bằng dấu phẩy)
+                  </label>
+                  <input
+                    type="text"
+                    name="genre"
+                    value={editForm.genre}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                    placeholder="Action, Drama, Romance"
+                  />
+                </div>
+
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
+                  <label style={adminLabelStyle}>Mô tả</label>
+                  <textarea
+                    name="description"
+                    value={editForm.description}
+                    onChange={handleEditInputChange}
+                    style={adminTextareaStyle}
+                  />
+                </div>
+
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
+                  <label style={adminLabelStyle}>Poster URL</label>
+                  <input
+                    type="text"
+                    name="poster"
+                    value={editForm.poster}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "center",
+                      marginTop: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <label
+                      style={{
+                        ...adminButtonStyle,
+                        background: "#1f2937",
+                        color: "#fff",
+                        display: "inline-block",
+                      }}
+                    >
+                      {uploadingPoster ? "Đang upload..." : "Upload Poster"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) =>
+                          handleUploadImage(e.target.files?.[0], "poster")
+                        }
+                      />
+                    </label>
+
+                    {editForm.poster && (
+                      <img
+                        src={editForm.poster}
+                        alt="poster preview"
+                        style={{
+                          width: 70,
+                          height: 96,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,0.12)",
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
+                  <label style={adminLabelStyle}>Backdrop URL</label>
+                  <input
+                    type="text"
+                    name="backdrop"
+                    value={editForm.backdrop}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "center",
+                      marginTop: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <label
+                      style={{
+                        ...adminButtonStyle,
+                        background: "#1f2937",
+                        color: "#fff",
+                        display: "inline-block",
+                      }}
+                    >
+                      {uploadingBackdrop ? "Đang upload..." : "Upload Backdrop"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) =>
+                          handleUploadImage(e.target.files?.[0], "backdrop")
+                        }
+                      />
+                    </label>
+
+                    {editForm.backdrop && (
+                      <img
+                        src={editForm.backdrop}
+                        alt="backdrop preview"
+                        style={{
+                          width: 140,
+                          height: 80,
+                          objectFit: "cover",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,0.12)",
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
+                  <label style={adminLabelStyle}>HLS URL</label>
+                  <input
+                    type="text"
+                    name="hlsUrl"
+                    value={editForm.hlsUrl}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    ...adminFieldStyle,
+                    gridColumn: "1 / -1",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <input
+                    id="isPublished"
+                    type="checkbox"
+                    name="isPublished"
+                    checked={!!editForm.isPublished}
+                    onChange={handleEditInputChange}
+                  />
+                  <label htmlFor="isPublished" style={adminLabelStyle}>
+                    Hiển thị phim công khai
+                  </label>
+                </div>
+              </div>
+
+              <div style={adminActionsStyle}>
+                <button
+                  type="button"
+                  onClick={handleCloseAdminModal}
+                  style={{
+                    ...adminButtonStyle,
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#fff",
+                  }}
+                >
+                  Hủy
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={adminLoading}
+                  style={{
+                    ...adminButtonStyle,
+                    background: "#2563eb",
+                    color: "#fff",
+                  }}
+                >
+                  {adminLoading ? "Đang lưu..." : "Lưu thay đổi"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

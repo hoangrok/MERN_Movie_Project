@@ -1,32 +1,31 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { FaPlay } from "react-icons/fa";
-import { AiOutlineInfoCircle } from "react-icons/ai";
+import { Link, useNavigate } from "react-router-dom";
+import { FaChevronRight, FaPlay, FaCheck } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
-import Slider from "../components/Slider/Slider";
 import Loader from "../components/Loader/Loader";
-import TrailerModal from "../components/TrailerModal/TrailerModal";
 import { fetchMovies, getTrending } from "../store/Slice/movie-slice";
 import { getContinueWatching } from "../utils/continueWatching";
 import "../assets/styles/Home.scss";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
-const FALLBACK_BACKDROP =
-  "https://dummyimage.com/1600x900/111/111";
+
+const PREF_KEY = "dam18_preferred_genres";
 
 export default function Home() {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-  const movies = useSelector((state) => state.movie.movies);
-  const trendingMovies = useSelector((state) => state.movie.trending);
+  const movies = useSelector((state) => state.movie.movies || []);
+  const trendingMovies = useSelector((state) => state.movie.trending || []);
   const status = useSelector((state) => state.movie.status);
+  const { user } = useSelector((state) => state.auth);
 
   const [isScrolling, setIsScrolling] = useState(false);
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [isTrailerActive, setTrailerActive] = useState(false);
   const [continueWatching, setContinueWatching] = useState([]);
+  const [showGenreModal, setShowGenreModal] = useState(false);
+  const [selectedGenres, setSelectedGenres] = useState([]);
 
   useEffect(() => {
     if (status === "idle") {
@@ -36,192 +35,359 @@ export default function Home() {
   }, [dispatch, status]);
 
   useEffect(() => {
-    setContinueWatching(getContinueWatching());
-  }, []);
+    const loadCW = () => {
+      const raw = getContinueWatching() || [];
+      const mapped = raw.map((item) => {
+        const duration = Number(item.duration || 0);
+        const currentTime = Number(item.currentTime || 0);
+        const progress =
+          duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
-  useEffect(() => {
-    const handleFocus = () => {
-      setContinueWatching(getContinueWatching());
+        return {
+          ...item,
+          progress,
+        };
+      });
+
+      setContinueWatching(mapped);
     };
 
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    loadCW();
+    window.addEventListener("focus", loadCW);
+    return () => window.removeEventListener("focus", loadCW);
   }, []);
 
   useEffect(() => {
-    if (movies?.length > 0) {
-      const idx = Math.floor(Math.random() * Math.min(movies.length, 20));
-      setHeroIndex(idx);
-    }
-  }, [movies]);
-
-  useEffect(() => {
-    const onScroll = () => setIsScrolling(window.scrollY > 40);
+    const onScroll = () => setIsScrolling(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const hero = useMemo(() => movies?.[heroIndex], [movies, heroIndex]);
+  const allGenres = useMemo(() => {
+    const set = new Set();
+    movies.forEach((movie) => {
+      (movie.genre || []).forEach((g) => {
+        const value = String(g || "").trim();
+        if (value) set.add(value);
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b)).slice(0, 18);
+  }, [movies]);
 
-  const handleModal = () => setTrailerActive((prev) => !prev);
+  const preferredGenres = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(PREF_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [showGenreModal, user]);
+
+  const watchedGenres = useMemo(() => {
+    const counts = new Map();
+
+    continueWatching.forEach((item) => {
+      (item.genre || []).forEach((g) => {
+        const key = String(g || "").trim();
+        if (!key) return;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+    });
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([genre]) => genre);
+  }, [continueWatching]);
+
+  const recommendationGenres = useMemo(() => {
+    if (watchedGenres.length > 0) return watchedGenres.slice(0, 3);
+    if (preferredGenres.length > 0) return preferredGenres.slice(0, 3);
+    return [];
+  }, [watchedGenres, preferredGenres]);
+
+  const isNewUser = continueWatching.length === 0 && preferredGenres.length === 0;
+
+  useEffect(() => {
+    if (movies.length > 0 && isNewUser) {
+      setShowGenreModal(true);
+    }
+  }, [movies.length, isNewUser]);
+
+  const suggestedMovies = useMemo(() => {
+    if (recommendationGenres.length === 0) return movies.slice(0, 5);
+
+    const rec = movies.filter((movie) =>
+      (movie.genre || []).some((g) => recommendationGenres.includes(g))
+    );
+
+    return (rec.length ? rec : movies).slice(0, 5);
+  }, [movies, recommendationGenres]);
+
+  const latestMovies = useMemo(() => movies.slice(0, 5), [movies]);
+  const topMovies = useMemo(() => trendingMovies.slice(0, 5), [trendingMovies]);
+  const cwMovies = useMemo(() => continueWatching.slice(0, 5), [continueWatching]);
+
+  const togglePreferredGenre = (genre) => {
+    setSelectedGenres((prev) =>
+      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
+    );
+  };
+
+  const savePreferredGenres = () => {
+    if (selectedGenres.length === 0) return;
+
+    localStorage.setItem(PREF_KEY, JSON.stringify(selectedGenres));
+    setShowGenreModal(false);
+  };
+
+  const handleRecommendedMore = () => {
+    const genres = recommendationGenres.length > 0 ? recommendationGenres : selectedGenres;
+    if (genres.length === 0) {
+      setShowGenreModal(true);
+      return;
+    }
+    navigate(`/genres?genres=${encodeURIComponent(genres.join(","))}`);
+  };
 
   return (
     <div className="homePage">
       {status === "loading" && <Loader />}
       <Navbar isScrolled={isScrolling} />
 
-      {hero && (
-        <section className="hero">
-          <div
-            className="hero__bg"
-            style={{
-              backgroundImage: `url(${
-                hero.backdrop || hero.poster || FALLBACK_BACKDROP
-              })`,
-            }}
-          />
-          <div className="hero__overlay" />
+      <main className="container homeShell">
+        <div className="homeBoard">
+          <aside className="homeBoard__left">
+            <div className="homePanel homePanel--side">
+              <SectionHeadLink title="Xem tiếp" to="/my-list" />
+              <div className="continueColumn">
+                {cwMovies.length > 0 ? (
+                  cwMovies.map((movie, index) => (
+                    <ContinueCard key={movie._id || index} movie={movie} />
+                  ))
+                ) : (
+                  <EmptyBox text="Chưa có video xem tiếp" />
+                )}
+              </div>
+            </div>
+          </aside>
 
-          <div className="hero__content container">
-            <div className="hero__badge">Đề Xuất</div>
-
-            <h1 className="hero__title netflix-title">{hero.title}</h1>
-
-            <div className="hero__meta">
-              {hero.year ? <span>{hero.year}</span> : null}
-              {hero.rating ? <span>⭐ {hero.rating}</span> : null}
-              {hero.duration ? <span>{hero.duration} phút</span> : null}
-              {hero.views ? <span>{hero.views} lượt xem</span> : null}
+          <section className="homeBoard__center">
+            <div className="homePanel">
+              <SectionHeadButton
+                title="Gợi ý cho bạn"
+                onClick={handleRecommendedMore}
+              />
+              <div className="posterRow">
+                {suggestedMovies.length > 0 ? (
+                  suggestedMovies.map((movie, index) => (
+                    <PosterCard
+                      key={movie._id}
+                      movie={movie}
+                      badge={index === 0 ? "Đề xuất" : ""}
+                    />
+                  ))
+                ) : (
+                  <EmptyBox text="Chưa có gợi ý" />
+                )}
+              </div>
             </div>
 
-            <p className="hero__desc">
-              {hero.description || "Chưa có mô tả"}
-            </p>
+            <div className="homePanel">
+              <SectionHeadLink title="Mới cập nhật" to="/latest" />
+              <div className="posterRow">
+                {latestMovies.length > 0 ? (
+                  latestMovies.map((movie) => (
+                    <PosterCard key={movie._id} movie={movie} />
+                  ))
+                ) : (
+                  <EmptyBox text="Chưa có phim mới" />
+                )}
+              </div>
+            </div>
+          </section>
 
-            <div className="hero__actions">
-              <Link to={`/movie/${hero._id}`} className="btn btn-primary">
-                <FaPlay /> Xem ngay
-              </Link>
+          <aside className="homeBoard__right">
+            <div className="homePanel homePanel--side">
+              <SectionHeadLink title="Top xem" to="/top-viewed" />
+              <div className="topColumn">
+                {topMovies.length > 0 ? (
+                  topMovies.map((movie, index) => (
+                    <TopCard key={movie._id} movie={movie} index={index} />
+                  ))
+                ) : (
+                  <EmptyBox text="Chưa có top xem" />
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </main>
 
-              <button className="btn btn-secondary" onClick={handleModal}>
-                <AiOutlineInfoCircle /> Thông tin
+      {showGenreModal && (
+        <div className="genreModal">
+          <div className="genreModal__box">
+            <h2>Chọn thể loại bạn thích</h2>
+            <p>Để mình gợi ý phim đúng gu hơn cho bạn.</p>
+
+            <div className="genreModal__grid">
+              {allGenres.map((genre) => {
+                const active = selectedGenres.includes(genre);
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    className={`genreModal__item ${active ? "active" : ""}`}
+                    onClick={() => togglePreferredGenre(genre)}
+                  >
+                    {active ? <FaCheck /> : null}
+                    <span>{genre}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="genreModal__actions">
+              <button
+                type="button"
+                className="genreModal__skip"
+                onClick={() => setShowGenreModal(false)}
+              >
+                Để sau
+              </button>
+              <button
+                type="button"
+                className="genreModal__save"
+                onClick={savePreferredGenres}
+                disabled={selectedGenres.length === 0}
+              >
+                Đồng ý
               </button>
             </div>
           </div>
-
-          {isTrailerActive && (
-            <TrailerModal
-              movie={hero}
-              handleModal={setTrailerActive}
-              isLiked={false}
-              trailer={null}
-            />
-          )}
-        </section>
+        </div>
       )}
-
-      <main className="container homeSections">
-        {continueWatching.length > 0 && (
-          <MovieRow
-            title="Xem tiếp"
-            movies={continueWatching}
-            badgeType="continue"
-          />
-        )}
-
-        <section className="section">
-          <h2 className="section-title">Phim đề xuất</h2>
-          <Slider movies={movies} />
-        </section>
-
-        <MovieRow
-          title="Top Trending"
-          movies={trendingMovies}
-          badgeType="top"
-        />
-
-        <MovieRow
-          title="Mới cập nhật"
-          movies={movies?.slice(0, 12) || []}
-          badgeType="new"
-        />
-      </main>
     </div>
   );
 }
 
-function MovieRow({ title, movies, badgeType }) {
+function SectionHeadLink({ title, to }) {
   return (
-    <section className="section">
-      <h2 className="section-title">{title}</h2>
-
-      <div className="grid">
-        {movies.map((movie, index) => (
-          <Link
-            key={movie._id}
-            to={`/movie/${movie._id}`}
-            className="poster-card poster-card--interactive"
-          >
-            <div className="poster-card__media">
-              <img
-                src={movie.poster || FALLBACK_POSTER}
-                alt={movie.title}
-                onError={(e) => {
-                  e.currentTarget.src = FALLBACK_POSTER;
-                }}
-              />
-
-              {badgeType === "new" && index < 4 && (
-                <span className="movie-badge movie-badge--new">NEW</span>
-              )}
-
-              {badgeType === "top" && index < 3 && (
-                <span className="movie-badge movie-badge--top">
-                  TOP {index + 1}
-                </span>
-              )}
-
-              {badgeType === "continue" && (
-                <span className="movie-badge movie-badge--continue">
-                  CONTINUE
-                </span>
-              )}
-
-              {badgeType === "continue" && (
-                <div className="cw-progress">
-                  <div
-                    className="cw-progress__bar"
-                    style={{ width: `${movie.progressPercent || 0}%` }}
-                  />
-                </div>
-              )}
-
-              <div className="poster-card__hover">
-                <button className="poster-card__play" type="button">
-                  <FaPlay />
-                </button>
-              </div>
-            </div>
-
-            <div className="poster-card__body">
-              <div className="poster-card__title">{movie.title}</div>
-              <div className="poster-card__meta">
-                {(movie.genre || []).slice(0, 2).join(" • ") ||
-                  `${movie.views || 0} lượt xem`}
-              </div>
-
-              {badgeType === "continue" && (
-                <div className="poster-card__resume-text">
-                  Xem tiếp{" "}
-                  {movie.progressPercent
-                    ? `(${Math.round(movie.progressPercent)}%)`
-                    : ""}
-                </div>
-              )}
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
+    <div className="sectionHead">
+      <h2 className="sectionHead__title">{title}</h2>
+      <Link to={to} className="sectionHead__more">
+        Xem thêm <FaChevronRight />
+      </Link>
+    </div>
   );
+}
+
+function SectionHeadButton({ title, onClick }) {
+  return (
+    <div className="sectionHead">
+      <h2 className="sectionHead__title">{title}</h2>
+      <button type="button" className="sectionHead__more" onClick={onClick}>
+        Xem thêm <FaChevronRight />
+      </button>
+    </div>
+  );
+}
+
+function PosterCard({ movie, badge = "" }) {
+  if (!movie?._id) return null;
+
+  return (
+    <Link to={`/movie/${movie._id}`} className="posterCard">
+      <div className="posterCard__imageWrap">
+        <img
+          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+          alt={movie.title || "movie"}
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_POSTER;
+          }}
+        />
+
+        {badge ? <span className="posterCard__badge">{badge}</span> : null}
+
+        <div className="posterCard__hover">
+          <span className="posterCard__play">
+            <FaPlay />
+          </span>
+        </div>
+      </div>
+
+      <div className="posterCard__info">
+        <h3>{movie.title}</h3>
+        <p>
+          {(movie.genre || []).slice(0, 2).join(" • ") ||
+            `${movie.views || 0} lượt xem`}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function ContinueCard({ movie }) {
+  if (!movie?._id) return null;
+
+  return (
+    <Link to={`/movie/${movie._id}`} className="continueItem continueItem--row">
+      <div className="continueItem__rank">▶</div>
+
+      <div className="continueItem__thumb">
+        <img
+          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+          alt={movie.title || "movie"}
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_POSTER;
+          }}
+        />
+
+        <div className="continueItem__progress">
+          <div
+            className="continueItem__progressBar"
+            style={{ width: `${movie.progress || 0}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="continueItem__meta continueItem__meta--row">
+        <h3>{movie.title}</h3>
+        <p>
+          {movie.progress
+            ? `Đã xem ${Math.round(movie.progress)}%`
+            : "Đang xem"}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function TopCard({ movie, index }) {
+  if (!movie?._id) return null;
+
+  return (
+    <Link to={`/movie/${movie._id}`} className="topItem">
+      <div className="topItem__rank">#{index + 1}</div>
+
+      <div className="topItem__thumb">
+        <img
+          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+          alt={movie.title || "movie"}
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_POSTER;
+          }}
+        />
+      </div>
+
+      <div className="topItem__meta">
+        <h3>{movie.title}</h3>
+        <p>{movie.views || 0} lượt xem</p>
+      </div>
+    </Link>
+  );
+}
+
+function EmptyBox({ text }) {
+  return <div className="emptyBox">{text}</div>;
 }

@@ -1,80 +1,220 @@
-const User = require('../models/UserModel');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/UserModel");
 
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "30d",
+  });
+};
+
+// REGISTER
+module.exports.registerUser = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please fill all fields",
+      });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      likedMovies: [],
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Register successful",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        likedMovies: user.likedMovies,
+        isAdmin: user.isAdmin,
+        token: generateToken(user._id),
+      },
+    });
+  } catch (err) {
+    console.log("registerUser error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// LOGIN
+module.exports.loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide email and password",
+      });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Login successful",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        likedMovies: user.likedMovies,
+        isAdmin: user.isAdmin,
+        token: generateToken(user._id),
+      },
+    });
+  } catch (err) {
+    console.log("loginUser error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// GET PROFILE
+module.exports.getProfile = async (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      user: req.user,
+    });
+  } catch (err) {
+    console.log("getProfile error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// GET LIKED MOVIES
+module.exports.getLikedMovies = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    return res.json({
+      success: true,
+      movies: user.likedMovies || [],
+    });
+  } catch (err) {
+    console.log("getLikedMovies error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+// ADD TO LIKED MOVIES
 module.exports.addtoLikedMovies = async (req, res) => {
+  try {
+    const { movie } = req.body;
 
-    try{
-        const {email, movie} = req.body;
-        const user = await User.findOne({email});
-        if(user){
-            const likedMovies = user.likedMovies;
-            const movieExists = likedMovies.find((m) => m.id === movie.id);
-            if(movieExists){
-               return res.json({message: 'Movie already liked'})
-            }else{
-                await User.findByIdAndUpdate(user._id, {
-                    likedMovies: [...user.likedMovies, movie]
-                }, {new: true});
-        }
+    if (!movie || !movie.id) {
+      return res.status(400).json({
+        success: false,
+        message: "Movie data is required",
+      });
     }
-    else{
-        const newUser = new User({
-            email,
-            likedMovies: [movie]
-        })
-        newUser.save()
-            .then((user) => {
-                res.json({msg : 'success', user})
-            })
-            .catch((err) => {
-                res.json({msg : 'error', err})
-            })
 
-        // await User.create({email, likedMovies: [movie]});
-    }
-    return res.json({message: 'Movie added to liked movies', movie })
-    }
-    catch(err){
-        console.log(err.message);
-        return res.json({message: 'Something went wrong'})
-    }
-}
+    const user = await User.findById(req.user._id);
 
-module.exports.getLikedMovies = async (req,res) => {
-    try{
-        const {email} = req.params;
-        const user = await User.findOne({email})
-        if(user){
-            res.json({msg : 'success', movies : user.likedMovies})
-        }else{
-            return res.json({message: 'User not found'})
-        }
+    const movieExists = user.likedMovies.find((m) => String(m.id) === String(movie.id));
 
+    if (movieExists) {
+      return res.json({
+        success: true,
+        message: "Movie already liked",
+        movies: user.likedMovies,
+      });
     }
-    catch(err){
-        return res.json({message: 'Something went wrong'})
-    }
-}
 
-module.exports.removeFromLikedMovies = async (req,res) => {
-    try{
-        const {email, movie} = req.body;
-        const user = await User.findOne({email});
-        if(user){
-            const {likedMovies} = user;
-            const movieIndex = likedMovies.findIndex((m) => m.id === movie.id);
-            if(movieIndex === -1){
-                return res.json({message: 'Movie not found'})
-            }
-            const updatedLikedMovies = likedMovies.splice(movieIndex, 1)
-            await User.findByIdAndUpdate(user._id, {
-                likedMovies: updatedLikedMovies
-                }, {new: true});
-            return res.json({message: 'Movie removed from liked movies', movie })
-        }else{
-            return res.json({message: 'User not found'})
-        }
+    user.likedMovies.push(movie);
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Movie added to liked movies",
+      movies: user.likedMovies,
+    });
+  } catch (err) {
+    console.log("addtoLikedMovies error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+// REMOVE FROM LIKED MOVIES
+module.exports.removeFromLikedMovies = async (req, res) => {
+  try {
+    const { movieId } = req.body;
+
+    if (!movieId) {
+      return res.status(400).json({
+        success: false,
+        message: "movieId is required",
+      });
     }
-    catch(err){
-        return res.json({message: 'Something went wrong'})
-    }
-}
+
+    const user = await User.findById(req.user._id);
+
+    user.likedMovies = user.likedMovies.filter(
+      (m) => String(m.id) !== String(movieId)
+    );
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Movie removed from liked movies",
+      movies: user.likedMovies,
+    });
+  } catch (err) {
+    console.log("removeFromLikedMovies error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
