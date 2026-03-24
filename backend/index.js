@@ -17,7 +17,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   process.env.CLIENT_URL,
-  "https://mern-movie-project-gamma.vercel.app",
+  "https://mern-movie-project-henna.vercel.app",
 ].filter(Boolean);
 
 app.use(
