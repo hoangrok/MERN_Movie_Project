@@ -17,12 +17,12 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   process.env.CLIENT_URL,
+  "https://mern-movie-project-gamma.vercel.app",
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // cho phép request không có origin (Postman, server-to-server, health check)
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
