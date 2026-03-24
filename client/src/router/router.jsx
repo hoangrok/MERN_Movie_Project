@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import GuardedRoute from "./GuardedRoute";
+import AdminRoute from "./AdminRoute";
 
 import Home from "../pages/Home";
 import Login from "../pages/Login";
@@ -21,7 +22,6 @@ import AdminNewMovie from "../pages/AdminNewMovie";
 const AppRouter = () => {
   return (
     <Routes>
-      {/* Public routes */}
       <Route path="/" element={<Home />} />
       <Route path="/movie/:id" element={<MovieDetail />} />
       <Route path="/watch/:id" element={<MoviePlayer />} />
@@ -32,7 +32,6 @@ const AppRouter = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* Protected routes */}
       <Route
         path="/my-list"
         element={
@@ -45,13 +44,12 @@ const AppRouter = () => {
       <Route
         path="/admin/new-movie"
         element={
-          <GuardedRoute>
+          <AdminRoute>
             <AdminNewMovie />
-          </GuardedRoute>
+          </AdminRoute>
         }
       />
 
-      {/* Old pages - nếu vẫn muốn giữ */}
       <Route
         path="/movies"
         element={

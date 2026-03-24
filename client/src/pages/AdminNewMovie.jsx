@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace("/api", "") ||
+  "http://localhost:5000";
 
 export default function AdminNewMovie() {
   const navigate = useNavigate();
-  const { token } = useSelector((state) => state.auth);
+  const { token, user } = useSelector((state) => state.auth);
+
+  const authToken = token || user?.token;
 
   const [form, setForm] = useState({
     title: "",
@@ -52,7 +56,7 @@ export default function AdminNewMovie() {
 
     const res = await fetch(`${API_BASE}/api/upload/image`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       body: fd,
     });
 
@@ -73,7 +77,7 @@ export default function AdminNewMovie() {
 
     const res = await fetch(`${API_BASE}/api/upload/video/${movieId}`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       body: fd,
     });
 
@@ -82,6 +86,8 @@ export default function AdminNewMovie() {
     if (!res.ok || !data.success) {
       throw new Error(data.message || "Upload video thất bại");
     }
+
+    return data;
   };
 
   const handleSubmit = async (e) => {
@@ -104,8 +110,8 @@ export default function AdminNewMovie() {
       }
 
       const payload = {
-        title: form.title,
-        description: form.description,
+        title: form.title.trim(),
+        description: form.description.trim(),
         poster: posterUrl,
         backdrop: backdropUrl,
         genre: form.genre
@@ -124,7 +130,7 @@ export default function AdminNewMovie() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         body: JSON.stringify(payload),
       });
@@ -141,7 +147,7 @@ export default function AdminNewMovie() {
       }
 
       if (videoFile) {
-        setMessage("Đang upload video...");
+        setMessage("Đang upload video và convert HLS...");
         await uploadVideo(movieId, videoFile);
       }
 
@@ -178,7 +184,9 @@ export default function AdminNewMovie() {
       >
         <h1 style={{ marginBottom: 20 }}>Admin - Tạo Movie</h1>
 
-        {message && <p style={{ marginBottom: 16, color: "#f5c542" }}>{message}</p>}
+        {message && (
+          <p style={{ marginBottom: 16, color: "#f5c542" }}>{message}</p>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
           <input
