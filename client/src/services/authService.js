@@ -1,70 +1,81 @@
-import auth from "../utils/firebase-config";
-import {createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import axios from "axios";
 import toast from "react-hot-toast";
 
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+// ==============================
+// LOGIN
+// ==============================
 export const login = async (email, password) => {
-    try {
-        const user = await signInWithEmailAndPassword(auth, email, password);
-        toast('Login Successful',
-        {
-            icon: '👻',
-            style: {
-            background: '#333',
-            color: '#fff',
-            },
-        }
-        );
-        return user;
-    } catch (error) {
-        toast(error.message,
-        {
-            icon: '❌',
-            style: {
-            background: '#333',
-            color: '#fff',
-            },
-        }
-        );
-        console.log(error);
+  try {
+    const { data } = await axios.post(`${API_URL}/users/login`, {
+      email,
+      password,
+    });
+
+    if (data?.success) {
+      toast.success(data.message || "Đăng nhập thành công");
+      return data;
     }
 
-}
+    toast.error(data?.message || "Đăng nhập thất bại");
+    return data;
+  } catch (error) {
+    const message =
+      error?.response?.data?.message || "Đăng nhập thất bại";
+    toast.error(message);
+    console.log("login error:", error);
+    return {
+      success: false,
+      message,
+    };
+  }
+};
 
-export const register = async (email, password) => {
-    try {
-        const user = await createUserWithEmailAndPassword(auth, email, password);
-        toast('Registration Successful',
-        {
-            icon: '👻',
-            style: {
-            background: '#333',
-            color: '#fff',
-            },
-        }
-        );
-        return user;
-    } catch (error) {
-        toast(error.message,
-            {
-                icon: '❌',
-                style: {
-                background: '#333',
-                color: '#fff',
-                },
-            }
-            );
-        console.log(error);
+// ==============================
+// REGISTER
+// ==============================
+export const register = async ({ name, email, password }) => {
+  try {
+    const { data } = await axios.post(`${API_URL}/users/register`, {
+      name,
+      email,
+      password,
+    });
+
+    if (data?.success) {
+      toast.success(data.message || "Đăng ký thành công");
+      return data;
     }
 
-}
+    toast.error(data?.message || "Đăng ký thất bại");
+    return data;
+  } catch (error) {
+    const message =
+      error?.response?.data?.message || "Đăng ký thất bại";
+    toast.error(message);
+    console.log("register error:", error);
+    return {
+      success: false,
+      message,
+    };
+  }
+};
 
-export const signOutFromFirebase = async () => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.log(error);
-    }
-
-}
-
+// ==============================
+// LOGOUT
+// ==============================
+export const signOutFromBackend = async () => {
+  try {
+    sessionStorage.removeItem("user");
+    localStorage.removeItem("user");
+    return { success: true };
+  } catch (error) {
+    console.log("logout error:", error);
+    return {
+      success: false,
+      message: "Đăng xuất thất bại",
+    };
+  }
+};
