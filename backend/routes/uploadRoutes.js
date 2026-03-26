@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
+const sharp = require("sharp");
 const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const r2 = require("../utils/r2");
@@ -46,6 +47,303 @@ const uploadFileToR2 = async (key, body, contentType) => {
       ContentType: contentType,
     })
   );
+};
+
+const ffprobeAsync = (videoPath) =>
+  new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(videoPath, (err, data) => {
+      if (err) return reject(err);
+      resolve(data);
+    });
+  });
+
+const takeScreenshot = (videoPath, outputPath, timestampSec, size) =>
+  new Promise((resolve, reject) => {
+    ensureDir(path.dirname(outputPath));
+
+    ffmpeg(videoPath)
+      .seekInput(Math.max(0, timestampSec))
+      .frames(1)
+      .outputOptions(["-q:v 2"])
+      .size(size)
+      .output(outputPath)
+      .on("end", resolve)
+      .on("error", reject)
+      .run();
+  });
+
+const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+const uniqueNumbers = (arr) => {
+  const seen = new Set();
+  return arr.filter((n) => {
+    const key = Number(n).toFixed(2);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const getCandidateTimestamps = (duration) => {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return [3, 6, 10];
+  }
+
+  const startSafe = Math.min(12, duration * 0.08);
+  const endSafe = Math.max(duration - 12, duration * 0.88);
+
+  const points = [
+    duration * 0.10,
+    duration * 0.18,
+    duration * 0.28,
+    duration * 0.38,
+    duration * 0.50,
+    duration * 0.62,
+    duration * 0.72,
+    duration * 0.82,
+  ]
+    .map((t) => clamp(t, startSafe, endSafe))
+    .filter((t) => t > 1 && t < duration - 1);
+
+  return uniqueNumbers(points);
+};
+
+const scoreImageBuffer = async (buffer) => {
+  const image = sharp(buffer);
+  const meta = await image.metadata();
+
+  if (!meta.width || !meta.height) {
+    return { score: -999999, reasons: ["invalid-meta"] };
+  }
+
+  const { data, info } = await image
+    .resize(320, 180, { fit: "cover" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const channels = info.channels;
+  const pixelCount = info.width * info.height;
+
+  let sumLuma = 0;
+  let sumSqLuma = 0;
+  let colorSpread = 0;
+  let darkPixels = 0;
+  let brightPixels = 0;
+  let centerScore = 0;
+  let edgeEnergy = 0;
+
+  const getIndex = (x, y) => (y * info.width + x) * channels;
+
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const i = getIndex(x, y);
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      sumLuma += luma;
+      sumSqLuma += luma * luma;
+
+      const maxC = Math.max(r, g, b);
+      const minC = Math.min(r, g, b);
+      colorSpread += maxC - minC;
+
+      if (luma < 28) darkPixels++;
+      if (luma > 235) brightPixels++;
+
+      const nx = (x / info.width - 0.5) * 2;
+      const ny = (y / info.height - 0.5) * 2;
+      const dist = Math.sqrt(nx * nx + ny * ny);
+      const centerWeight = Math.max(0, 1 - dist);
+      centerScore += luma * centerWeight;
+    }
+  }
+
+  for (let y = 0; y < info.height - 1; y++) {
+    for (let x = 0; x < info.width - 1; x++) {
+      const i = getIndex(x, y);
+      const ir = getIndex(x + 1, y);
+      const id = getIndex(x, y + 1);
+
+      const l1 =
+        0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      const l2 =
+        0.2126 * data[ir] + 0.7152 * data[ir + 1] + 0.0722 * data[ir + 2];
+      const l3 =
+        0.2126 * data[id] + 0.7152 * data[id + 1] + 0.0722 * data[id + 2];
+
+      edgeEnergy += Math.abs(l1 - l2) + Math.abs(l1 - l3);
+    }
+  }
+
+  const mean = sumLuma / pixelCount;
+  const variance = sumSqLuma / pixelCount - mean * mean;
+  const stdDev = Math.sqrt(Math.max(variance, 0));
+  const saturationMean = colorSpread / pixelCount;
+  const darkRatio = darkPixels / pixelCount;
+  const brightRatio = brightPixels / pixelCount;
+  const centerMean = centerScore / pixelCount;
+  const edgeMean = edgeEnergy / pixelCount;
+
+  let score = 0;
+  const reasons = [];
+
+  score += stdDev * 1.8;
+  reasons.push(`std:${stdDev.toFixed(1)}`);
+
+  score += saturationMean * 0.9;
+  reasons.push(`sat:${saturationMean.toFixed(1)}`);
+
+  score += edgeMean * 2.2;
+  reasons.push(`edge:${edgeMean.toFixed(1)}`);
+
+  score += centerMean * 0.18;
+  reasons.push(`center:${centerMean.toFixed(1)}`);
+
+  if (mean < 45) {
+    score -= 120;
+    reasons.push("too-dark");
+  } else if (mean < 70) {
+    score -= 45;
+    reasons.push("dark");
+  } else if (mean > 220) {
+    score -= 80;
+    reasons.push("too-bright");
+  }
+
+  if (darkRatio > 0.65) {
+    score -= 140;
+    reasons.push("many-dark-pixels");
+  } else if (darkRatio > 0.45) {
+    score -= 50;
+    reasons.push("dark-heavy");
+  }
+
+  if (brightRatio > 0.55) {
+    score -= 80;
+    reasons.push("many-bright-pixels");
+  }
+
+  return {
+    score,
+    reasons,
+    stats: {
+      mean,
+      stdDev,
+      saturationMean,
+      darkRatio,
+      brightRatio,
+      centerMean,
+      edgeMean,
+    },
+  };
+};
+
+const buildPosterAndBackdrop = async (sourcePath, posterOut, backdropOut) => {
+  const source = sharp(sourcePath);
+  const meta = await source.metadata();
+
+  if (!meta.width || !meta.height) {
+    throw new Error("Không đọc được kích thước ảnh nguồn");
+  }
+
+  const posterWidth = 400;
+  const posterHeight = 600;
+  const backdropWidth = 1280;
+  const backdropHeight = 720;
+
+  await source
+    .clone()
+    .resize(posterWidth, posterHeight, {
+      fit: "cover",
+      position: "attention",
+    })
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toFile(posterOut);
+
+  await source
+    .clone()
+    .resize(backdropWidth, backdropHeight, {
+      fit: "cover",
+      position: "attention",
+    })
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toFile(backdropOut);
+};
+
+const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
+  const probe = await ffprobeAsync(videoPath);
+  const duration = Number(probe?.format?.duration || 0);
+
+  const candidatesDir = path.join(tmpDir, `${movieId}-candidates`);
+  const thumbsDir = path.join(tmpDir, `${movieId}-thumbs`);
+
+  ensureDir(candidatesDir);
+  ensureDir(thumbsDir);
+
+  const timestamps = getCandidateTimestamps(duration);
+  if (!timestamps.length) {
+    throw new Error("Không lấy được mốc thời gian để tạo thumbnail");
+  }
+
+  const scored = [];
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const t = timestamps[i];
+    const candidatePath = path.join(candidatesDir, `candidate-${i + 1}.jpg`);
+
+    try {
+      await takeScreenshot(videoPath, candidatePath, t, "1280x720");
+      const buffer = fs.readFileSync(candidatePath);
+      const result = await scoreImageBuffer(buffer);
+
+      scored.push({
+        path: candidatePath,
+        timestamp: t,
+        score: result.score,
+        reasons: result.reasons,
+        stats: result.stats,
+      });
+    } catch (err) {
+      console.error(`thumbnail candidate error at ${t}s:`, err.message);
+    }
+  }
+
+  if (!scored.length) {
+    throw new Error("Không tạo được candidate thumbnail nào");
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+
+  const posterPath = path.join(thumbsDir, "poster.jpg");
+  const backdropPath = path.join(thumbsDir, "backdrop.jpg");
+
+  await buildPosterAndBackdrop(best.path, posterPath, backdropPath);
+
+  for (const item of scored) {
+    if (fs.existsSync(item.path)) {
+      fs.unlinkSync(item.path);
+    }
+  }
+
+  if (fs.existsSync(candidatesDir)) {
+    fs.rmSync(candidatesDir, { recursive: true, force: true });
+  }
+
+  return {
+    posterPath,
+    backdropPath,
+    pickedAt: best.timestamp,
+    score: best.score,
+    debug: scored.map((x) => ({
+      timestamp: x.timestamp,
+      score: x.score,
+      reasons: x.reasons,
+    })),
+  };
 };
 
 // ==========================
@@ -97,6 +395,7 @@ router.post("/image", async (req, res) => {
 router.post("/video/:movieId", async (req, res) => {
   let tempVideo = null;
   let outputDir = null;
+  let thumbsDir = null;
 
   try {
     const { movieId } = req.params;
@@ -162,10 +461,7 @@ router.post("/video/:movieId", async (req, res) => {
           "-hls_time 6",
           "-hls_playlist_type vod",
           "-hls_list_size 0",
-
-          // Giữ nguyên tỷ lệ gốc, chỉ làm tròn về số chẵn để ffmpeg encode ổn
           "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2",
-
           `-hls_segment_filename ${path.join(variantDir, "seg_%03d.ts")}`,
         ])
         .output(path.join(variantDir, "index.m3u8"))
@@ -175,6 +471,39 @@ router.post("/video/:movieId", async (req, res) => {
     });
 
     console.log("4️⃣ Convert xong");
+
+    // ==========================
+    // AUTO SMART THUMBNAIL
+    // ==========================
+    let pickedInfo = null;
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+
+    if (!movie.poster || !movie.backdrop) {
+      console.log("4.1️⃣ Generating smart thumbnails...");
+      const thumbResult = await generateSmartThumbnails(tempVideo, tmpDir, movieId);
+      pickedInfo = thumbResult;
+      thumbsDir = path.dirname(thumbResult.posterPath);
+
+      if (!movie.poster && fs.existsSync(thumbResult.posterPath)) {
+        const posterKey = `videos/${movieId}/poster.jpg`;
+        await uploadFileToR2(
+          posterKey,
+          fs.readFileSync(thumbResult.posterPath),
+          "image/jpeg"
+        );
+        movie.poster = `${publicBase}/${posterKey}`;
+      }
+
+      if (!movie.backdrop && fs.existsSync(thumbResult.backdropPath)) {
+        const backdropKey = `videos/${movieId}/backdrop.jpg`;
+        await uploadFileToR2(
+          backdropKey,
+          fs.readFileSync(thumbResult.backdropPath),
+          "image/jpeg"
+        );
+        movie.backdrop = `${publicBase}/${backdropKey}`;
+      }
+    }
 
     const masterContent = `#EXTM3U
 #EXT-X-VERSION:3
@@ -221,12 +550,19 @@ v0/index.m3u8
     if (outputDir && fs.existsSync(outputDir)) {
       fs.rmSync(outputDir, { recursive: true, force: true });
     }
+    if (thumbsDir && fs.existsSync(thumbsDir)) {
+      fs.rmSync(thumbsDir, { recursive: true, force: true });
+    }
 
     return res.json({
       success: true,
       movieId,
       hlsUrl: movie.hlsUrl,
-      message: "Video uploaded and converted successfully",
+      poster: movie.poster || "",
+      backdrop: movie.backdrop || "",
+      thumbnailPickedAt: pickedInfo?.pickedAt || null,
+      thumbnailScore: pickedInfo?.score || null,
+      message: "Video uploaded, converted, and smart thumbnails generated successfully",
     });
   } catch (err) {
     console.error("upload video error:", err);
@@ -236,6 +572,9 @@ v0/index.m3u8
     }
     if (outputDir && fs.existsSync(outputDir)) {
       fs.rmSync(outputDir, { recursive: true, force: true });
+    }
+    if (thumbsDir && fs.existsSync(thumbsDir)) {
+      fs.rmSync(thumbsDir, { recursive: true, force: true });
     }
 
     return res.status(500).json({

@@ -12,13 +12,22 @@ const Card = ({ movie }) => {
 
   return (
     <Link to={`/movie/${movie._id}`} className="movieCard">
-      <img
-        src={img}
-        alt={movie?.title || "movie"}
-        onError={(e) => {
-          e.currentTarget.src = FALLBACK_POSTER;
-        }}
-      />
+      <div className="cardImage">
+        <img
+          src={img}
+          alt={movie?.title || "movie"}
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_POSTER;
+          }}
+        />
+
+        <div className="overlay">
+          <div className="overlay__content">
+            <h3>{movie?.title || "Untitled"}</h3>
+            <span>{movie?.genre?.[0] || "Phim lẻ"}</span>
+          </div>
+        </div>
+      </div>
     </Link>
   );
 };

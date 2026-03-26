@@ -115,16 +115,16 @@ export default function Home() {
   }, [movies.length, isNewUser]);
 
   const suggestedMovies = useMemo(() => {
-    if (recommendationGenres.length === 0) return movies.slice(0, 5);
+    if (recommendationGenres.length === 0) return movies.slice(0, 6);
 
     const rec = movies.filter((movie) =>
       (movie.genre || []).some((g) => recommendationGenres.includes(g))
     );
 
-    return (rec.length ? rec : movies).slice(0, 5);
+    return (rec.length ? rec : movies).slice(0, 6);
   }, [movies, recommendationGenres]);
 
-  const latestMovies = useMemo(() => movies.slice(0, 5), [movies]);
+  const latestMovies = useMemo(() => movies.slice(0, 6), [movies]);
   const topMovies = useMemo(() => trendingMovies.slice(0, 5), [trendingMovies]);
   const cwMovies = useMemo(() => continueWatching.slice(0, 5), [continueWatching]);
 
@@ -142,11 +142,14 @@ export default function Home() {
   };
 
   const handleRecommendedMore = () => {
-    const genres = recommendationGenres.length > 0 ? recommendationGenres : selectedGenres;
+    const genres =
+      recommendationGenres.length > 0 ? recommendationGenres : selectedGenres;
+
     if (genres.length === 0) {
       setShowGenreModal(true);
       return;
     }
+
     navigate(`/genres?genres=${encodeURIComponent(genres.join(","))}`);
   };
 
@@ -155,7 +158,7 @@ export default function Home() {
       {status === "loading" && <Loader />}
       <Navbar isScrolled={isScrolling} />
 
-      <main className="container homeShell">
+      <main className="homeLayout homeShell">
         <div className="homeBoard">
           <aside className="homeBoard__left">
             <div className="homePanel homePanel--side">
@@ -182,7 +185,7 @@ export default function Home() {
                 {suggestedMovies.length > 0 ? (
                   suggestedMovies.map((movie, index) => (
                     <PosterCard
-                      key={movie._id}
+                      key={movie._id || index}
                       movie={movie}
                       badge={index === 0 ? "Đề xuất" : ""}
                     />
@@ -197,8 +200,8 @@ export default function Home() {
               <SectionHeadLink title="Mới cập nhật" to="/latest" />
               <div className="posterRow">
                 {latestMovies.length > 0 ? (
-                  latestMovies.map((movie) => (
-                    <PosterCard key={movie._id} movie={movie} />
+                  latestMovies.map((movie, index) => (
+                    <PosterCard key={movie._id || index} movie={movie} />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có phim mới" />
@@ -213,7 +216,7 @@ export default function Home() {
               <div className="topColumn">
                 {topMovies.length > 0 ? (
                   topMovies.map((movie, index) => (
-                    <TopCard key={movie._id} movie={movie} index={index} />
+                    <TopCard key={movie._id || index} movie={movie} index={index} />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có top xem" />
@@ -233,6 +236,7 @@ export default function Home() {
             <div className="genreModal__grid">
               {allGenres.map((genre) => {
                 const active = selectedGenres.includes(genre);
+
                 return (
                   <button
                     key={genre}
@@ -317,7 +321,7 @@ function PosterCard({ movie, badge = "" }) {
       </div>
 
       <div className="posterCard__info">
-        <h3>{movie.title}</h3>
+        <h3 title={movie.title}>{movie.title || "Untitled"}</h3>
         <p>
           {(movie.genre || []).slice(0, 2).join(" • ") ||
             `${movie.views || 0} lượt xem`}
@@ -352,7 +356,7 @@ function ContinueCard({ movie }) {
       </div>
 
       <div className="continueItem__meta continueItem__meta--row">
-        <h3>{movie.title}</h3>
+        <h3 title={movie.title}>{movie.title}</h3>
         <p>
           {movie.progress
             ? `Đã xem ${Math.round(movie.progress)}%`
@@ -381,7 +385,7 @@ function TopCard({ movie, index }) {
       </div>
 
       <div className="topItem__meta">
-        <h3>{movie.title}</h3>
+        <h3 title={movie.title}>{movie.title}</h3>
         <p>{movie.views || 0} lượt xem</p>
       </div>
     </Link>

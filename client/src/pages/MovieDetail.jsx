@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Hls from "hls.js";
@@ -114,11 +114,14 @@ export default function MovieDetail() {
   const playerRef = useRef(null);
   const hideTimerRef = useRef(null);
   const skipTimerRef = useRef(null);
+  const hlsRef = useRef(null);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
+  const [recommend, setRecommend] = useState([]);
   const [streamUrl, setStreamUrl] = useState("");
   const [error, setError] = useState("");
+  const [pageLoading, setPageLoading] = useState(true);
 
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -158,44 +161,94 @@ export default function MovieDetail() {
     isPublished: true,
   });
 
+  const backdropImage = useMemo(() => {
+    return movie?.backdrop || movie?.poster || FALLBACK_BACKDROP;
+  }, [movie]);
+
   useEffect(() => {
     async function loadData() {
       try {
+        setPageLoading(true);
         setError("");
+        setMovie(null);
+        setRelated([]);
+        setRecommend([]);
+        setStreamUrl("");
+        setIsReady(false);
 
         const movieRes = await fetch(`${API_URL}/movies/${id}`);
         const movieData = await movieRes.json();
 
-        if (!movieData.success) {
-          setError(movieData.message || "Không tải được movie");
+        if (!movieRes.ok || !movieData?.success || !movieData?.movie) {
+          setError(movieData?.message || "Không tải được movie");
+          setPageLoading(false);
           return;
         }
 
         setMovie(movieData.movie);
 
-        const relatedRes = await fetch(`${API_URL}/movies/${id}/related`);
-        const relatedData = await relatedRes.json();
+        try {
+          const relatedRes = await fetch(`${API_URL}/movies/${id}/related`);
+          const relatedData = await relatedRes.json();
 
-        if (relatedData.success) {
-          setRelated(relatedData.items || []);
+          if (relatedData?.success) {
+            const items = (relatedData.items || relatedData.movies || []).filter(
+              (item) => String(item?._id) !== String(id)
+            );
+            setRelated(items);
+          }
+        } catch (err) {
+          console.error("related error:", err);
         }
 
-        const streamRes = await fetch(`${API_URL}/movies/${id}/stream`);
-        const streamData = await streamRes.json();
+        try {
+          const allRes = await fetch(`${API_URL}/movies?limit=12&page=1`);
+          const allData = await allRes.json();
 
-        if (streamData.success) {
-          setStreamUrl(streamData.signedUrl);
-        } else {
-          setError(streamData.message || "Không lấy được stream");
+          const items = allData?.items || allData?.movies || [];
+          if (Array.isArray(items)) {
+            setRecommend(
+              items.filter((item) => String(item?._id) !== String(id)).slice(0, 8)
+            );
+          }
+        } catch (err) {
+          console.error("recommend error:", err);
+        }
+
+        try {
+          const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
+            headers: user?.token
+              ? { Authorization: `Bearer ${user.token}` }
+              : {},
+          });
+
+          const streamData = await streamRes.json();
+
+          if (streamRes.ok && streamData?.success && streamData?.signedUrl) {
+            setStreamUrl(streamData.signedUrl);
+          } else if (movieData.movie?.hlsUrl) {
+            setStreamUrl(movieData.movie.hlsUrl);
+          } else {
+            setError(streamData?.message || "Không lấy được stream");
+          }
+        } catch (err) {
+          console.error("stream error:", err);
+          if (movieData.movie?.hlsUrl) {
+            setStreamUrl(movieData.movie.hlsUrl);
+          } else {
+            setError("Không lấy được stream");
+          }
         }
       } catch (err) {
         console.error("MovieDetail loadData error:", err);
         setError("Lỗi tải dữ liệu movie");
+      } finally {
+        setPageLoading(false);
       }
     }
 
     loadData();
-  }, [id]);
+  }, [id, user?.token]);
 
   useEffect(() => {
     if (!movie || !user?.likedMovies) {
@@ -234,8 +287,12 @@ export default function MovieDetail() {
     const video = videoRef.current;
     if (!video) return;
 
-    let hls = null;
     let cancelled = false;
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
 
     setIsReady(false);
     setIsPlaying(false);
@@ -251,21 +308,25 @@ export default function MovieDetail() {
       setIsReady(true);
     };
 
-    const onLoadedMetadata = () => {
-      markReady();
-
+    const tryRestoreTime = () => {
       const list = getContinueWatching();
-      const currentMovie = list.find((item) => item._id === id);
+      const currentMovie = list.find((item) => String(item._id) === String(id));
 
       if (
         currentMovie &&
         Number.isFinite(currentMovie.currentTime) &&
         currentMovie.currentTime > 0 &&
+        Number.isFinite(video.duration) &&
         currentMovie.currentTime < video.duration - 5
       ) {
         video.currentTime = currentMovie.currentTime;
         setCurrentTime(currentMovie.currentTime);
       }
+    };
+
+    const onLoadedMetadata = () => {
+      markReady();
+      tryRestoreTime();
     };
 
     const onCanPlay = () => {
@@ -309,7 +370,7 @@ export default function MovieDetail() {
     const onPlay = () => {
       if (cancelled) return;
       setIsPlaying(true);
-      kickAutoHide();
+      kickAutoHide(true);
     };
 
     const onPause = () => {
@@ -331,8 +392,11 @@ export default function MovieDetail() {
       setShowControls(true);
     };
 
-    const onError = (e) => {
-      console.error("video element error:", e);
+    const onError = () => {
+      console.error("video element error:", video.error);
+      if (!cancelled) {
+        setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+      }
     };
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -345,28 +409,55 @@ export default function MovieDetail() {
     video.addEventListener("ended", onEnded);
     video.addEventListener("error", onError);
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    const isHls = /\.m3u8($|\?)/i.test(streamUrl);
+
+    if (isHls) {
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = streamUrl;
+        video.load();
+      } else if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          maxBufferLength: 30,
+        });
+
+        hlsRef.current = hls;
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (cancelled) return;
+          markReady();
+        });
+
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          console.error("HLS error:", data);
+
+          if (!data?.fatal) return;
+
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              if (!cancelled) {
+                setError("Không phát được stream HLS.");
+              }
+              hls.destroy();
+              break;
+          }
+        });
+      } else {
+        setError("Trình duyệt không hỗ trợ HLS.");
+      }
+    } else {
       video.src = streamUrl;
       video.load();
-    } else if (Hls.isSupported()) {
-      hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 90,
-        maxBufferLength: 30,
-      });
-
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (cancelled) return;
-        markReady();
-      });
-
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        console.error("HLS error:", data);
-      });
     }
 
     return () => {
@@ -386,8 +477,9 @@ export default function MovieDetail() {
       video.removeEventListener("ended", onEnded);
       video.removeEventListener("error", onError);
 
-      if (hls) {
-        hls.destroy();
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
     };
   }, [streamUrl, movie, id]);
@@ -410,14 +502,14 @@ export default function MovieDetail() {
     };
   }, []);
 
-  const kickAutoHide = () => {
+  const kickAutoHide = (forcePlaying = false) => {
     setShowControls(true);
 
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current);
     }
 
-    if (isPlaying) {
+    if (forcePlaying || isPlaying) {
       hideTimerRef.current = setTimeout(() => {
         setShowControls(false);
       }, 2200);
@@ -454,10 +546,8 @@ export default function MovieDetail() {
     const video = videoRef.current;
     if (!video) return;
 
-    const nextTime = Math.min(
-      Math.max(0, video.currentTime + seconds),
-      duration || video.duration || 0
-    );
+    const maxDuration = duration || video.duration || 0;
+    const nextTime = Math.min(Math.max(0, video.currentTime + seconds), maxDuration);
 
     video.currentTime = nextTime;
     setCurrentTime(nextTime);
@@ -580,10 +670,7 @@ export default function MovieDetail() {
         setSaved(true);
       }
     } catch (err) {
-      console.error(
-        "handleToggleSave error:",
-        err.response?.data || err.message
-      );
+      console.error("handleToggleSave error:", err.response?.data || err.message);
 
       if (err.response?.status === 401) {
         navigate("/login");
@@ -626,10 +713,7 @@ export default function MovieDetail() {
         alert("Upload ảnh thất bại");
       }
     } catch (err) {
-      console.error(
-        "handleUploadImage error:",
-        err.response?.data || err.message
-      );
+      console.error("handleUploadImage error:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Upload ảnh thất bại");
     } finally {
       if (field === "poster") setUploadingPoster(false);
@@ -663,8 +747,7 @@ export default function MovieDetail() {
         description: editForm.description.trim(),
         year: editForm.year === "" ? undefined : Number(editForm.year),
         rating: editForm.rating === "" ? undefined : Number(editForm.rating),
-        duration:
-          editForm.duration === "" ? undefined : Number(editForm.duration),
+        duration: editForm.duration === "" ? undefined : Number(editForm.duration),
         genre: editForm.genre,
         poster: editForm.poster.trim(),
         backdrop: editForm.backdrop.trim(),
@@ -672,15 +755,11 @@ export default function MovieDetail() {
         isPublished: !!editForm.isPublished,
       };
 
-      const { data } = await axios.put(
-        `${API_URL}/movies/${movie._id}`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
-        }
-      );
+      const { data } = await axios.put(`${API_URL}/movies/${movie._id}`, payload, {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
 
       if (data?.success && data?.movie) {
         setMovie(data.movie);
@@ -690,10 +769,7 @@ export default function MovieDetail() {
         setAdminMessage("Cập nhật thất bại.");
       }
     } catch (err) {
-      console.error(
-        "handleUpdateMovie error:",
-        err.response?.data || err.message
-      );
+      console.error("handleUpdateMovie error:", err.response?.data || err.message);
       setAdminMessage(err.response?.data?.message || "Cập nhật thất bại.");
     } finally {
       setAdminLoading(false);
@@ -719,10 +795,7 @@ export default function MovieDetail() {
       alert("Xóa phim thành công.");
       navigate("/");
     } catch (err) {
-      console.error(
-        "handleDeleteMovie error:",
-        err.response?.data || err.message
-      );
+      console.error("handleDeleteMovie error:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Xóa phim thất bại.");
     } finally {
       setAdminLoading(false);
@@ -772,7 +845,7 @@ export default function MovieDetail() {
     ? Math.min((bufferedTime / duration) * 100, 100)
     : 0;
 
-  if (error) {
+  if (error && !movie) {
     return (
       <div className="movie-detail-page">
         <Navbar isScrolled={true} />
@@ -783,24 +856,29 @@ export default function MovieDetail() {
     );
   }
 
-  if (!movie) {
+  if (pageLoading || !movie) {
     return (
       <div className="movie-detail-page">
         <Navbar isScrolled={true} />
         <div className="movie-detail-shell" style={{ paddingTop: 110 }}>
-          <div className="movie-loading-box">Loading...</div>
+          <div className="movie-loading-box">Đang tải phim...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="movie-detail-page">
+    <div
+      className="movie-detail-page"
+      style={{
+        backgroundImage: `linear-gradient(to bottom, rgba(5,7,12,.4), rgba(5,7,12,.95)), url(${backdropImage})`,
+      }}
+    >
       <Navbar isScrolled={true} />
 
       <div className="movie-detail-backdrop">
         <img
-          src={movie.backdrop || movie.poster || FALLBACK_BACKDROP}
+          src={backdropImage}
           alt={movie.title}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_BACKDROP;
@@ -818,18 +896,7 @@ export default function MovieDetail() {
         </div>
 
         {adminMessage && (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "rgba(0,255,163,0.08)",
-              color: "#c9ffe8",
-              border: "1px solid rgba(0,255,163,0.18)",
-              borderRadius: 12,
-              padding: "12px 14px",
-            }}
-          >
-            {adminMessage}
-          </div>
+          <div className="movie-admin-message">{adminMessage}</div>
         )}
 
         <div className="movie-detail-layout">
@@ -837,7 +904,7 @@ export default function MovieDetail() {
             <div
               ref={playerRef}
               className="nf-player"
-              onMouseMove={kickAutoHide}
+              onMouseMove={() => kickAutoHide()}
               onMouseEnter={() => setShowControls(true)}
               onMouseLeave={() => isPlaying && setShowControls(false)}
             >
@@ -845,6 +912,7 @@ export default function MovieDetail() {
                 ref={videoRef}
                 className="nf-video"
                 playsInline
+                preload="metadata"
                 poster={movie.backdrop || movie.poster || FALLBACK_BACKDROP}
                 onClick={togglePlay}
                 onDoubleClick={handleDoubleClickVideo}
@@ -870,19 +938,18 @@ export default function MovieDetail() {
                 }}
               >
                 <div className="nf-topbar">
-                  <div>
-                    <div className="nf-topbar__title">{movie.title}</div>
-                    <div className="nf-topbar__sub">
-                      {movie.year || "N/A"} • ⭐ {movie.rating || "N/A"} •{" "}
-                      {movie.duration || "N/A"} phút
-                    </div>
+                  <div className="nf-topbar__title">
+                    <strong>{movie.title}</strong>
+                    <span>
+                      {movie.year || "N/A"} • {movie.duration || "N/A"} phút
+                    </span>
                   </div>
                 </div>
 
                 {isReady && !isPlaying && (
                   <div className="nf-center">
                     <button
-                      className="nf-center__play"
+                      className="nf-bigplay"
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePlay();
@@ -999,9 +1066,7 @@ export default function MovieDetail() {
                   <div className="movie-tags">
                     {movie.year ? <span>📅 {movie.year}</span> : null}
                     {movie.rating ? <span>⭐ {movie.rating}</span> : null}
-                    {movie.duration ? (
-                      <span>⏱ {movie.duration} phút</span>
-                    ) : null}
+                    {movie.duration ? <span>⏱ {movie.duration} phút</span> : null}
                     <span>HD</span>
                     {movie.isPublished === false ? <span>Ẩn</span> : null}
                   </div>
@@ -1030,18 +1095,16 @@ export default function MovieDetail() {
                   {user?.isAdmin && (
                     <>
                       <button
-                        className="movie-action"
+                        className="movie-action movie-action--blue"
                         onClick={handleOpenAdminModal}
-                        style={{ background: "#3b82f6", color: "#fff" }}
                       >
                         ✏️ Sửa phim
                       </button>
 
                       <button
-                        className="movie-action"
+                        className="movie-action movie-action--danger"
                         onClick={handleDeleteMovie}
                         disabled={adminLoading}
-                        style={{ background: "#dc2626", color: "#fff" }}
                       >
                         {adminLoading ? "Đang xử lý..." : "🗑 Xóa phim"}
                       </button>
@@ -1062,53 +1125,54 @@ export default function MovieDetail() {
 
                 <div className="movie-meta-content">
                   {movie.genre?.length > 0 && (
-                    <div className="movie-genre">
-                      <strong>Thể loại:</strong> {movie.genre.join(", ")}
+                    <div className="movie-genre-block">
+                      <div className="movie-genre-label">Thể loại</div>
+
+                      <div className="movie-click-tags movie-click-tags--detail">
+                        {movie.genre.map((tag) => (
+                          <Link
+                            key={tag}
+                            to={`/genres?genres=${encodeURIComponent(tag)}`}
+                            className="movie-click-tag"
+                          >
+                            {tag}
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   )}
 
                   <div className="movie-desc">
                     {movie.description || "Chưa có mô tả."}
                   </div>
-
-                  {movie.genre?.length > 0 && (
-                    <div className="movie-click-tags">
-                      {movie.genre.map((tag) => (
-                        <Link
-                          key={tag}
-                          to={`/genres?genres=${encodeURIComponent(tag)}`}
-                          className="movie-click-tag"
-                        >
-                          {tag}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             </section>
 
-            {related.length > 0 && (
-              <section className="movie-recommend-card">
-                <div className="movie-section-head">
-                  <h2>Có thể bạn sẽ thích</h2>
-                  <Link to="/top-viewed">Xem thêm</Link>
-                </div>
+            <section className="movie-recommend-card">
+              <div className="movie-section-head">
+                <h2>Có thể bạn sẽ thích</h2>
+                <Link to="/top-viewed">Xem thêm</Link>
+              </div>
 
-                <div className="related-grid">
-                  {related.slice(0, 6).map((item) => (
+              <div className="related-grid">
+                {(recommend.length > 0 ? recommend : related.slice(0, 8)).map(
+                  (item) => (
                     <Link
                       key={item._id}
                       to={`/movie/${item._id}`}
                       className="related-card"
                     >
-                      <img
-                        src={item.poster || FALLBACK_POSTER}
-                        alt={item.title}
-                        onError={(e) => {
-                          e.currentTarget.src = FALLBACK_POSTER;
-                        }}
-                      />
+                      <div className="related-card__thumb">
+                        <img
+                          src={item.backdrop || item.poster || FALLBACK_POSTER}
+                          alt={item.title}
+                          onError={(e) => {
+                            e.currentTarget.src = FALLBACK_POSTER;
+                          }}
+                        />
+                      </div>
+
                       <div className="related-card__body">
                         <div className="related-card__title">{item.title}</div>
                         <div className="related-card__meta">
@@ -1116,10 +1180,10 @@ export default function MovieDetail() {
                         </div>
                       </div>
                     </Link>
-                  ))}
-                </div>
-              </section>
-            )}
+                  )
+                )}
+              </div>
+            </section>
           </main>
 
           <aside className="movie-detail-side">
@@ -1137,7 +1201,7 @@ export default function MovieDetail() {
                       className="movie-side-item"
                     >
                       <img
-                        src={item.poster || FALLBACK_POSTER}
+                        src={item.backdrop || item.poster || FALLBACK_POSTER}
                         alt={item.title}
                         onError={(e) => {
                           e.currentTarget.src = FALLBACK_POSTER;
@@ -1156,9 +1220,7 @@ export default function MovieDetail() {
                     </Link>
                   ))
                 ) : (
-                  <div className="movie-side-empty">
-                    Chưa có nội dung liên quan.
-                  </div>
+                  <div className="movie-side-empty">Chưa có nội dung liên quan.</div>
                 )}
               </div>
             </div>
