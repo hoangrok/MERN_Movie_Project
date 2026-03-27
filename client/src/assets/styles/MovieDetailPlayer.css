@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .movie-detail-page,
 .movie-detail-page button,
 .movie-detail-page input,
@@ -13,7 +19,7 @@
   background-repeat: no-repeat;
   color: #fff;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .movie-detail-page::before {
@@ -119,8 +125,8 @@
 
 .nf-player:fullscreen {
   border-radius: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   aspect-ratio: auto;
 }
 
@@ -206,13 +212,19 @@
 }
 
 .nf-center {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-bottom: 90px;
   pointer-events: none;
 }
 
 .nf-bigplay {
+  position: relative;
+  z-index: 7;
   width: 78px;
   height: 78px;
   border-radius: 999px;
@@ -232,35 +244,53 @@
   background: rgba(255, 59, 59, 0.88);
 }
 
+/* ===== Netflix-style bottom bar ===== */
 .nf-bottombar {
-  padding: 0 14px 14px;
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .nf-progress-wrap {
   position: relative;
-  height: 16px;
+  height: 26px;
   display: flex;
   align-items: center;
-  margin-bottom: 9px;
+  margin-bottom: 0;
+  overflow: visible;
 }
 
 .nf-progress__buffered,
 .nf-progress__played {
   position: absolute;
   left: 0;
-  height: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 10px;
   border-radius: 999px;
   pointer-events: none;
 }
 
 .nf-progress__buffered {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
   width: 0;
 }
 
 .nf-progress__played {
   background: linear-gradient(90deg, #ff5c5c, #ff2d2d);
-  box-shadow: 0 0 12px rgba(255, 45, 45, 0.35);
+  box-shadow: 0 0 12px rgba(255, 45, 45, 0.28);
   width: 0;
   z-index: 2;
 }
@@ -269,72 +299,136 @@
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
+  height: 26px;
   background: transparent;
   position: relative;
   z-index: 3;
   cursor: pointer;
+  margin: 0;
 }
 
 .nf-progress::-webkit-slider-runnable-track {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  height: 10px;
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 999px;
 }
 
 .nf-progress::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 13px;
-  height: 13px;
+  width: 22px;
+  height: 22px;
   background: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  margin-top: -5px;
-  box-shadow: 0 0 0 4px rgba(255, 45, 45, 0.16);
+  margin-top: -6px;
+  box-shadow:
+    0 0 0 4px rgba(255, 45, 45, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .nf-progress::-moz-range-track {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  height: 10px;
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 999px;
 }
 
 .nf-progress::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
-  border: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   background: #fff;
   border-radius: 50%;
+  box-shadow:
+    0 0 0 4px rgba(255, 45, 45, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+/* preview box on timeline */
+.nf-progress-preview {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  transform: translateX(-50%) scale(0.92);
+  width: 184px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(8, 10, 16, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  z-index: 20;
+}
+
+.nf-progress-preview.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) scale(1);
+}
+
+.nf-preview-inner {
+  display: block;
+}
+
+.nf-progress-preview img {
+  width: 100%;
+  height: 102px;
+  display: block;
+  object-fit: cover;
+  background: #0c0f17;
+}
+
+.nf-progress-preview span {
+  display: block;
+  text-align: center;
+  padding: 8px 10px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.94);
+  letter-spacing: 0.01em;
 }
 
 .nf-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 18px;
-  background: rgba(8, 10, 16, 0.48);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px);
+  gap: 10px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
 }
 
 .nf-controls__left,
 .nf-controls__right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .nf-controls button {
   border: none;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
-  min-width: 36px;
-  height: 36px;
-  border-radius: 11px;
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: 0.2s ease;
 }
 
@@ -344,15 +438,16 @@
 }
 
 .nf-volume {
-  width: 74px;
+  width: 82px;
   accent-color: #ff3b3b;
 }
 
 .nf-time {
   font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.94);
   white-space: nowrap;
+  line-height: 1;
 }
 
 .nf-skip-indicator {
@@ -772,20 +867,45 @@
     max-width: 85%;
   }
 
+  .nf-bottombar {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    padding: 10px;
+    border-radius: 14px;
+    max-width: calc(100% - 20px);
+  }
+
   .nf-controls {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .nf-controls__left,
   .nf-controls__right {
     flex-wrap: wrap;
+    min-width: 0;
   }
 
   .nf-volume {
     width: 100%;
     max-width: 110px;
+  }
+
+  .nf-time {
+    font-size: 12px;
+  }
+
+  .nf-progress-preview {
+    width: 144px;
+    bottom: 28px;
+  }
+
+  .nf-progress-preview img {
+    height: 82px;
   }
 
   .movie-action {

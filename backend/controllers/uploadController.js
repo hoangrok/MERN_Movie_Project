@@ -18,6 +18,11 @@ export default function MovieDetail() {
   const [editForm, setEditForm] = useState({});
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
+  const path = require("path");
+  const fs = require("fs");
+  const generateThumbnails = require("../utils/generateThumbnails");
+  const uploadFileToR2 = require("../utils/uploadFileToR2");
+  const Movie = require("../models/MovieModel");
 
   // ================= LOAD MOVIE =================
   useEffect(() => {

@@ -23,6 +23,18 @@ const movieSchema = new mongoose.Schema(
     language: { type: String, default: "English" },
     country: { type: String, default: "" },
     subtitles: [{ type: String }],
+
+    // 🔥 preview timeline theo từng mốc thời gian
+    previewTimeline: {
+      duration: { type: Number, default: 0 },
+      interval: { type: Number, default: 10 },
+      items: [
+        {
+          second: { type: Number, default: 0 },
+          url: { type: String, default: "" },
+        },
+      ],
+    },
   },
   { timestamps: true }
 );

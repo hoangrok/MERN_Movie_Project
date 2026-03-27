@@ -18,6 +18,10 @@ const FALLBACK_POSTER =
 const FALLBACK_BACKDROP =
   "https://dummyimage.com/1280x720/111/ffffff&text=Backdrop";
 
+function normalizeImage(url, fallback = "") {
+  return typeof url === "string" && url.trim() ? url.trim() : fallback;
+}
+
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return "0:00";
   const total = Math.floor(seconds);
@@ -115,6 +119,11 @@ export default function MovieDetail() {
   const hideTimerRef = useRef(null);
   const skipTimerRef = useRef(null);
   const hlsRef = useRef(null);
+  const lastContinueSaveRef = useRef(0);
+  const progressWrapRef = useRef(null);
+  const previewRafRef = useRef(null);
+  const previewHideTimerRef = useRef(null);
+  const previewCacheRef = useRef(new Map());
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -148,6 +157,13 @@ export default function MovieDetail() {
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
 
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewLeft, setPreviewLeft] = useState(0);
+  const [previewTime, setPreviewTime] = useState(0);
+  const [previewImage, setPreviewImage] = useState("");
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [backdropSrc, setBackdropSrc] = useState(FALLBACK_BACKDROP);
+
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -161,9 +177,31 @@ export default function MovieDetail() {
     isPublished: true,
   });
 
-  const backdropImage = useMemo(() => {
-    return movie?.backdrop || movie?.poster || FALLBACK_BACKDROP;
+  const previewItems = useMemo(() => {
+    const raw = Array.isArray(movie?.previewTimeline?.items)
+      ? movie.previewTimeline.items
+      : [];
+
+    return raw
+      .map((item) => ({
+        second: Number(item?.second ?? item?.time ?? item?.at ?? 0),
+        url: normalizeImage(item?.url, ""),
+      }))
+      .filter((item) => item.url)
+      .sort((a, b) => a.second - b.second);
   }, [movie]);
+
+  const backdropImage = useMemo(() => {
+    return normalizeImage(movie?.backdrop, "") || normalizeImage(movie?.poster, FALLBACK_BACKDROP);
+  }, [movie]);
+
+  const posterImage = useMemo(() => {
+    return normalizeImage(movie?.poster, "") || normalizeImage(movie?.backdrop, FALLBACK_POSTER);
+  }, [movie]);
+
+  useEffect(() => {
+    setBackdropSrc(backdropImage || FALLBACK_BACKDROP);
+  }, [backdropImage]);
 
   useEffect(() => {
     async function loadData() {
@@ -263,6 +301,22 @@ export default function MovieDetail() {
     setSaved(exists);
   }, [movie, user]);
 
+  const preloadPreviewTimeline = (items = []) => {
+    items.slice(0, 16).forEach((item) => {
+      const url = normalizeImage(item?.url, "");
+      if (!url || previewCacheRef.current.has(url)) return;
+
+      const img = new Image();
+      img.onload = () => {
+        previewCacheRef.current.set(url, true);
+      };
+      img.onerror = () => {
+        previewCacheRef.current.set(url, false);
+      };
+      img.src = url;
+    });
+  };
+
   useEffect(() => {
     if (!movie) return;
 
@@ -279,6 +333,11 @@ export default function MovieDetail() {
       isPublished:
         typeof movie.isPublished === "boolean" ? movie.isPublished : true,
     });
+
+    const firstTimelineImage = normalizeImage(movie?.previewTimeline?.items?.[0]?.url, "");
+    setPreviewImage(firstTimelineImage);
+    setPreviewLoaded(false);
+    preloadPreviewTimeline(movie?.previewTimeline?.items || []);
   }, [movie]);
 
   useEffect(() => {
@@ -299,6 +358,7 @@ export default function MovieDetail() {
     setCurrentTime(0);
     setBufferedTime(0);
     setDuration(0);
+    lastContinueSaveRef.current = 0;
 
     const markReady = () => {
       if (cancelled) return;
@@ -324,6 +384,16 @@ export default function MovieDetail() {
       }
     };
 
+    const saveCurrentProgress = () => {
+      if (!movie?._id) return;
+
+      saveContinueWatching(
+        movie,
+        video.currentTime || 0,
+        video.duration || movie.duration || 0
+      );
+    };
+
     const onLoadedMetadata = () => {
       markReady();
       tryRestoreTime();
@@ -347,19 +417,11 @@ export default function MovieDetail() {
         setBufferedTime(0);
       }
 
-      if (movie) {
-        saveContinueWatching({
-          _id: movie._id,
-          title: movie.title,
-          poster: movie.poster,
-          backdrop: movie.backdrop,
-          duration: video.duration || movie.duration,
-          currentTime: video.currentTime || 0,
-          year: movie.year,
-          rating: movie.rating,
-          genre: movie.genre || movie.genres || [],
-        });
-      }
+      const now = Date.now();
+      if (now - lastContinueSaveRef.current < 5000) return;
+      lastContinueSaveRef.current = now;
+
+      saveCurrentProgress();
     };
 
     const onDurationChange = () => {
@@ -377,6 +439,7 @@ export default function MovieDetail() {
       if (cancelled) return;
       setIsPlaying(false);
       setShowControls(true);
+      saveCurrentProgress();
     };
 
     const onVolumeChange = () => {
@@ -463,9 +526,20 @@ export default function MovieDetail() {
     return () => {
       cancelled = true;
 
+      if (previewRafRef.current) {
+        cancelAnimationFrame(previewRafRef.current);
+        previewRafRef.current = null;
+      }
+
       try {
         video.pause();
       } catch {}
+
+      try {
+        saveCurrentProgress();
+      } catch (err) {
+        console.error("save continue watching cleanup error:", err);
+      }
 
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("canplay", onCanPlay);
@@ -499,6 +573,8 @@ export default function MovieDetail() {
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
       if (skipTimerRef.current) clearTimeout(skipTimerRef.current);
+      if (previewHideTimerRef.current) clearTimeout(previewHideTimerRef.current);
+      if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
     };
   }, []);
 
@@ -540,6 +616,88 @@ export default function MovieDetail() {
     const value = Number(e.target.value);
     video.currentTime = value;
     setCurrentTime(value);
+  };
+
+  const getPreviewImageByTime = (timeInSeconds) => {
+    if (!previewItems.length) return "";
+
+    let chosen = previewItems[0];
+
+    for (const item of previewItems) {
+      if (item.second <= timeInSeconds) {
+        chosen = item;
+      } else {
+        break;
+      }
+    }
+
+    return normalizeImage(chosen?.url, "");
+  };
+
+  const showPreviewAt = (clientX) => {
+    if (!duration || !progressWrapRef.current || !previewItems.length) return;
+
+    const rect = progressWrapRef.current.getBoundingClientRect();
+    const x = Math.min(Math.max(0, clientX - rect.left), rect.width);
+    const percent = rect.width ? x / rect.width : 0;
+    const time = percent * duration;
+
+    const previewHalfWidth = 98;
+    const safeX = Math.min(
+      Math.max(previewHalfWidth, x),
+      Math.max(previewHalfWidth, rect.width - previewHalfWidth)
+    );
+
+    const nextPreview = getPreviewImageByTime(time);
+
+    setPreviewLeft(safeX);
+    setPreviewTime(time);
+
+    if (!nextPreview) {
+      setPreviewVisible(false);
+      setPreviewImage("");
+      setPreviewLoaded(false);
+      return;
+    }
+
+    if (previewHideTimerRef.current) {
+      clearTimeout(previewHideTimerRef.current);
+      previewHideTimerRef.current = null;
+    }
+
+    setPreviewVisible(true);
+
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+    }
+
+    previewRafRef.current = requestAnimationFrame(() => {
+      if (nextPreview !== previewImage) {
+        setPreviewLoaded(false);
+        setPreviewImage(nextPreview);
+      }
+    });
+  };
+
+  const handleProgressPreview = (e) => {
+    const clientX =
+      e.touches?.[0]?.clientX ??
+      e.changedTouches?.[0]?.clientX ??
+      e.clientX;
+
+    if (!Number.isFinite(clientX)) return;
+    showPreviewAt(clientX);
+  };
+
+  const hideProgressPreview = () => {
+    if (previewHideTimerRef.current) {
+      clearTimeout(previewHideTimerRef.current);
+    }
+
+    previewHideTimerRef.current = setTimeout(() => {
+      setPreviewVisible(false);
+      setPreviewLoaded(false);
+    }, 60);
   };
 
   const skip = (seconds) => {
@@ -871,17 +1029,19 @@ export default function MovieDetail() {
     <div
       className="movie-detail-page"
       style={{
-        backgroundImage: `linear-gradient(to bottom, rgba(5,7,12,.4), rgba(5,7,12,.95)), url(${backdropImage})`,
+        backgroundImage: `linear-gradient(to bottom, rgba(5,7,12,.4), rgba(5,7,12,.95)), url(${backdropSrc || FALLBACK_BACKDROP})`,
       }}
     >
       <Navbar isScrolled={true} />
 
       <div className="movie-detail-backdrop">
         <img
-          src={backdropImage}
+          src={backdropSrc || FALLBACK_BACKDROP}
           alt={movie.title}
           onError={(e) => {
-            e.currentTarget.src = FALLBACK_BACKDROP;
+            const fallback = normalizeImage(movie?.poster, FALLBACK_BACKDROP);
+            e.currentTarget.src = fallback;
+            setBackdropSrc(fallback);
           }}
         />
       </div>
@@ -906,14 +1066,17 @@ export default function MovieDetail() {
               className="nf-player"
               onMouseMove={() => kickAutoHide()}
               onMouseEnter={() => setShowControls(true)}
-              onMouseLeave={() => isPlaying && setShowControls(false)}
+              onMouseLeave={() => {
+                if (isPlaying) setShowControls(false);
+                hideProgressPreview();
+              }}
             >
               <video
                 ref={videoRef}
                 className="nf-video"
                 playsInline
                 preload="metadata"
-                poster={movie.backdrop || movie.poster || FALLBACK_BACKDROP}
+                poster={backdropSrc || posterImage || FALLBACK_BACKDROP}
                 onClick={togglePlay}
                 onDoubleClick={handleDoubleClickVideo}
               />
@@ -937,15 +1100,6 @@ export default function MovieDetail() {
                   if (isReady) togglePlay();
                 }}
               >
-                <div className="nf-topbar">
-                  <div className="nf-topbar__title">
-                    <strong>{movie.title}</strong>
-                    <span>
-                      {movie.year || "N/A"} • {movie.duration || "N/A"} phút
-                    </span>
-                  </div>
-                </div>
-
                 {isReady && !isPlaying && (
                   <div className="nf-center">
                     <button
@@ -961,7 +1115,38 @@ export default function MovieDetail() {
                 )}
 
                 <div className="nf-bottombar">
-                  <div className="nf-progress-wrap">
+                  <div
+                    className="nf-progress-wrap"
+                    ref={progressWrapRef}
+                    onMouseMove={handleProgressPreview}
+                    onMouseEnter={handleProgressPreview}
+                    onMouseLeave={hideProgressPreview}
+                    onTouchStart={handleProgressPreview}
+                    onTouchMove={handleProgressPreview}
+                    onTouchEnd={hideProgressPreview}
+                  >
+                    {previewVisible && !!previewImage && (
+                      <div
+                        className={`nf-progress-preview show ${previewLoaded ? "is-loaded" : ""}`}
+                        style={{ left: `${previewLeft}px` }}
+                      >
+                        <div className="nf-preview-inner">
+                          <img
+                            src={previewImage}
+                            alt=""
+                            draggable="false"
+                            onLoad={() => setPreviewLoaded(true)}
+                            onError={() => {
+                              setPreviewLoaded(false);
+                              setPreviewVisible(false);
+                              setPreviewImage("");
+                            }}
+                          />
+                          <span>{formatTime(previewTime)}</span>
+                        </div>
+                      </div>
+                    )}
+
                     <div
                       className="nf-progress__buffered"
                       style={{ width: `${bufferedPercent}%` }}
@@ -989,7 +1174,6 @@ export default function MovieDetail() {
                           e.stopPropagation();
                           togglePlay();
                         }}
-                        title="Play / Pause"
                       >
                         {isPlaying ? "❚❚" : "▶"}
                       </button>
@@ -1000,7 +1184,6 @@ export default function MovieDetail() {
                           skip(-5);
                           showSkipFeedback(-5);
                         }}
-                        title="Lùi 5 giây"
                       >
                         « 5
                       </button>
@@ -1011,7 +1194,6 @@ export default function MovieDetail() {
                           skip(5);
                           showSkipFeedback(5);
                         }}
-                        title="Tới 5 giây"
                       >
                         5 »
                       </button>
@@ -1021,7 +1203,6 @@ export default function MovieDetail() {
                           e.stopPropagation();
                           toggleMute();
                         }}
-                        title="Mute / Unmute"
                       >
                         {isMuted || volume === 0 ? "🔇" : "🔊"}
                       </button>
@@ -1048,7 +1229,6 @@ export default function MovieDetail() {
                           e.stopPropagation();
                           toggleFullscreen();
                         }}
-                        title="Fullscreen"
                       >
                         {isFullscreen ? "🡼" : "⛶"}
                       </button>
@@ -1115,7 +1295,7 @@ export default function MovieDetail() {
 
               <div className="movie-meta-grid">
                 <img
-                  src={movie.poster || FALLBACK_POSTER}
+                  src={posterImage || FALLBACK_POSTER}
                   alt={movie.title}
                   className="movie-poster"
                   onError={(e) => {
@@ -1165,7 +1345,10 @@ export default function MovieDetail() {
                     >
                       <div className="related-card__thumb">
                         <img
-                          src={item.backdrop || item.poster || FALLBACK_POSTER}
+                          src={
+                            normalizeImage(item.backdrop, "") ||
+                            normalizeImage(item.poster, FALLBACK_POSTER)
+                          }
                           alt={item.title}
                           onError={(e) => {
                             e.currentTarget.src = FALLBACK_POSTER;
@@ -1201,7 +1384,10 @@ export default function MovieDetail() {
                       className="movie-side-item"
                     >
                       <img
-                        src={item.backdrop || item.poster || FALLBACK_POSTER}
+                        src={
+                          normalizeImage(item.backdrop, "") ||
+                          normalizeImage(item.poster, FALLBACK_POSTER)
+                        }
                         alt={item.title}
                         onError={(e) => {
                           e.currentTarget.src = FALLBACK_POSTER;

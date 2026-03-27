@@ -113,6 +113,14 @@
   min-width: 0;
 }
 
+.continueItem {
+  position: relative;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    background 0.2s ease;
+}
+
 .continueItem--row {
   grid-template-columns: 26px 72px minmax(0, 1fr);
   gap: 10px;
@@ -120,7 +128,6 @@
   padding: 10px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.03);
-  transition: transform 0.2s ease, background 0.2s ease;
 }
 
 .topItem {
@@ -137,6 +144,11 @@
 .topItem:hover {
   transform: translateY(-2px);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.continueItem:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
 }
 
 .continueItem__rank,
@@ -167,6 +179,56 @@
   object-fit: cover;
 }
 
+.continueItem__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #0b0d14;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.continueItem__video.is-visible {
+  opacity: 1;
+}
+
+.continueItem__thumb img.is-hidden {
+  opacity: 0;
+}
+
+.continueItem__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.75),
+    rgba(0, 0, 0, 0.2)
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.continueItem:hover .continueItem__overlay {
+  opacity: 1;
+}
+
+.continueItem__play {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(6px);
+  color: #fff;
+}
+
 .continueItem__progress {
   position: absolute;
   left: 5px;
@@ -180,8 +242,32 @@
 
 .continueItem__progressBar {
   height: 100%;
-  background: #e50914;
+  background: linear-gradient(90deg, #e50914, #ff3b30);
   border-radius: inherit;
+}
+
+.continueItem__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.2s ease;
+}
+
+.continueItem:hover .continueItem__remove {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .continueItem__meta,
@@ -202,6 +288,8 @@
   overflow: hidden;
   word-break: break-word;
   transition: color 0.22s ease, text-shadow 0.22s ease;
+  position: relative;
+  cursor: pointer;
 }
 
 .continueItem__meta p,
@@ -334,29 +422,31 @@
 
 .posterCard__info h3 {
   margin: 0;
-  font-size: 0.88rem;          /* 🔥 nhỏ lại */
-  font-weight: 600;            /* 🔥 đỡ gắt */
+  font-size: 0.88rem;
+  font-weight: 600;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.92);
   display: -webkit-box;
-  -webkit-line-clamp: 4;       /* 🔥 chỉ 2 dòng cho gọn */
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: calc(1.45em * 2); /* giữ layout đều */
+  min-height: calc(1.45em * 2);
   word-break: break-word;
+  position: relative;
+  cursor: pointer;
 }
 
 .posterCard__info p {
   margin: 0;
-  font-size: 0.72rem;        /* 🔥 nhỏ lại đúng chuẩn meta */
+  font-size: 0.72rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.55);
   line-height: 1.4;
   display: -webkit-box;
-  -webkit-line-clamp: 1;     /* 🔥 chỉ 1 dòng là đẹp nhất */
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 1.4em;         /* giữ layout ổn định */
+  min-height: 1.4em;
 }
 
 .emptyBox {
@@ -466,6 +556,25 @@
   cursor: not-allowed;
 }
 
+/* tooltip */
+.posterCard__info h3:hover::after,
+.continueItem__meta h3:hover::after,
+.topItem__meta h3:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 0;
+  bottom: 120%;
+  max-width: 260px;
+  padding: 6px 10px;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+  border-radius: 6px;
+  white-space: normal;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+  z-index: 999;
+}
+
 @media (max-width: 1400px) {
   .homeLayout {
     max-width: 1440px;
@@ -551,33 +660,4 @@
   .genreModal__grid {
     grid-template-columns: 1fr;
   }
-  .posterCard__info h3,
-.continueItem__meta h3,
-.topItem__meta h3 {
-  position: relative;
-  cursor: pointer;
-}
-
-/* tooltip */
-.posterCard__info h3:hover::after,
-.continueItem__meta h3:hover::after,
-.topItem__meta h3:hover::after {
-  content: attr(title);
-  position: absolute;
-  left: 0;
-  bottom: 120%;
-
-  max-width: 260px;
-  padding: 6px 10px;
-
-  background: #111;
-  color: #fff;
-  font-size: 13px;
-
-  border-radius: 6px;
-  white-space: normal;
-
-  box-shadow: 0 10px 20px rgba(0,0,0,0.4);
-  z-index: 999;
-}
 }

@@ -1,16 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaChevronRight, FaPlay, FaCheck } from "react-icons/fa";
+import { FaChevronRight, FaPlay, FaCheck, FaTimes } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
 import Loader from "../components/Loader/Loader";
 import { fetchMovies, getTrending } from "../store/Slice/movie-slice";
-import { getContinueWatching } from "../utils/continueWatching";
+import {
+  getContinueWatching,
+  removeContinueWatching,
+  formatRemainingTime,
+} from "../utils/continueWatching";
 import "../assets/styles/Home.scss";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
-
 const PREF_KEY = "dam18_preferred_genres";
 
 export default function Home() {
@@ -41,7 +44,9 @@ export default function Home() {
         const duration = Number(item.duration || 0);
         const currentTime = Number(item.currentTime || 0);
         const progress =
-          duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
+          duration > 0
+            ? Math.max(0, Math.min((currentTime / duration) * 100, 100))
+            : 0;
 
         return {
           ...item,
@@ -53,9 +58,15 @@ export default function Home() {
     };
 
     loadCW();
+
+    window.addEventListener("continue-watching-updated", loadCW);
     window.addEventListener("focus", loadCW);
-    return () => window.removeEventListener("focus", loadCW);
-  }, []);
+
+    return () => {
+      window.removeEventListener("continue-watching-updated", loadCW);
+      window.removeEventListener("focus", loadCW);
+    };
+  }, [user?._id, user?.email]);
 
   useEffect(() => {
     const onScroll = () => setIsScrolling(window.scrollY > 20);
@@ -71,7 +82,9 @@ export default function Home() {
         if (value) set.add(value);
       });
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b)).slice(0, 18);
+    return Array.from(set)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, 18);
   }, [movies]);
 
   const preferredGenres = useMemo(() => {
@@ -106,7 +119,8 @@ export default function Home() {
     return [];
   }, [watchedGenres, preferredGenres]);
 
-  const isNewUser = continueWatching.length === 0 && preferredGenres.length === 0;
+  const isNewUser =
+    continueWatching.length === 0 && preferredGenres.length === 0;
 
   useEffect(() => {
     if (movies.length > 0 && isNewUser) {
@@ -153,6 +167,11 @@ export default function Home() {
     navigate(`/genres?genres=${encodeURIComponent(genres.join(","))}`);
   };
 
+  const handleRemoveCW = (movieId) => {
+    removeContinueWatching(movieId);
+    setContinueWatching(getContinueWatching());
+  };
+
   return (
     <div className="homePage">
       {status === "loading" && <Loader />}
@@ -162,11 +181,15 @@ export default function Home() {
         <div className="homeBoard">
           <aside className="homeBoard__left">
             <div className="homePanel homePanel--side">
-              <SectionHeadLink title="Xem tiếp" to="/my-list" />
+              <SectionHeadLink title="Xem tiếp" to="/continue-watching" />
               <div className="continueColumn">
                 {cwMovies.length > 0 ? (
                   cwMovies.map((movie, index) => (
-                    <ContinueCard key={movie._id || index} movie={movie} />
+                    <ContinueCard
+                      key={movie._id || index}
+                      movie={movie}
+                      onRemove={handleRemoveCW}
+                    />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có video xem tiếp" />
@@ -331,21 +354,132 @@ function PosterCard({ movie, badge = "" }) {
   );
 }
 
-function ContinueCard({ movie }) {
+function ContinueCard({ movie, onRemove }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [canPlayPreview, setCanPlayPreview] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const videoRef = useRef(null);
+  const hoverTimerRef = useRef(null);
+
   if (!movie?._id) return null;
 
+  const thumb = movie.backdrop || movie.poster || FALLBACK_POSTER;
+  const rawPreviewUrl =
+    movie.previewUrl || movie.trailer || movie.trailerUrl || "";
+
+  const isDirectVideoFile =
+    typeof rawPreviewUrl === "string" &&
+    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
+
+  const previewUrl = isDirectVideoFile ? rawPreviewUrl.trim() : "";
+
+  const resetPreview = () => {
+    setCanPlayPreview(false);
+
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      } catch {}
+    }
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+
+    if (!previewUrl || previewFailed) return;
+
+    hoverTimerRef.current = setTimeout(async () => {
+      try {
+        if (!videoRef.current) return;
+
+        videoRef.current.currentTime = 0;
+        const playPromise = videoRef.current.play();
+
+        if (playPromise && typeof playPromise.then === "function") {
+          await playPromise;
+        }
+
+        setCanPlayPreview(true);
+      } catch (err) {
+        console.log("continue preview autoplay blocked:", err);
+        setCanPlayPreview(false);
+      }
+    }, 450);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    resetPreview();
+  };
+
   return (
-    <Link to={`/movie/${movie._id}`} className="continueItem continueItem--row">
+    <Link
+      to={`/movie/${movie._id}`}
+      className={`continueItem continueItem--row ${isHovered ? "is-hovered" : ""}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <button
+        type="button"
+        className="continueItem__remove"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRemove?.(movie._id);
+        }}
+        title="Xóa khỏi xem tiếp"
+      >
+        <FaTimes />
+      </button>
+
       <div className="continueItem__rank">▶</div>
 
       <div className="continueItem__thumb">
         <img
-          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
-          alt={movie.title || "movie"}
+          className={canPlayPreview ? "is-hidden" : ""}
+          src={thumb || FALLBACK_POSTER}
+          alt=""
+          draggable="false"
           onError={(e) => {
-            e.currentTarget.src = FALLBACK_POSTER;
+            if (e.currentTarget.src !== FALLBACK_POSTER) {
+              e.currentTarget.src = FALLBACK_POSTER;
+            }
           }}
         />
+
+        {previewUrl && !previewFailed ? (
+          <video
+            ref={videoRef}
+            className={`continueItem__video ${canPlayPreview ? "is-visible" : ""}`}
+            src={previewUrl}
+            muted
+            playsInline
+            loop
+            preload="none"
+            poster={thumb || FALLBACK_POSTER}
+            onWaiting={() => setCanPlayPreview(false)}
+            onCanPlay={() => {
+              if (isHovered) setCanPlayPreview(true);
+            }}
+            onPlaying={() => setCanPlayPreview(true)}
+            onError={() => {
+              setPreviewFailed(true);
+              resetPreview();
+            }}
+          />
+        ) : null}
+
+        <div className="continueItem__overlay">
+          <span className="continueItem__play">
+            <FaPlay />
+          </span>
+        </div>
 
         <div className="continueItem__progress">
           <div
@@ -359,7 +493,7 @@ function ContinueCard({ movie }) {
         <h3 title={movie.title}>{movie.title}</h3>
         <p>
           {movie.progress
-            ? `Đã xem ${Math.round(movie.progress)}%`
+            ? `${Math.round(movie.progress)}% • ${formatRemainingTime(movie)}`
             : "Đang xem"}
         </p>
       </div>

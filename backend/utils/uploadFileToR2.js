@@ -15,7 +15,8 @@ async function uploadFileToR2(localFilePath, key, contentType) {
     })
   );
 
-  return `${process.env.R2_PUBLIC_BASE_URL}/${key}`;
+  const cleanBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  return `${cleanBase}/${key}`;
 }
 
 module.exports = uploadFileToR2;

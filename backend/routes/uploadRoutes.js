@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
+const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
 
 // ==========================
 // HELPER
@@ -25,6 +26,7 @@ const getContentType = (file) => {
   if (file.endsWith(".jpg") || file.endsWith(".jpeg")) return "image/jpeg";
   if (file.endsWith(".png")) return "image/png";
   if (file.endsWith(".webp")) return "image/webp";
+  if (file.endsWith(".json")) return "application/json";
   return "application/octet-stream";
 };
 
@@ -93,11 +95,11 @@ const getCandidateTimestamps = (duration) => {
   const endSafe = Math.max(duration - 12, duration * 0.88);
 
   const points = [
-    duration * 0.10,
+    duration * 0.1,
     duration * 0.18,
     duration * 0.28,
     duration * 0.38,
-    duration * 0.50,
+    duration * 0.5,
     duration * 0.62,
     duration * 0.72,
     duration * 0.82,
@@ -364,9 +366,9 @@ router.post("/image", async (req, res) => {
     const originalName = file.name || "image.jpg";
     const ext = path.extname(originalName).toLowerCase();
     const baseName = path.parse(originalName).name;
-    const cleanBaseName = cleanFileBaseName(baseName);
+    const safeName = cleanFileBaseName(baseName);
 
-    const fileName = `${Date.now()}-${cleanBaseName || "image"}${ext}`;
+    const fileName = `${Date.now()}-${safeName || "image"}${ext}`;
     const key = `images/${fileName}`;
 
     await uploadFileToR2(key, file.data, getContentType(fileName));
@@ -396,6 +398,7 @@ router.post("/video/:movieId", async (req, res) => {
   let tempVideo = null;
   let outputDir = null;
   let thumbsDir = null;
+  let timelineDir = null;
 
   try {
     const { movieId } = req.params;
@@ -428,12 +431,12 @@ router.post("/video/:movieId", async (req, res) => {
     const originalName = file.name || "video.mp4";
     const ext = path.extname(originalName).toLowerCase() || ".mp4";
     const baseName = path.parse(originalName).name;
-    const cleanBaseName = cleanFileBaseName(baseName);
+    const safeBaseName = cleanFileBaseName(baseName);
 
     const tmpDir = path.join(__dirname, "../tmp");
     ensureDir(tmpDir);
 
-    const safeLocalName = `${Date.now()}-${cleanBaseName || "video"}${ext}`;
+    const safeLocalName = `${Date.now()}-${safeBaseName || "video"}${ext}`;
     tempVideo = path.join(tmpDir, safeLocalName);
 
     await file.mv(tempVideo);
@@ -472,12 +475,12 @@ router.post("/video/:movieId", async (req, res) => {
 
     console.log("4️⃣ Convert xong");
 
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+    let pickedInfo = null;
+
     // ==========================
     // AUTO SMART THUMBNAIL
     // ==========================
-    let pickedInfo = null;
-    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-
     if (!movie.poster || !movie.backdrop) {
       console.log("4.1️⃣ Generating smart thumbnails...");
       const thumbResult = await generateSmartThumbnails(tempVideo, tmpDir, movieId);
@@ -504,6 +507,66 @@ router.post("/video/:movieId", async (req, res) => {
         movie.backdrop = `${publicBase}/${backdropKey}`;
       }
     }
+
+    // ==========================
+    // PREVIEW TIMELINE
+    // ==========================
+    console.log("4.2️⃣ Generating preview timeline...");
+
+    timelineDir = path.join(tmpDir, `${movieId}-timeline`);
+    ensureDir(timelineDir);
+
+    const timelineResult = await generatePreviewTimeline(tempVideo, timelineDir, {
+      interval: 10,
+      prefix: "preview",
+    });
+
+    console.log(
+      "Preview timeline generated:",
+      timelineResult?.items?.map((item) => ({
+        second: item.second,
+        fileName: item.fileName,
+        path: item.path,
+      }))
+    );
+
+    const timelineItems = [];
+
+    for (const item of timelineResult.items || []) {
+      const fileExists = !!item?.path && fs.existsSync(item.path);
+      console.log("Check preview file:", item?.path, fileExists);
+
+      if (!fileExists) {
+        console.warn("❌ Missing preview file:", item?.path);
+        continue;
+      }
+
+      const buffer = fs.readFileSync(item.path);
+
+      if (!buffer || buffer.length < 1000) {
+        console.warn("❌ Preview file invalid or too small:", item.fileName);
+        continue;
+      }
+
+      const key = `videos/${movieId}/timeline/${item.fileName}`;
+
+      await uploadFileToR2(key, buffer, "image/jpeg");
+
+      timelineItems.push({
+        second: item.second,
+        url: `${publicBase}/${key}`,
+      });
+    }
+
+    if (!timelineItems.length) {
+      console.warn("⚠️ No valid preview images uploaded for movie:", movieId);
+    }
+
+    movie.previewTimeline = {
+      duration: timelineResult?.duration || 0,
+      interval: timelineResult?.interval || 10,
+      items: timelineItems,
+    };
 
     const masterContent = `#EXTM3U
 #EXT-X-VERSION:3
@@ -553,6 +616,9 @@ v0/index.m3u8
     if (thumbsDir && fs.existsSync(thumbsDir)) {
       fs.rmSync(thumbsDir, { recursive: true, force: true });
     }
+    if (timelineDir && fs.existsSync(timelineDir)) {
+      fs.rmSync(timelineDir, { recursive: true, force: true });
+    }
 
     return res.json({
       success: true,
@@ -560,9 +626,11 @@ v0/index.m3u8
       hlsUrl: movie.hlsUrl,
       poster: movie.poster || "",
       backdrop: movie.backdrop || "",
+      previewTimeline: movie.previewTimeline || { items: [] },
       thumbnailPickedAt: pickedInfo?.pickedAt || null,
       thumbnailScore: pickedInfo?.score || null,
-      message: "Video uploaded, converted, and smart thumbnails generated successfully",
+      message:
+        "Video uploaded, converted, smart thumbnails and preview timeline generated successfully",
     });
   } catch (err) {
     console.error("upload video error:", err);
@@ -575,6 +643,9 @@ v0/index.m3u8
     }
     if (thumbsDir && fs.existsSync(thumbsDir)) {
       fs.rmSync(thumbsDir, { recursive: true, force: true });
+    }
+    if (timelineDir && fs.existsSync(timelineDir)) {
+      fs.rmSync(timelineDir, { recursive: true, force: true });
     }
 
     return res.status(500).json({

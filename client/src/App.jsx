@@ -12,6 +12,7 @@ import GenreMovies from "./pages/GenreMovies";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import MyList from "./pages/MyList";
+import ContinueWatching from "./pages/ContinueWatching";
 
 function App() {
   const { user } = useSelector((state) => state.auth);
@@ -33,6 +34,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/my-list" element={<MyList />} />
+      <Route path="/continue-watching" element={<ContinueWatching />} />
     </Routes>
   );
 }
