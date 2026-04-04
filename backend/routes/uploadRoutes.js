@@ -349,6 +349,59 @@ const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
 };
 
 // ==========================
+// WATERMARK HELPER
+// ==========================
+
+const getWatermarkPath = () => {
+  const envPath = process.env.VIDEO_WATERMARK_PATH;
+  const candidates = [
+    envPath,
+    path.join(__dirname, "../assets/watermark.png"),
+    path.join(__dirname, "../public/watermark.png"),
+    path.join(__dirname, "../watermark.png"),
+  ].filter(Boolean);
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  return null;
+};
+
+const addWatermarkToVideo = async (inputPath, outputPath, watermarkPath) => {
+  const probe = await ffprobeAsync(inputPath);
+  const videoStream = (probe.streams || []).find(
+    (s) => s.codec_type === "video"
+  );
+
+  const width = Number(videoStream?.width || 1280);
+  const targetLogoWidth = Math.max(90, Math.round(width * 0.12));
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .input(watermarkPath)
+      .complexFilter([
+        `[1:v]scale=${targetLogoWidth}:-1,format=rgba,colorchannelmixer=aa=0.55[wm]`,
+        `[0:v][wm]overlay=main_w-overlay_w-20:main_h-overlay_h-20`,
+      ])
+      .outputOptions([
+        "-c:v libx264",
+        "-preset veryfast",
+        "-crf 23",
+        "-c:a aac",
+        "-movflags +faststart",
+      ])
+      .output(outputPath)
+      .on("start", (cmd) => {
+        console.log("Watermark ffmpeg command:", cmd);
+      })
+      .on("end", resolve)
+      .on("error", reject)
+      .run();
+  });
+};
+
+// ==========================
 // UPLOAD IMAGE
 // ==========================
 
@@ -390,12 +443,13 @@ router.post("/image", async (req, res) => {
 });
 
 // ==========================
-// UPLOAD VIDEO -> HLS -> R2
+// UPLOAD VIDEO -> WATERMARK -> HLS -> R2
 // POST /api/upload/video/:movieId
 // ==========================
 
 router.post("/video/:movieId", async (req, res) => {
   let tempVideo = null;
+  let watermarkedVideo = null;
   let outputDir = null;
   let thumbsDir = null;
   let timelineDir = null;
@@ -442,6 +496,25 @@ router.post("/video/:movieId", async (req, res) => {
     await file.mv(tempVideo);
     console.log("2️⃣ Save temp video xong");
 
+    let sourceVideoForProcessing = tempVideo;
+
+    const watermarkPath = getWatermarkPath();
+    if (watermarkPath) {
+      watermarkedVideo = path.join(
+        tmpDir,
+        `${Date.now()}-${safeBaseName || "video"}-watermarked.mp4`
+      );
+
+      console.log("2.1️⃣ Bắt đầu add watermark:", watermarkPath);
+      await addWatermarkToVideo(tempVideo, watermarkedVideo, watermarkPath);
+      sourceVideoForProcessing = watermarkedVideo;
+      console.log("2.2️⃣ Add watermark xong");
+    } else {
+      console.warn(
+        "⚠️ Không tìm thấy watermark.png hoặc VIDEO_WATERMARK_PATH, tiếp tục xử lý không gắn logo"
+      );
+    }
+
     outputDir = path.join(tmpDir, `${movieId}-hls`);
     const variantDir = path.join(outputDir, "v0");
 
@@ -451,7 +524,7 @@ router.post("/video/:movieId", async (req, res) => {
     console.log("3️⃣ Bắt đầu convert HLS");
 
     await new Promise((resolve, reject) => {
-      ffmpeg(tempVideo)
+      ffmpeg(sourceVideoForProcessing)
         .videoCodec("libx264")
         .audioCodec("aac")
         .outputOptions([
@@ -483,7 +556,11 @@ router.post("/video/:movieId", async (req, res) => {
     // ==========================
     if (!movie.poster || !movie.backdrop) {
       console.log("4.1️⃣ Generating smart thumbnails...");
-      const thumbResult = await generateSmartThumbnails(tempVideo, tmpDir, movieId);
+      const thumbResult = await generateSmartThumbnails(
+        sourceVideoForProcessing,
+        tmpDir,
+        movieId
+      );
       pickedInfo = thumbResult;
       thumbsDir = path.dirname(thumbResult.posterPath);
 
@@ -516,10 +593,14 @@ router.post("/video/:movieId", async (req, res) => {
     timelineDir = path.join(tmpDir, `${movieId}-timeline`);
     ensureDir(timelineDir);
 
-    const timelineResult = await generatePreviewTimeline(tempVideo, timelineDir, {
-      interval: 10,
-      prefix: "preview",
-    });
+    const timelineResult = await generatePreviewTimeline(
+      sourceVideoForProcessing,
+      timelineDir,
+      {
+        interval: 10,
+        prefix: "preview",
+      }
+    );
 
     console.log(
       "Preview timeline generated:",
@@ -610,6 +691,9 @@ v0/index.m3u8
     if (tempVideo && fs.existsSync(tempVideo)) {
       fs.rmSync(tempVideo, { force: true });
     }
+    if (watermarkedVideo && fs.existsSync(watermarkedVideo)) {
+      fs.rmSync(watermarkedVideo, { force: true });
+    }
     if (outputDir && fs.existsSync(outputDir)) {
       fs.rmSync(outputDir, { recursive: true, force: true });
     }
@@ -629,14 +713,18 @@ v0/index.m3u8
       previewTimeline: movie.previewTimeline || { items: [] },
       thumbnailPickedAt: pickedInfo?.pickedAt || null,
       thumbnailScore: pickedInfo?.score || null,
+      watermarkApplied: !!watermarkPath,
       message:
-        "Video uploaded, converted, smart thumbnails and preview timeline generated successfully",
+        "Video uploaded, watermarked, converted, smart thumbnails and preview timeline generated successfully",
     });
   } catch (err) {
     console.error("upload video error:", err);
 
     if (tempVideo && fs.existsSync(tempVideo)) {
       fs.rmSync(tempVideo, { force: true });
+    }
+    if (watermarkedVideo && fs.existsSync(watermarkedVideo)) {
+      fs.rmSync(watermarkedVideo, { force: true });
     }
     if (outputDir && fs.existsSync(outputDir)) {
       fs.rmSync(outputDir, { recursive: true, force: true });

@@ -18,6 +18,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   process.env.CLIENT_URL,
   "https://mern-movie-project-henna.vercel.app",
+  "https://clipdam18.com",
+  "https://www.clipdam18.com",
 ].filter(Boolean);
 
 app.use(

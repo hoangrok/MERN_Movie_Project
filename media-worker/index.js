@@ -32,13 +32,13 @@ async function verifySigned(request, env) {
   const exp = url.searchParams.get("exp");
   const sig = url.searchParams.get("sig");
 
-  console.log("STREAM_SECRET exists:", !!env.STREAM_SECRET);
+  console.log("STREAM_TOKEN_SECRET exists:", !!env.STREAM_TOKEN_SECRET);
   console.log("pathname:", url.pathname);
   console.log("exp:", exp);
   console.log("sig:", sig);
 
-  if (!env.STREAM_SECRET) {
-    console.log("Missing STREAM_SECRET");
+  if (!env.STREAM_TOKEN_SECRET) {
+    console.log("Missing STREAM_TOKEN_SECRET");
     return false;
   }
 
@@ -55,7 +55,7 @@ async function verifySigned(request, env) {
 
   const key = url.pathname.slice(1);
   const payload = `${key}:${exp}`;
-  const expected = await hmacSha256Hex(env.STREAM_SECRET, payload);
+  const expected = await hmacSha256Hex(env.STREAM_TOKEN_SECRET, payload);
 
   console.log("verify key:", key);
   console.log("verify payload:", payload);
