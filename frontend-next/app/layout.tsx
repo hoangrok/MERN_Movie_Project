@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import SiteHeader from "@/components/SiteHeader";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -100,7 +101,10 @@ export default function RootLayout({
       lang="vi"
       className={`${inter.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   );
 }
