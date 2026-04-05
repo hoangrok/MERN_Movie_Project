@@ -10,7 +10,7 @@ export default function RelatedSlider({ items = [] }) {
     const el = rowRef.current;
     if (!el) return;
 
-    const amount = Math.min(1100, Math.max(320, el.clientWidth * 0.92));
+    const amount = Math.min(1000, Math.max(320, el.clientWidth * 0.9));
 
     el.scrollBy({
       left: direction === "left" ? -amount : amount,
@@ -20,8 +20,10 @@ export default function RelatedSlider({ items = [] }) {
 
   if (!items.length) return null;
 
-  const firstRow = items.slice(0, Math.ceil(items.length / 2));
-  const secondRow = items.slice(Math.ceil(items.length / 2));
+  const columns = [];
+  for (let i = 0; i < items.length; i += 2) {
+    columns.push(items.slice(i, i + 2));
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -56,33 +58,15 @@ export default function RelatedSlider({ items = [] }) {
 
       <div className="relatedOuter">
         <div ref={rowRef} className="relatedScroller">
-          <div className="relatedColumn">
-            {firstRow.map((item, index) => (
-              <div
-                key={item._id}
-                style={{
-                  minWidth: 0,
-                }}
-              >
-                <AdultCard movie={item} priority={index < 4} />
-              </div>
-            ))}
-          </div>
-
-          {secondRow.length ? (
-            <div className="relatedColumn">
-              {secondRow.map((item, index) => (
-                <div
-                  key={item._id}
-                  style={{
-                    minWidth: 0,
-                  }}
-                >
-                  <AdultCard movie={item} priority={index < 2} />
+          {columns.map((group, index) => (
+            <div className="relatedColumn" key={index}>
+              {group.map((item, childIndex) => (
+                <div key={item._id} className="relatedItem">
+                  <AdultCard movie={item} priority={index === 0 && childIndex < 2} />
                 </div>
               ))}
             </div>
-          ) : null}
+          ))}
         </div>
       </div>
 
@@ -94,8 +78,8 @@ export default function RelatedSlider({ items = [] }) {
         .relatedScroller {
           display: grid;
           grid-auto-flow: column;
-          grid-auto-columns: minmax(320px, 380px);
-          gap: 24px;
+          grid-auto-columns: minmax(300px, 360px);
+          gap: 22px;
           overflow-x: auto;
           overflow-y: hidden;
           padding-bottom: 4px;
@@ -116,9 +100,13 @@ export default function RelatedSlider({ items = [] }) {
           align-content: start;
         }
 
+        .relatedItem {
+          min-width: 0;
+        }
+
         @media (max-width: 768px) {
           .relatedScroller {
-            grid-auto-columns: minmax(240px, 280px);
+            grid-auto-columns: minmax(220px, 260px);
             gap: 16px;
           }
 

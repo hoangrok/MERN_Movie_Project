@@ -83,7 +83,9 @@ export async function getRelatedMovies(slug, limit = 12) {
   if (!current) return movies.slice(0, limit);
 
   const currentGenres = Array.isArray(current.genre) ? current.genre : [];
-  const currentTitle = String(current.title || "").toLowerCase();
+  const currentTags = Array.isArray(current.tags) ? current.tags : [];
+  const currentLanguage = current.language || "";
+  const currentCountry = current.country || "";
 
   const scored = movies
     .filter((movie) => movie?.slug !== slug)
@@ -91,19 +93,16 @@ export async function getRelatedMovies(slug, limit = 12) {
       let score = 0;
 
       const movieGenres = Array.isArray(movie.genre) ? movie.genre : [];
+      const movieTags = Array.isArray(movie.tags) ? movie.tags : [];
+
       const sharedGenres = movieGenres.filter((g) => currentGenres.includes(g));
+      const sharedTags = movieTags.filter((t) => currentTags.includes(t));
 
       score += sharedGenres.length * 10;
+      score += sharedTags.length * 12;
 
-      if (
-        currentTitle &&
-        String(movie.title || "")
-          .toLowerCase()
-          .includes(currentTitle.split(" ")[0] || "")
-      ) {
-        score += 2;
-      }
-
+      if (currentLanguage && movie.language === currentLanguage) score += 3;
+      if (currentCountry && movie.country === currentCountry) score += 2;
       if (movie?.newPopular) score += 1;
       if (movie?.featured) score += 1;
 
@@ -121,7 +120,6 @@ export async function getRelatedMovies(slug, limit = 12) {
       if (b._relatedScore !== a._relatedScore) {
         return b._relatedScore - a._relatedScore;
       }
-
       return b._updatedAt - a._updatedAt;
     });
 

@@ -11,6 +11,7 @@ export default function AdultPlayer({ movie }) {
 
   const [isReady, setIsReady] = useState(false);
   const [resumeTime, setResumeTime] = useState(0);
+  const [isPortrait, setIsPortrait] = useState(false);
 
   useEffect(() => {
     const continued = getContinue();
@@ -82,6 +83,13 @@ export default function AdultPlayer({ movie }) {
     if (!video || !isReady) return;
 
     const handleLoadedMetadata = () => {
+      const vw = Number(video.videoWidth || 0);
+      const vh = Number(video.videoHeight || 0);
+
+      if (vw > 0 && vh > 0) {
+        setIsPortrait(vh > vw);
+      }
+
       if (
         resumeTime > 0 &&
         Number.isFinite(video.duration) &&
@@ -95,7 +103,6 @@ export default function AdultPlayer({ movie }) {
 
     const handleTimeUpdate = () => {
       const now = Date.now();
-
       if (now - lastSaved < 5000) return;
 
       lastSaved = now;
@@ -124,32 +131,68 @@ export default function AdultPlayer({ movie }) {
   }, [isReady, movie, resumeTime]);
 
   return (
-    <div style={{ marginTop: 20 }}>
+    <div className="playerWrap">
       {resumeTime > 0 ? (
-        <div
-          style={{
-            marginBottom: 12,
-            color: "rgba(255,255,255,0.72)",
-            fontSize: "0.95rem",
-          }}
-        >
-          Tiếp tục từ {formatTime(resumeTime)}
-        </div>
+        <div className="resumeText">Tiếp tục từ {formatTime(resumeTime)}</div>
       ) : null}
 
-      <video
-        ref={videoRef}
-        controls
-        autoPlay
-        playsInline
-        poster={movie?.backdrop || movie?.poster || ""}
+      <div
+        className="playerShell"
         style={{
-          width: "100%",
-          borderRadius: 14,
-          background: "#000",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          maxWidth: isPortrait ? 520 : 980,
         }}
-      />
+      >
+        <video
+          ref={videoRef}
+          controls
+          autoPlay
+          playsInline
+          poster={movie?.backdrop || movie?.poster || ""}
+          className="playerVideo"
+        />
+      </div>
+
+      <style jsx>{`
+        .playerWrap {
+          margin-top: 20px;
+        }
+
+        .resumeText {
+          margin-bottom: 12px;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 0.95rem;
+        }
+
+        .playerShell {
+          width: 100%;
+          margin: 0 auto;
+          border-radius: 18px;
+          overflow: hidden;
+          background: #000;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .playerVideo {
+          width: 100%;
+          height: auto;
+          max-height: 78vh;
+          display: block;
+          background: #000;
+          object-fit: contain;
+        }
+
+        @media (max-width: 768px) {
+          .playerShell {
+            max-width: 100% !important;
+            border-radius: 14px;
+          }
+
+          .playerVideo {
+            max-height: 72vh;
+          }
+        }
+      `}</style>
     </div>
   );
 }
