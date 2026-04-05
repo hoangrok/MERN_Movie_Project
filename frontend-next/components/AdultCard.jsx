@@ -3,6 +3,7 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import { getContinue, saveContinue } from "@/lib/continue";
+import { getSignedStreamUrl } from "@/lib/api";
 
 export default function AdultPlayer({ movie }) {
   const videoRef = useRef(null);
@@ -22,42 +23,59 @@ export default function AdultPlayer({ movie }) {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !movie?.hlsUrl) return;
+    if (!video || !movie?._id) return;
 
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
+    let mounted = true;
+
+    async function setupPlayer() {
+      try {
+        const signedUrl = await getSignedStreamUrl(movie._id);
+        if (!mounted || !signedUrl) return;
+
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+
+        setIsReady(false);
+
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = signedUrl;
+          if (mounted) setIsReady(true);
+        } else if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+
+          hls.loadSource(signedUrl);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (mounted) setIsReady(true);
+          });
+
+          hlsRef.current = hls;
+        } else {
+          video.src = signedUrl;
+          if (mounted) setIsReady(true);
+        }
+      } catch (err) {
+        console.error("setupPlayer error:", err);
+      }
     }
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = movie.hlsUrl;
-      setIsReady(true);
-    } else if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-      });
-
-      hls.loadSource(movie.hlsUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsReady(true);
-      });
-
-      hlsRef.current = hls;
-    } else {
-      video.src = movie.hlsUrl;
-      setIsReady(true);
-    }
+    setupPlayer();
 
     return () => {
+      mounted = false;
+
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [movie?.hlsUrl]);
+  }, [movie?._id]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -77,6 +95,7 @@ export default function AdultPlayer({ movie }) {
 
     const handleTimeUpdate = () => {
       const now = Date.now();
+
       if (now - lastSaved < 5000) return;
 
       lastSaved = now;
@@ -134,7 +153,7 @@ export default function AdultPlayer({ movie }) {
 
         .playerShell {
           width: 100%;
-          max-width: 520px;
+          max-width: 860px;
           margin: 0 auto;
           border-radius: 18px;
           overflow: hidden;
@@ -146,9 +165,10 @@ export default function AdultPlayer({ movie }) {
         .playerVideo {
           width: 100%;
           height: auto;
-          max-height: 78vh;
+          max-height: 72vh;
           display: block;
           background: #000;
+          object-fit: contain;
         }
 
         @media (max-width: 768px) {
@@ -158,7 +178,7 @@ export default function AdultPlayer({ movie }) {
           }
 
           .playerVideo {
-            max-height: 72vh;
+            max-height: 68vh;
           }
         }
       `}</style>

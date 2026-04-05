@@ -10,7 +10,7 @@ export default function RelatedSlider({ items = [] }) {
     const el = rowRef.current;
     if (!el) return;
 
-    const amount = Math.min(900, Math.max(260, el.clientWidth * 0.9));
+    const amount = Math.min(1100, Math.max(320, el.clientWidth * 0.92));
 
     el.scrollBy({
       left: direction === "left" ? -amount : amount,
@@ -19,6 +19,9 @@ export default function RelatedSlider({ items = [] }) {
   };
 
   if (!items.length) return null;
+
+  const firstRow = items.slice(0, Math.ceil(items.length / 2));
+  const secondRow = items.slice(Math.ceil(items.length / 2));
 
   return (
     <div style={{ position: "relative" }}>
@@ -51,40 +54,86 @@ export default function RelatedSlider({ items = [] }) {
         </button>
       </div>
 
-      <div
-        ref={rowRef}
-        style={{
-          display: "grid",
-          gridAutoFlow: "column",
-          gridAutoColumns: "minmax(220px, 260px)",
-          gap: 18,
-          overflowX: "auto",
-          overflowY: "hidden",
-          paddingBottom: 10,
-          scrollBehavior: "smooth",
-          WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "thin",
-        }}
-      >
-        {items.map((item, index) => (
-          <div
-            key={item._id}
-            style={{
-              minWidth: 0,
-              scrollSnapAlign: "start",
-            }}
-          >
-            <AdultCard movie={item} priority={index < 4} />
+      <div className="relatedOuter">
+        <div ref={rowRef} className="relatedScroller">
+          <div className="relatedColumn">
+            {firstRow.map((item, index) => (
+              <div
+                key={item._id}
+                style={{
+                  minWidth: 0,
+                }}
+              >
+                <AdultCard movie={item} priority={index < 4} />
+              </div>
+            ))}
           </div>
-        ))}
+
+          {secondRow.length ? (
+            <div className="relatedColumn">
+              {secondRow.map((item, index) => (
+                <div
+                  key={item._id}
+                  style={{
+                    minWidth: 0,
+                  }}
+                >
+                  <AdultCard movie={item} priority={index < 2} />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      <style jsx>{`
+        .relatedOuter {
+          overflow: hidden;
+        }
+
+        .relatedScroller {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(320px, 380px);
+          gap: 24px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 4px;
+          scroll-behavior: smooth;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+
+        .relatedScroller::-webkit-scrollbar {
+          display: none;
+        }
+
+        .relatedColumn {
+          display: grid;
+          grid-template-rows: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+          align-content: start;
+        }
+
+        @media (max-width: 768px) {
+          .relatedScroller {
+            grid-auto-columns: minmax(240px, 280px);
+            gap: 16px;
+          }
+
+          .relatedColumn {
+            gap: 14px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
 const buttonStyle = {
-  width: 42,
-  height: 42,
+  width: 44,
+  height: 44,
   borderRadius: 999,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.08)",
