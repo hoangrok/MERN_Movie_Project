@@ -20,11 +20,6 @@ export default function RelatedSlider({ items = [] }) {
 
   if (!items.length) return null;
 
-  const columns = [];
-  for (let i = 0; i < items.length; i += 2) {
-    columns.push(items.slice(i, i + 2));
-  }
-
   return (
     <div style={{ position: "relative" }}>
       <div
@@ -58,13 +53,9 @@ export default function RelatedSlider({ items = [] }) {
 
       <div className="relatedOuter">
         <div ref={rowRef} className="relatedScroller">
-          {columns.map((group, index) => (
-            <div className="relatedColumn" key={index}>
-              {group.map((item, childIndex) => (
-                <div key={item._id} className="relatedItem">
-                  <AdultCard movie={item} priority={index === 0 && childIndex < 2} />
-                </div>
-              ))}
+          {items.map((item, index) => (
+            <div key={item._id} className="relatedItem">
+              <AdultCard movie={item} priority={index < 4} />
             </div>
           ))}
         </div>
@@ -78,8 +69,9 @@ export default function RelatedSlider({ items = [] }) {
         .relatedScroller {
           display: grid;
           grid-auto-flow: column;
-          grid-auto-columns: minmax(300px, 360px);
-          gap: 22px;
+          grid-template-rows: repeat(2, auto);
+          grid-auto-columns: minmax(280px, 320px);
+          gap: 18px 20px;
           overflow-x: auto;
           overflow-y: hidden;
           padding-bottom: 4px;
@@ -87,17 +79,11 @@ export default function RelatedSlider({ items = [] }) {
           -webkit-overflow-scrolling: touch;
           scrollbar-width: none;
           -ms-overflow-style: none;
+          align-items: start;
         }
 
         .relatedScroller::-webkit-scrollbar {
           display: none;
-        }
-
-        .relatedColumn {
-          display: grid;
-          grid-template-rows: repeat(2, minmax(0, 1fr));
-          gap: 18px;
-          align-content: start;
         }
 
         .relatedItem {
@@ -107,11 +93,7 @@ export default function RelatedSlider({ items = [] }) {
         @media (max-width: 768px) {
           .relatedScroller {
             grid-auto-columns: minmax(220px, 260px);
-            gap: 16px;
-          }
-
-          .relatedColumn {
-            gap: 14px;
+            gap: 14px 16px;
           }
         }
       `}</style>
