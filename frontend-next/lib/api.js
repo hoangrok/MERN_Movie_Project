@@ -125,3 +125,35 @@ export async function getRelatedMovies(slug, limit = 12) {
 
   return scored.slice(0, limit);
 }
+export async function searchMovies(keyword = "") {
+  const q = String(keyword || "").trim().toLowerCase();
+  const movies = await getAdultMovies();
+
+  if (!q) return movies;
+
+  return movies.filter((movie) => {
+    const title = String(movie?.title || "").toLowerCase();
+    const description = String(movie?.description || "").toLowerCase();
+    const slug = String(movie?.slug || "").toLowerCase();
+    const language = String(movie?.language || "").toLowerCase();
+    const country = String(movie?.country || "").toLowerCase();
+
+    const genres = Array.isArray(movie?.genre)
+      ? movie.genre.join(" ").toLowerCase()
+      : "";
+
+    const tags = Array.isArray(movie?.tags)
+      ? movie.tags.join(" ").toLowerCase()
+      : "";
+
+    return (
+      title.includes(q) ||
+      description.includes(q) ||
+      slug.includes(q) ||
+      language.includes(q) ||
+      country.includes(q) ||
+      genres.includes(q) ||
+      tags.includes(q)
+    );
+  });
+}
