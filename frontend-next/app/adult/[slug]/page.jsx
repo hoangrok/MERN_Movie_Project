@@ -121,9 +121,26 @@ export default async function Detail({ params }) {
               </div>
             </div>
 
-            <div className="relatedScroller">
+            <div
+              style={{
+                display: "grid",
+                gridAutoFlow: "column",
+                gridAutoColumns: "minmax(220px, 260px)",
+                gap: 18,
+                overflowX: "auto",
+                overflowY: "hidden",
+                paddingBottom: 8,
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
               {relatedMovies.map((item, index) => (
-                <div className="relatedItem" key={item._id}>
+                <div
+                  key={item._id}
+                  style={{
+                    minWidth: 0,
+                    scrollSnapAlign: "start",
+                  }}
+                >
                   <AdultCard movie={item} priority={index < 4} />
                 </div>
               ))}
@@ -131,46 +148,6 @@ export default async function Detail({ params }) {
           </section>
         ) : null}
       </div>
-
-      <style jsx>{`
-        .relatedScroller {
-          display: grid;
-          grid-auto-flow: column;
-          grid-auto-columns: minmax(220px, 260px);
-          gap: 18px;
-          overflow-x: auto;
-          overflow-y: hidden;
-          padding-bottom: 8px;
-          scroll-snap-type: x proximity;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .relatedScroller::-webkit-scrollbar {
-          height: 10px;
-        }
-
-        .relatedScroller::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.06);
-          border-radius: 999px;
-        }
-
-        .relatedScroller::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.18);
-          border-radius: 999px;
-        }
-
-        .relatedItem {
-          scroll-snap-align: start;
-          min-width: 0;
-        }
-
-        @media (max-width: 768px) {
-          .relatedScroller {
-            grid-auto-columns: minmax(180px, 220px);
-            gap: 14px;
-          }
-        }
-      `}</style>
     </div>
   );
 }
