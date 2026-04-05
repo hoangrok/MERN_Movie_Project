@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getMovieBySlug, getRelatedMovies } from "@/lib/api";
 import AdultPlayer from "@/components/AdultPlayer";
-import AdultCard from "@/components/AdultCard";
+import RelatedSlider from "@/components/RelatedSlider";
 
 export default async function Detail({ params }) {
   const { slug } = await params;
@@ -121,30 +121,7 @@ export default async function Detail({ params }) {
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridAutoFlow: "column",
-                gridAutoColumns: "minmax(220px, 260px)",
-                gap: 18,
-                overflowX: "auto",
-                overflowY: "hidden",
-                paddingBottom: 8,
-                WebkitOverflowScrolling: "touch",
-              }}
-            >
-              {relatedMovies.map((item, index) => (
-                <div
-                  key={item._id}
-                  style={{
-                    minWidth: 0,
-                    scrollSnapAlign: "start",
-                  }}
-                >
-                  <AdultCard movie={item} priority={index < 4} />
-                </div>
-              ))}
-            </div>
+            <RelatedSlider items={relatedMovies} />
           </section>
         ) : null}
       </div>
