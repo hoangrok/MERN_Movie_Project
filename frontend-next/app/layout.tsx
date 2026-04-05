@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/SiteHeader";
@@ -102,7 +103,9 @@ export default function RootLayout({
       className={`${inter.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
     >
       <body>
-        <SiteHeader />
+        <Suspense fallback={null}>
+          <SiteHeader />
+        </Suspense>
         {children}
       </body>
     </html>
