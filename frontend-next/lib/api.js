@@ -63,3 +63,16 @@ export function formatSeconds(seconds) {
   if (m > 0) return `${m} phút`;
   return `${s}s`;
 }
+export async function getSignedStreamUrl(id) {
+  const res = await fetch(`${API_BASE}/movies/${id}/stream`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch signed stream url");
+  }
+
+  const data = await res.json();
+
+  return data?.signedUrl || data?.url || "";
+}

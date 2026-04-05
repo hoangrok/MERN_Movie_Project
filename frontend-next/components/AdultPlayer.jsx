@@ -3,6 +3,7 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import { getContinue, saveContinue } from "@/lib/continue";
+import { getSignedStreamUrl } from "@/lib/api";
 
 export default function AdultPlayer({ movie }) {
   const videoRef = useRef(null);
@@ -22,42 +23,59 @@ export default function AdultPlayer({ movie }) {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !movie?.hlsUrl) return;
+    if (!video || !movie?._id) return;
 
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
+    let mounted = true;
+
+    async function setupPlayer() {
+      try {
+        const signedUrl = await getSignedStreamUrl(movie._id);
+        if (!mounted || !signedUrl) return;
+
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+
+        setIsReady(false);
+
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = signedUrl;
+          if (mounted) setIsReady(true);
+        } else if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+          });
+
+          hls.loadSource(signedUrl);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (mounted) setIsReady(true);
+          });
+
+          hlsRef.current = hls;
+        } else {
+          video.src = signedUrl;
+          if (mounted) setIsReady(true);
+        }
+      } catch (err) {
+        console.error("setupPlayer error:", err);
+      }
     }
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = movie.hlsUrl;
-      setIsReady(true);
-    } else if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-      });
-
-      hls.loadSource(movie.hlsUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsReady(true);
-      });
-
-      hlsRef.current = hls;
-    } else {
-      video.src = movie.hlsUrl;
-      setIsReady(true);
-    }
+    setupPlayer();
 
     return () => {
+      mounted = false;
+
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [movie?.hlsUrl]);
+  }, [movie?._id]);
 
   useEffect(() => {
     const video = videoRef.current;
