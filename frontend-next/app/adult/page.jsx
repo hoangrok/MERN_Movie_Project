@@ -1,3 +1,6 @@
+import ContinueWatching from "@/components/ContinueWatching";
+import { getAdultMovies } from "@/lib/api";
+
 export const metadata = {
   title: "Clip 18+",
   description:
@@ -19,102 +22,6 @@ const featuredVideo = {
     "Tổng hợp nội dung hot, mới cập nhật và được xem nhiều với giao diện tối ưu trải nghiệm xem trên desktop lẫn mobile.",
   badge: "18+ Premium",
 };
-
-const hotVideos = [
-  {
-    id: 1,
-    title: "Clip nổi bật hôm nay 01",
-    category: "Hot",
-    duration: "12 phút",
-    views: "24.5K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 2,
-    title: "Clip nổi bật hôm nay 02",
-    category: "Trending",
-    duration: "18 phút",
-    views: "31.2K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 3,
-    title: "Clip nổi bật hôm nay 03",
-    category: "Đề xuất",
-    duration: "10 phút",
-    views: "19.8K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 4,
-    title: "Clip nổi bật hôm nay 04",
-    category: "Phổ biến",
-    duration: "15 phút",
-    views: "27.1K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",
-  },
-];
-
-const latestVideos = [
-  {
-    id: 5,
-    title: "Cập nhật mới 01",
-    category: "Mới cập nhật",
-    duration: "14 phút",
-    views: "8.6K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 6,
-    title: "Cập nhật mới 02",
-    category: "Mới cập nhật",
-    duration: "11 phút",
-    views: "12.1K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 7,
-    title: "Cập nhật mới 03",
-    category: "Mới cập nhật",
-    duration: "09 phút",
-    views: "6.4K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 8,
-    title: "Cập nhật mới 04",
-    category: "Mới cập nhật",
-    duration: "16 phút",
-    views: "9.9K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 9,
-    title: "Cập nhật mới 05",
-    category: "Mới cập nhật",
-    duration: "21 phút",
-    views: "14.2K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1200&q=80",
-  },
-  {
-    id: 10,
-    title: "Cập nhật mới 06",
-    category: "Mới cập nhật",
-    duration: "13 phút",
-    views: "7.7K lượt xem",
-    image:
-      "https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&fit=crop&w=1200&q=80",
-  },
-];
 
 function SectionHeader({ title, desc }) {
   return (
@@ -157,7 +64,7 @@ function CTAButton({ href, children, primary = false }) {
 function VideoCard({ item, large = false }) {
   return (
     <a
-      href="#"
+      href={`/adult/${item.slug}`}
       style={{
         display: "block",
         textDecoration: "none",
@@ -181,7 +88,7 @@ function VideoCard({ item, large = false }) {
         }}
       >
         <img
-          src={item.image}
+          src={item.displayImage || item.image}
           alt={item.title}
           style={{
             width: "100%",
@@ -228,7 +135,7 @@ function VideoCard({ item, large = false }) {
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.category}
+            {item.category || (item.newPopular ? "Trending" : "18+")}
           </span>
 
           <span
@@ -246,7 +153,7 @@ function VideoCard({ item, large = false }) {
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.duration}
+            {item.displayDuration || item.duration || "HD"}
           </span>
         </div>
 
@@ -283,7 +190,7 @@ function VideoCard({ item, large = false }) {
               color: "rgba(255,255,255,0.72)",
             }}
           >
-            {item.views}
+            {item.displayViews || item.views}
           </p>
         </div>
       </div>
@@ -291,7 +198,9 @@ function VideoCard({ item, large = false }) {
   );
 }
 
-export default function AdultPage() {
+export default async function AdultPage() {
+  const movies = await getAdultMovies();
+
   return (
     <main
       style={{
@@ -415,6 +324,10 @@ export default function AdultPage() {
         </div>
       </section>
 
+      <div className="container">
+        <ContinueWatching />
+      </div>
+
       <section
         id="hot-section"
         className="container"
@@ -435,8 +348,8 @@ export default function AdultPage() {
             gap: 20,
           }}
         >
-          {hotVideos.map((item) => (
-            <VideoCard key={item.id} item={item} large />
+          {movies.slice(0, 4).map((item) => (
+            <VideoCard key={item._id} item={item} large />
           ))}
         </div>
       </section>
@@ -461,8 +374,8 @@ export default function AdultPage() {
             gap: 18,
           }}
         >
-          {latestVideos.map((item) => (
-            <VideoCard key={item.id} item={item} />
+          {movies.slice(4).map((item) => (
+            <VideoCard key={item._id} item={item} />
           ))}
         </div>
       </section>
