@@ -76,3 +76,54 @@ export async function getSignedStreamUrl(id) {
 
   return data?.signedUrl || data?.url || "";
 }
+export async function getRelatedMovies(slug, limit = 12) {
+  const movies = await getAdultMovies();
+  const current = movies.find((movie) => movie?.slug === slug);
+
+  if (!current) return movies.slice(0, limit);
+
+  const currentGenres = Array.isArray(current.genre) ? current.genre : [];
+  const currentTitle = String(current.title || "").toLowerCase();
+
+  const scored = movies
+    .filter((movie) => movie?.slug !== slug)
+    .map((movie) => {
+      let score = 0;
+
+      const movieGenres = Array.isArray(movie.genre) ? movie.genre : [];
+      const sharedGenres = movieGenres.filter((g) => currentGenres.includes(g));
+
+      score += sharedGenres.length * 10;
+
+      if (
+        currentTitle &&
+        String(movie.title || "")
+          .toLowerCase()
+          .includes(currentTitle.split(" ")[0] || "")
+      ) {
+        score += 2;
+      }
+
+      if (movie?.newPopular) score += 1;
+      if (movie?.featured) score += 1;
+
+      const updatedAt = new Date(
+        movie?.updatedAt || movie?.createdAt || 0
+      ).getTime();
+
+      return {
+        ...movie,
+        _relatedScore: score,
+        _updatedAt: updatedAt,
+      };
+    })
+    .sort((a, b) => {
+      if (b._relatedScore !== a._relatedScore) {
+        return b._relatedScore - a._relatedScore;
+      }
+
+      return b._updatedAt - a._updatedAt;
+    });
+
+  return scored.slice(0, limit);
+}

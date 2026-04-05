@@ -1,10 +1,15 @@
 import { notFound } from "next/navigation";
-import { getMovieBySlug } from "@/lib/api";
+import { getMovieBySlug, getRelatedMovies } from "@/lib/api";
 import AdultPlayer from "@/components/AdultPlayer";
+import AdultCard from "@/components/AdultCard";
 
 export default async function Detail({ params }) {
   const { slug } = await params;
-  const movie = await getMovieBySlug(slug);
+
+  const [movie, relatedMovies] = await Promise.all([
+    getMovieBySlug(slug),
+    getRelatedMovies(slug, 10),
+  ]);
 
   if (!movie) return notFound();
 
@@ -93,7 +98,79 @@ export default async function Detail({ params }) {
             {movie.description || "Chưa có mô tả."}
           </p>
         </div>
+
+        {relatedMovies?.length ? (
+          <section style={{ marginTop: 32 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "end",
+                justifyContent: "space-between",
+                gap: 16,
+                marginBottom: 18,
+              }}
+            >
+              <div>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  Có thể bạn sẽ thích
+                </h2>
+                <p className="section-desc" style={{ marginTop: 8 }}>
+                  Một vài nội dung liên quan để xem tiếp theo kiểu cuộn ngang
+                  như Netflix.
+                </p>
+              </div>
+            </div>
+
+            <div className="relatedScroller">
+              {relatedMovies.map((item, index) => (
+                <div className="relatedItem" key={item._id}>
+                  <AdultCard movie={item} priority={index < 4} />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
+
+      <style jsx>{`
+        .relatedScroller {
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(220px, 260px);
+          gap: 18px;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 8px;
+          scroll-snap-type: x proximity;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .relatedScroller::-webkit-scrollbar {
+          height: 10px;
+        }
+
+        .relatedScroller::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+        }
+
+        .relatedScroller::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.18);
+          border-radius: 999px;
+        }
+
+        .relatedItem {
+          scroll-snap-align: start;
+          min-width: 0;
+        }
+
+        @media (max-width: 768px) {
+          .relatedScroller {
+            grid-auto-columns: minmax(180px, 220px);
+            gap: 14px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
