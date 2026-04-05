@@ -12,55 +12,62 @@ export default async function Detail({ params }) {
     <div className="container" style={{ paddingTop: 40, paddingBottom: 40 }}>
       <div
         style={{
-          display: "grid",
-          gap: 20,
+          maxWidth: 920,
+          margin: "0 auto",
         }}
       >
-        <div>
-          <h1>{movie.title}</h1>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "clamp(2rem, 5vw, 4rem)",
+            lineHeight: 1.02,
+            letterSpacing: "-0.04em",
+          }}
+        >
+          {movie.title}
+        </h1>
 
-          <div
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginTop: 14,
+          }}
+        >
+          <span
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              marginTop: 12,
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 34,
+              padding: "0 12px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "#fff",
+              fontSize: "0.86rem",
+              fontWeight: 700,
             }}
           >
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 34,
-                padding: "0 12px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#fff",
-                fontSize: "0.86rem",
-                fontWeight: 700,
-              }}
-            >
-              {movie.displayDuration || "HD"}
-            </span>
+            {movie.displayDuration || "HD"}
+          </span>
 
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 34,
-                padding: "0 12px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "#fff",
-                fontSize: "0.86rem",
-                fontWeight: 700,
-              }}
-            >
-              {movie.displayViews || "Mới cập nhật"}
-            </span>
-          </div>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 34,
+              padding: "0 12px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "#fff",
+              fontSize: "0.86rem",
+              fontWeight: 700,
+            }}
+          >
+            {movie.displayViews || "Mới cập nhật"}
+          </span>
         </div>
 
         <AdultPlayer movie={movie} />
@@ -69,18 +76,20 @@ export default async function Detail({ params }) {
           className="surface"
           style={{
             padding: 18,
+            marginTop: 22,
           }}
         >
           <h2
             style={{
-              fontSize: "1.1rem",
+              fontSize: "1.08rem",
+              margin: 0,
               marginBottom: 10,
             }}
           >
             Giới thiệu
           </h2>
 
-          <p style={{ marginTop: 0 }}>
+          <p style={{ margin: 0 }}>
             {movie.description || "Chưa có mô tả."}
           </p>
         </div>
