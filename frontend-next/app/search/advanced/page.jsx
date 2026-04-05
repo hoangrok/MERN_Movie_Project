@@ -105,93 +105,211 @@ export default async function AdvancedSearchPage({ searchParams }) {
             }}
           >
             <div style={{ gridColumn: "span 12" }}>
-              <label className="advLabel">Từ khoá</label>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Từ khoá
+              </label>
               <input
                 type="text"
                 name="q"
                 defaultValue={keyword}
                 placeholder="Nhập tên video, mô tả..."
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
             <div style={{ gridColumn: "span 12" }}>
-              <label className="advLabel">Thể loại</label>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Thể loại
+              </label>
               <input
                 type="text"
                 name="genre"
                 defaultValue={genreInput}
                 placeholder="Ví dụ: asian, cosplay, amateur"
-                className="advInput"
+                style={inputStyle}
               />
-              <div className="advHint">Ngăn cách nhiều thể loại bằng dấu phẩy.</div>
+              <div
+                style={{
+                  marginTop: 6,
+                  color: "rgba(255,255,255,0.52)",
+                  fontSize: "0.82rem",
+                }}
+              >
+                Ngăn cách nhiều thể loại bằng dấu phẩy.
+              </div>
             </div>
 
-            <div style={{ gridColumn: "span 3" }} className="advCol">
-              <label className="advLabel">Năm từ</label>
+            <div
+              style={{
+                gridColumn: "span 3",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Năm từ
+              </label>
               <input
                 type="number"
                 name="minYear"
                 defaultValue={minYear || ""}
                 placeholder="2023"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ gridColumn: "span 3" }} className="advCol">
-              <label className="advLabel">Đến năm</label>
+            <div
+              style={{
+                gridColumn: "span 3",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Đến năm
+              </label>
               <input
                 type="number"
                 name="maxYear"
                 defaultValue={maxYear || ""}
                 placeholder="2025"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ gridColumn: "span 3" }} className="advCol">
-              <label className="advLabel">Rating từ</label>
+            <div
+              style={{
+                gridColumn: "span 3",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Rating từ
+              </label>
               <input
                 type="number"
                 step="0.1"
                 name="minRating"
                 defaultValue={minRating || ""}
                 placeholder="4.0"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ gridColumn: "span 3" }} className="advCol">
-              <label className="advLabel">Đến rating</label>
+            <div
+              style={{
+                gridColumn: "span 3",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Đến rating
+              </label>
               <input
                 type="number"
                 step="0.1"
                 name="maxRating"
                 defaultValue={maxRating || ""}
                 placeholder="9.5"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ gridColumn: "span 6" }} className="advCol">
-              <label className="advLabel">Ngôn ngữ</label>
+            <div
+              style={{
+                gridColumn: "span 6",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Ngôn ngữ
+              </label>
               <input
                 type="text"
                 name="language"
                 defaultValue={language}
                 placeholder="Ví dụ: japanese"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ gridColumn: "span 6" }} className="advCol">
-              <label className="advLabel">Quốc gia</label>
+            <div
+              style={{
+                gridColumn: "span 6",
+                minWidth: 0,
+              }}
+            >
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#fff",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                }}
+              >
+                Quốc gia
+              </label>
               <input
                 type="text"
                 name="country"
                 defaultValue={country}
                 placeholder="Ví dụ: korea"
-                className="advInput"
+                style={inputStyle}
               />
             </div>
 
@@ -204,15 +322,15 @@ export default async function AdvancedSearchPage({ searchParams }) {
                 marginTop: 4,
               }}
             >
-              <button type="submit" className="advSubmit">
+              <button type="submit" style={primaryButtonStyle}>
                 Tìm kiếm nâng cao
               </button>
 
-              <Link href="/search" className="advSecondary">
+              <Link href="/search" style={secondaryButtonStyle}>
                 Về search thường
               </Link>
 
-              <Link href="/search/advanced" className="advSecondary">
+              <Link href="/search/advanced" style={secondaryButtonStyle}>
                 Reset bộ lọc
               </Link>
             </div>
@@ -295,11 +413,11 @@ export default async function AdvancedSearchPage({ searchParams }) {
                   marginTop: 18,
                 }}
               >
-                <Link href="/search/advanced" className="advSubmit">
+                <Link href="/search/advanced" style={primaryButtonStyle}>
                   Reset bộ lọc
                 </Link>
 
-                <Link href="/search" className="advSecondary">
+                <Link href="/search" style={secondaryButtonStyle}>
                   Về search thường
                 </Link>
               </div>
@@ -334,111 +452,79 @@ export default async function AdvancedSearchPage({ searchParams }) {
                 marginTop: 18,
               }}
             >
-              <Link href="/search/advanced?q=test" className="advTag">
+              <Link href="/search/advanced?q=test" style={tagStyle}>
                 test
               </Link>
               <Link
                 href="/search/advanced?genre=cosplay,asian"
-                className="advTag"
+                style={tagStyle}
               >
                 cosplay, asian
               </Link>
-              <Link href="/search/advanced?language=japanese" className="advTag">
+              <Link href="/search/advanced?language=japanese" style={tagStyle}>
                 japanese
               </Link>
-              <Link href="/search/advanced?country=korea" className="advTag">
+              <Link href="/search/advanced?country=korea" style={tagStyle}>
                 korea
               </Link>
             </div>
           </div>
         )}
       </section>
-
-      <style jsx>{`
-        .advLabel {
-          display: block;
-          margin-bottom: 8px;
-          color: #fff;
-          font-size: 0.92rem;
-          font-weight: 700;
-        }
-
-        .advHint {
-          margin-top: 6px;
-          color: rgba(255, 255, 255, 0.52);
-          font-size: 0.82rem;
-        }
-
-        .advInput {
-          width: 100%;
-          min-height: 46px;
-          padding: 0 14px;
-          border-radius: 14px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.04);
-          color: #fff;
-          outline: none;
-        }
-
-        .advInput::placeholder {
-          color: rgba(255, 255, 255, 0.42);
-        }
-
-        .advSubmit {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 42px;
-          padding: 0 16px;
-          border-radius: 12px;
-          text-decoration: none;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: #fff;
-          color: #05070d;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .advSecondary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 42px;
-          padding: 0 16px;
-          border-radius: 12px;
-          text-decoration: none;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.06);
-          color: #fff;
-          font-weight: 700;
-        }
-
-        .advTag {
-          display: inline-flex;
-          align-items: center;
-          min-height: 38px;
-          padding: 0 14px;
-          border-radius: 999px;
-          text-decoration: none;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #fff;
-          font-weight: 700;
-          font-size: 0.92rem;
-        }
-
-        @media (max-width: 900px) {
-          .advCol {
-            grid-column: span 6 !important;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .advCol {
-            grid-column: span 12 !important;
-          }
-        }
-      `}</style>
     </main>
   );
 }
+
+const inputStyle = {
+  width: "100%",
+  minHeight: 46,
+  padding: "0 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.04)",
+  color: "#fff",
+  outline: "none",
+};
+
+const primaryButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 42,
+  padding: "0 16px",
+  borderRadius: 12,
+  textDecoration: "none",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "#fff",
+  color: "#05070d",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 42,
+  padding: "0 16px",
+  borderRadius: 12,
+  textDecoration: "none",
+  border: "1px solid rgba(255,255,255,0.1)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#fff",
+  fontWeight: 700,
+};
+
+const tagStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 999,
+  textDecoration: "none",
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: "0.92rem",
+};
