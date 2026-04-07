@@ -4,6 +4,7 @@ export function saveAuthUser(user) {
   if (typeof window === "undefined") return;
   localStorage.setItem(AUTH_KEY, JSON.stringify(user || null));
   window.dispatchEvent(new Event("auth-updated"));
+  window.dispatchEvent(new Event("liked-updated"));
 }
 
 export function getAuthUser() {
@@ -29,6 +30,7 @@ export function logout() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(AUTH_KEY);
   window.dispatchEvent(new Event("auth-updated"));
+  window.dispatchEvent(new Event("liked-updated"));
 }
 
 export function updateLikedMovies(likedMovies = []) {
@@ -40,5 +42,7 @@ export function updateLikedMovies(likedMovies = []) {
     likedMovies,
   };
 
-  saveAuthUser(updatedUser);
+  localStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
+  window.dispatchEvent(new Event("auth-updated"));
+  window.dispatchEvent(new Event("liked-updated"));
 }

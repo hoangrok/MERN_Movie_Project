@@ -11,9 +11,24 @@ export default function AdultCard({ movie, priority = false }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const user = getAuthUser();
-    const likedMovies = user?.likedMovies || [];
-    setLiked(likedMovies.some((item) => String(item._id || item.id) === String(movie?._id)));
+    const syncLiked = () => {
+      const user = getAuthUser();
+      const likedMovies = user?.likedMovies || [];
+      setLiked(
+        likedMovies.some(
+          (item) => String(item._id || item.id) === String(movie?._id)
+        )
+      );
+    };
+
+    syncLiked();
+    window.addEventListener("liked-updated", syncLiked);
+    window.addEventListener("auth-updated", syncLiked);
+
+    return () => {
+      window.removeEventListener("liked-updated", syncLiked);
+      window.removeEventListener("auth-updated", syncLiked);
+    };
   }, [movie?._id]);
 
   const previewImage = useMemo(() => {
@@ -38,10 +53,8 @@ export default function AdultCard({ movie, priority = false }) {
 
       if (liked) {
         await removeFromLiked(movie._id);
-        setLiked(false);
       } else {
         await addToLiked(movie._id);
-        setLiked(true);
       }
     } catch (err) {
       alert(err.message || "Không thể cập nhật My List");

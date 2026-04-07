@@ -12,9 +12,11 @@ export default function AuthButtons() {
 
     sync();
     window.addEventListener("auth-updated", sync);
+    window.addEventListener("liked-updated", sync);
 
     return () => {
       window.removeEventListener("auth-updated", sync);
+      window.removeEventListener("liked-updated", sync);
     };
   }, []);
 
@@ -63,10 +65,12 @@ export default function AuthButtons() {
     );
   }
 
+  const likedCount = Array.isArray(user?.likedMovies) ? user.likedMovies.length : 0;
+
   return (
     <div className="authButtons">
       <Link href="/my-list" className="authBtn authBtn--ghost">
-        My List
+        My List {likedCount ? `(${likedCount})` : ""}
       </Link>
 
       <div className="authUser">
