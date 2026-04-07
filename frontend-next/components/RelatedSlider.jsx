@@ -22,21 +22,12 @@ export default function RelatedSlider({ items = [] }) {
 
   return (
     <div style={{ position: "relative" }}>
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: -58,
-          display: "flex",
-          gap: 10,
-          zIndex: 3,
-        }}
-      >
+      <div className="relatedControls">
         <button
           type="button"
           onClick={() => scrollByAmount("left")}
-          aria-label="Scroll left"
-          style={buttonStyle}
+          aria-label="Cuộn trái"
+          className="relatedButton"
         >
           ←
         </button>
@@ -44,8 +35,8 @@ export default function RelatedSlider({ items = [] }) {
         <button
           type="button"
           onClick={() => scrollByAmount("right")}
-          aria-label="Scroll right"
-          style={buttonStyle}
+          aria-label="Cuộn phải"
+          className="relatedButton"
         >
           →
         </button>
@@ -62,6 +53,38 @@ export default function RelatedSlider({ items = [] }) {
       </div>
 
       <style jsx>{`
+        .relatedControls {
+          position: absolute;
+          right: 0;
+          top: -58px;
+          display: flex;
+          gap: 10px;
+          z-index: 3;
+        }
+
+        .relatedButton {
+          width: 44px;
+          height: 44px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          font-size: 1.1rem;
+          font-weight: 800;
+          cursor: pointer;
+          backdrop-filter: blur(10px);
+          transition:
+            transform 0.22s ease,
+            background 0.22s ease,
+            border-color 0.22s ease;
+        }
+
+        .relatedButton:hover {
+          transform: translateY(-1px);
+          background: rgba(255, 255, 255, 0.14);
+          border-color: rgba(255, 255, 255, 0.18);
+        }
+
         .relatedOuter {
           overflow: hidden;
         }
@@ -70,8 +93,8 @@ export default function RelatedSlider({ items = [] }) {
           display: grid;
           grid-auto-flow: column;
           grid-template-rows: repeat(2, auto);
-          grid-auto-columns: minmax(280px, 320px);
-          gap: 18px 20px;
+          grid-auto-columns: minmax(300px, 340px);
+          gap: 20px 20px;
           overflow-x: auto;
           overflow-y: hidden;
           padding-bottom: 4px;
@@ -91,25 +114,16 @@ export default function RelatedSlider({ items = [] }) {
         }
 
         @media (max-width: 768px) {
+          .relatedControls {
+            top: -52px;
+          }
+
           .relatedScroller {
-            grid-auto-columns: minmax(220px, 260px);
-            gap: 14px 16px;
+            grid-auto-columns: minmax(240px, 280px);
+            gap: 16px 16px;
           }
         }
       `}</style>
     </div>
   );
 }
-
-const buttonStyle = {
-  width: 44,
-  height: 44,
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.08)",
-  color: "#fff",
-  fontSize: "1.1rem",
-  fontWeight: 800,
-  cursor: "pointer",
-  backdropFilter: "blur(8px)",
-};
