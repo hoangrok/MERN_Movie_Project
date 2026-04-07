@@ -48,6 +48,7 @@ function CTAButton({ href, children, primary = false }) {
         fontSize: "0.97rem",
         letterSpacing: "-0.01em",
         whiteSpace: "nowrap",
+        textDecoration: "none",
       }}
     >
       <span style={{ color: primary ? "#05070d" : "#ffffff" }}>{children}</span>
@@ -76,7 +77,7 @@ function VideoCard({ item, large = false }) {
         style={{
           position: "relative",
           width: "100%",
-          aspectRatio: large ? "16 / 10" : "16 / 10",
+          aspectRatio: "16 / 10",
           background: "#0d1118",
           overflow: "hidden",
         }}
@@ -367,7 +368,13 @@ export default async function AdultPage() {
           desc="Những nội dung nổi bật đang được xem nhiều."
         />
 
-        <div className="adultVideoGrid adultVideoGrid--hot">
+        <div
+          style={{
+            display: "grid",
+            gap: 18,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
           {hotMovies.map((item) => (
             <VideoCard key={item._id} item={item} large />
           ))}
@@ -386,45 +393,18 @@ export default async function AdultPage() {
           desc="Danh sách video mới được thêm gần đây."
         />
 
-        <div className="adultVideoGrid adultVideoGrid--latest">
+        <div
+          style={{
+            display: "grid",
+            gap: 18,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
           {latestMovies.map((item) => (
             <VideoCard key={item._id} item={item} />
           ))}
         </div>
       </section>
-
-      <style jsx>{`
-        .adultVideoGrid {
-          display: grid;
-          gap: 18px;
-        }
-
-        .adultVideoGrid--hot,
-        .adultVideoGrid--latest {
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
-
-        @media (max-width: 1280px) {
-          .adultVideoGrid--hot,
-          .adultVideoGrid--latest {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 900px) {
-          .adultVideoGrid--hot,
-          .adultVideoGrid--latest {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 640px) {
-          .adultVideoGrid--hot,
-          .adultVideoGrid--latest {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </main>
   );
 }
