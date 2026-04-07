@@ -10,13 +10,16 @@ export default function AdultCard({ movie, priority = false }) {
   const [liked, setLiked] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const movieId = movie?._id || movie?.id || "";
+  const movieSlug = movie?.slug || "";
+
   useEffect(() => {
     const syncLiked = () => {
       const user = getAuthUser();
       const likedMovies = user?.likedMovies || [];
       setLiked(
         likedMovies.some(
-          (item) => String(item._id || item.id) === String(movie?._id)
+          (item) => String(item?._id || item?.id) === String(movieId)
         )
       );
     };
@@ -29,18 +32,28 @@ export default function AdultCard({ movie, priority = false }) {
       window.removeEventListener("liked-updated", syncLiked);
       window.removeEventListener("auth-updated", syncLiked);
     };
-  }, [movie?._id]);
+  }, [movieId]);
 
   const previewImage = useMemo(() => {
-    if (!movie?.previewItems?.length) return movie?.displayImage || movie?.poster || "";
+    if (!movie?.previewItems?.length) {
+      return movie?.displayImage || movie?.poster || "";
+    }
     return movie.previewItems[0]?.url || movie?.displayImage || movie?.poster || "";
   }, [movie]);
 
-  const imageSrc = hovered ? previewImage : movie?.displayImage || movie?.poster || previewImage;
+  const imageSrc =
+    hovered
+      ? previewImage
+      : movie?.displayImage || movie?.poster || previewImage;
 
   const onToggleLike = async (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!movieId) {
+      console.warn("Missing movie id:", movie);
+      return;
+    }
 
     const user = getAuthUser();
     if (!user?.token) {
@@ -52,20 +65,22 @@ export default function AdultCard({ movie, priority = false }) {
       setBusy(true);
 
       if (liked) {
-        await removeFromLiked(movie._id);
+        await removeFromLiked(movieId);
       } else {
-        await addToLiked(movie._id);
+        await addToLiked(movieId);
       }
     } catch (err) {
-      alert(err.message || "Không thể cập nhật My List");
+      alert(err?.message || "Không thể cập nhật My List");
     } finally {
       setBusy(false);
     }
   };
 
+  if (!movieSlug) return null;
+
   return (
     <Link
-      href={`/adult/${movie.slug}`}
+      href={`/adult/${movieSlug}`}
       className="adultCard"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -95,7 +110,7 @@ export default function AdultCard({ movie, priority = false }) {
               type="button"
               className={`adultCard__like ${liked ? "isLiked" : ""}`}
               onClick={onToggleLike}
-              disabled={busy}
+              disabled={busy || !movieId}
               aria-label="Toggle like"
             >
               ♥
@@ -233,6 +248,11 @@ export default function AdultCard({ movie, priority = false }) {
           cursor: pointer;
           font-size: 0.9rem;
           font-weight: 900;
+        }
+
+        .adultCard__like:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .adultCard__like.isLiked {
