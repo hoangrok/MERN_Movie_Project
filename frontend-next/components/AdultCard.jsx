@@ -1,17 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { addToLiked, removeFromLiked } from "@/lib/user-api";
+import { getAuthUser } from "@/lib/auth";
 
 export default function AdultCard({ movie, priority = false }) {
   const [hovered, setHovered] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const user = getAuthUser();
+    const likedMovies = user?.likedMovies || [];
+    setLiked(likedMovies.some((item) => String(item._id || item.id) === String(movie?._id)));
+  }, [movie?._id]);
 
   const previewImage = useMemo(() => {
-    if (!movie?.previewItems?.length) return movie?.displayImage || "";
-    return movie.previewItems[0]?.url || movie?.displayImage || "";
+    if (!movie?.previewItems?.length) return movie?.displayImage || movie?.poster || "";
+    return movie.previewItems[0]?.url || movie?.displayImage || movie?.poster || "";
   }, [movie]);
 
-  const imageSrc = hovered ? previewImage : movie?.displayImage || previewImage;
+  const imageSrc = hovered ? previewImage : movie?.displayImage || movie?.poster || previewImage;
+
+  const onToggleLike = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const user = getAuthUser();
+    if (!user?.token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      setBusy(true);
+
+      if (liked) {
+        await removeFromLiked(movie._id);
+        setLiked(false);
+      } else {
+        await addToLiked(movie._id);
+        setLiked(true);
+      }
+    } catch (err) {
+      alert(err.message || "Không thể cập nhật My List");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Link
@@ -35,9 +72,22 @@ export default function AdultCard({ movie, priority = false }) {
           <span className="adultCard__badge">
             {movie?.newPopular ? "Trending" : "18+"}
           </span>
-          <span className="adultCard__time">
-            {movie?.displayDuration || "HD"}
-          </span>
+
+          <div className="adultCard__topRight">
+            <span className="adultCard__time">
+              {movie?.displayDuration || "HD"}
+            </span>
+
+            <button
+              type="button"
+              className={`adultCard__like ${liked ? "isLiked" : ""}`}
+              onClick={onToggleLike}
+              disabled={busy}
+              aria-label="Toggle like"
+            >
+              ♥
+            </button>
+          </div>
         </div>
 
         <div className="adultCard__bottom">
@@ -96,8 +146,7 @@ export default function AdultCard({ movie, priority = false }) {
           transform: scale(1.02);
           transition:
             transform 0.4s ease,
-            filter 0.35s ease,
-            opacity 0.3s ease;
+            filter 0.35s ease;
         }
 
         .adultCard:hover .adultCard__media img {
@@ -129,6 +178,12 @@ export default function AdultCard({ movie, priority = false }) {
           z-index: 2;
         }
 
+        .adultCard__topRight {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
         .adultCard__badge,
         .adultCard__time,
         .adultCard__preview {
@@ -153,6 +208,22 @@ export default function AdultCard({ movie, priority = false }) {
           background: rgba(255, 255, 255, 0.12);
           border: 1px solid rgba(255, 255, 255, 0.14);
           color: #fff;
+        }
+
+        .adultCard__like {
+          width: 32px;
+          height: 32px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 900;
+        }
+
+        .adultCard__like.isLiked {
+          color: #ff8c8c;
         }
 
         .adultCard__bottom {

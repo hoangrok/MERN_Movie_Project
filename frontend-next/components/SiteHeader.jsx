@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import AuthButtons from "@/components/AuthButtons";
 
 export default function SiteHeader() {
   const pathname = usePathname();
@@ -9,8 +10,7 @@ export default function SiteHeader() {
   const currentQuery = searchParams.get("q") || "";
 
   const isActive = (path) =>
-    pathname === path ||
-    (path !== "/" && pathname?.startsWith(path));
+    pathname === path || (path !== "/" && pathname?.startsWith(path));
 
   return (
     <header className="siteHeader">
@@ -22,7 +22,9 @@ export default function SiteHeader() {
         <nav className="siteHeader__nav">
           <Link
             href="/"
-            className={`siteHeader__link ${isActive("/") && pathname === "/" ? "isActive" : ""}`}
+            className={`siteHeader__link ${
+              isActive("/") && pathname === "/" ? "isActive" : ""
+            }`}
           >
             Home
           </Link>
@@ -40,10 +42,27 @@ export default function SiteHeader() {
           >
             Search
           </Link>
+
+          <Link
+            href="/search/advanced"
+            className={`siteHeader__link ${
+              isActive("/search/advanced") ? "isActive" : ""
+            }`}
+          >
+            Tìm kiếm nâng cao
+          </Link>
+
+          <Link
+            href="/my-list"
+            className={`siteHeader__link ${isActive("/my-list") ? "isActive" : ""}`}
+          >
+            My List
+          </Link>
         </nav>
 
         <form action="/search" method="GET" className="siteHeader__search">
           <span className="siteHeader__searchIcon">🔍</span>
+
           <input
             type="text"
             name="q"
@@ -51,10 +70,17 @@ export default function SiteHeader() {
             placeholder="Tìm video..."
             className="siteHeader__input"
           />
+
           <button type="submit" className="siteHeader__button">
             Tìm
           </button>
+
+          <Link href="/search/advanced" className="siteHeader__advancedButton">
+            Nâng cao
+          </Link>
         </form>
+
+        <AuthButtons />
       </div>
 
       <style jsx>{`
@@ -100,6 +126,7 @@ export default function SiteHeader() {
           text-decoration: none;
           font-weight: 700;
           transition: all 0.2s ease;
+          white-space: nowrap;
         }
 
         .siteHeader__link:hover,
@@ -114,7 +141,7 @@ export default function SiteHeader() {
           align-items: center;
           gap: 10px;
           min-width: 0;
-          width: min(420px, 100%);
+          width: min(560px, 100%);
           padding: 10px 12px;
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.06);
@@ -152,7 +179,23 @@ export default function SiteHeader() {
           flex-shrink: 0;
         }
 
-        @media (max-width: 900px) {
+        .siteHeader__advancedButton {
+          min-height: 38px;
+          padding: 0 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.08);
+          color: #fff;
+          font-weight: 700;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 1240px) {
           .siteHeader__inner {
             flex-wrap: wrap;
             padding-top: 12px;
@@ -177,8 +220,13 @@ export default function SiteHeader() {
             display: none;
           }
 
-          .siteHeader__link {
-            white-space: nowrap;
+          .siteHeader__search {
+            flex-wrap: wrap;
+          }
+
+          .siteHeader__button,
+          .siteHeader__advancedButton {
+            flex: 1;
           }
         }
       `}</style>
