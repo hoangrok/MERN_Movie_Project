@@ -281,3 +281,19 @@ pre {
     line-height: 1.72;
   }
 }
+.siteHeader__button,
+.siteHeader__advancedButton,
+.siteHeader__viewAll,
+.surface,
+a {
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    opacity 0.22s ease,
+    background 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.surface:hover {
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}

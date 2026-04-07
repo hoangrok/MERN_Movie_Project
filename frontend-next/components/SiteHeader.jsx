@@ -1,16 +1,132 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import AuthButtons from "@/components/AuthButtons";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "https://dam18-api.onrender.com/api";
 
 export default function SiteHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const currentQuery = searchParams.get("q") || "";
+
+  const initialQuery =
+    searchParams.get("q") || searchParams.get("keyword") || "";
+
+  const [query, setQuery] = useState(initialQuery);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const wrapRef = useRef(null);
 
   const isActive = (path) =>
     pathname === path || (path !== "/" && pathname?.startsWith(path));
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (!wrapRef.current?.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const keyword = query.trim();
+
+    if (!keyword) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true);
+
+        const res = await fetch(
+          `${API_BASE}/movies?search=${encodeURIComponent(keyword)}&limit=8`,
+          {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          setResults([]);
+          return;
+        }
+
+        const items =
+          data?.movies ||
+          data?.results ||
+          data?.data ||
+          (Array.isArray(data) ? data : []);
+
+        setResults(Array.isArray(items) ? items.slice(0, 8) : []);
+        setOpen(true);
+      } catch (error) {
+        if (error?.name !== "AbortError") {
+          setResults([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 260);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
+  const hasDropdown = useMemo(() => {
+    return open && query.trim().length > 0;
+  }, [open, query]);
+
+  const getMovieHref = (item) => {
+    if (item?.slug) return `/adult/${item.slug}`;
+    if (item?._id) return `/adult/${item._id}`;
+    return "/adult";
+  };
+
+  const getMovieImage = (item) =>
+    item?.displayImage ||
+    item?.displayBackdrop ||
+    item?.poster ||
+    item?.backdrop ||
+    "https://dummyimage.com/160x90/111827/ffffff&text=Video";
+
+  const getMovieMeta = (item) => {
+    const bits = [];
+    if (item?.year) bits.push(item.year);
+    if (item?.displayDuration) bits.push(item.displayDuration);
+    if (item?.displayViews) bits.push(item.displayViews);
+    if (item?.language) bits.push(item.language);
+    return bits.join(" • ");
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const keyword = query.trim();
+    if (!keyword) return;
+    setOpen(false);
+    router.push(`/search?q=${encodeURIComponent(keyword)}`);
+  };
 
   return (
     <header className="siteHeader">
@@ -26,21 +142,21 @@ export default function SiteHeader() {
               isActive("/") && pathname === "/" ? "isActive" : ""
             }`}
           >
-            Home
+            Trang chủ
           </Link>
 
           <Link
             href="/adult"
             className={`siteHeader__link ${isActive("/adult") ? "isActive" : ""}`}
           >
-            Adult
+            18+
           </Link>
 
           <Link
             href="/search"
             className={`siteHeader__link ${isActive("/search") ? "isActive" : ""}`}
           >
-            Search
+            Tìm kiếm
           </Link>
 
           <Link
@@ -49,36 +165,92 @@ export default function SiteHeader() {
               isActive("/search/advanced") ? "isActive" : ""
             }`}
           >
-            Tìm kiếm nâng cao
+            Nâng cao
           </Link>
 
           <Link
             href="/my-list"
             className={`siteHeader__link ${isActive("/my-list") ? "isActive" : ""}`}
           >
-            My List
+            Danh sách của tôi
           </Link>
         </nav>
 
-        <form action="/search" method="GET" className="siteHeader__search">
-          <span className="siteHeader__searchIcon">🔍</span>
+        <div className="siteHeader__searchWrap" ref={wrapRef}>
+          <form onSubmit={handleSubmit} className="siteHeader__search">
+            <span className="siteHeader__searchIcon">🔎</span>
 
-          <input
-            type="text"
-            name="q"
-            defaultValue={currentQuery}
-            placeholder="Tìm video..."
-            className="siteHeader__input"
-          />
+            <input
+              type="text"
+              name="q"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => {
+                if (query.trim()) setOpen(true);
+              }}
+              placeholder="Tìm video theo tên, nội dung..."
+              className="siteHeader__input"
+              autoComplete="off"
+            />
 
-          <button type="submit" className="siteHeader__button">
-            Tìm
-          </button>
+            <button type="submit" className="siteHeader__button">
+              Tìm
+            </button>
 
-          <Link href="/search/advanced" className="siteHeader__advancedButton">
-            Nâng cao
-          </Link>
-        </form>
+            <Link href="/search/advanced" className="siteHeader__advancedButton">
+              Nâng cao
+            </Link>
+          </form>
+
+          {hasDropdown ? (
+            <div className="siteHeader__dropdown">
+              {loading ? (
+                <div className="siteHeader__dropdownState">Đang tìm video...</div>
+              ) : results.length > 0 ? (
+                <>
+                  {results.map((item) => (
+                    <Link
+                      key={item?._id || item?.slug || item?.title}
+                      href={getMovieHref(item)}
+                      className="siteHeader__result"
+                      onClick={() => setOpen(false)}
+                    >
+                      <img
+                        src={getMovieImage(item)}
+                        alt={item?.title || "video"}
+                        className="siteHeader__resultThumb"
+                      />
+
+                      <div className="siteHeader__resultBody">
+                        <div className="siteHeader__resultTitle line-clamp-1">
+                          {item?.title || "Video không có tiêu đề"}
+                        </div>
+                        <div className="siteHeader__resultMeta line-clamp-1">
+                          {getMovieMeta(item) || "Nội dung liên quan"}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+
+                  <button
+                    type="button"
+                    className="siteHeader__viewAll"
+                    onClick={() => {
+                      setOpen(false);
+                      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+                    }}
+                  >
+                    Xem tất cả kết quả cho “{query.trim()}”
+                  </button>
+                </>
+              ) : (
+                <div className="siteHeader__dropdownState">
+                  Không tìm thấy video phù hợp
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
 
         <AuthButtons />
       </div>
@@ -88,13 +260,13 @@ export default function SiteHeader() {
           position: sticky;
           top: 0;
           z-index: 50;
-          backdrop-filter: blur(16px);
-          background: rgba(7, 9, 15, 0.72);
+          backdrop-filter: blur(18px);
+          background: rgba(6, 8, 14, 0.76);
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .siteHeader__inner {
-          min-height: 72px;
+          min-height: 78px;
           display: flex;
           align-items: center;
           gap: 18px;
@@ -102,11 +274,10 @@ export default function SiteHeader() {
 
         .siteHeader__brand {
           flex-shrink: 0;
-          text-decoration: none;
           color: #fff;
           font-weight: 900;
-          letter-spacing: -0.03em;
-          font-size: 1.2rem;
+          letter-spacing: -0.04em;
+          font-size: 1.22rem;
         }
 
         .siteHeader__nav {
@@ -114,38 +285,64 @@ export default function SiteHeader() {
           align-items: center;
           gap: 8px;
           flex-shrink: 0;
+          padding: 6px;
+          border-radius: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.06),
+            rgba(255, 255, 255, 0.025)
+          );
+          box-shadow:
+            0 12px 30px rgba(0, 0, 0, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .siteHeader__link {
-          min-height: 40px;
+          min-height: 42px;
           padding: 0 14px;
           border-radius: 12px;
           display: inline-flex;
           align-items: center;
-          color: rgba(255, 255, 255, 0.78);
-          text-decoration: none;
+          color: rgba(255, 255, 255, 0.82);
           font-weight: 700;
-          transition: all 0.2s ease;
+          transition: all 0.22s ease;
           white-space: nowrap;
+          border: 1px solid transparent;
         }
 
         .siteHeader__link:hover,
         .siteHeader__link.isActive {
           background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.08);
           color: #fff;
+          transform: translateY(-1px);
+        }
+
+        .siteHeader__searchWrap {
+          position: relative;
+          margin-left: auto;
+          width: min(640px, 100%);
+          min-width: 0;
         }
 
         .siteHeader__search {
-          margin-left: auto;
           display: flex;
           align-items: center;
           gap: 10px;
+          width: 100%;
           min-width: 0;
-          width: min(560px, 100%);
           padding: 10px 12px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 18px;
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.08),
+            rgba(255, 255, 255, 0.045)
+          );
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          box-shadow:
+            0 16px 38px rgba(0, 0, 0, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .siteHeader__searchIcon {
@@ -160,7 +357,7 @@ export default function SiteHeader() {
           border: none;
           outline: none;
           color: #fff;
-          font-size: 0.96rem;
+          font-size: 0.97rem;
         }
 
         .siteHeader__input::placeholder {
@@ -168,31 +365,104 @@ export default function SiteHeader() {
         }
 
         .siteHeader__button {
-          min-height: 38px;
-          padding: 0 14px;
+          min-height: 40px;
+          padding: 0 16px;
           border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.12);
           background: #fff;
           color: #05070d;
           font-weight: 800;
-          cursor: pointer;
           flex-shrink: 0;
         }
 
         .siteHeader__advancedButton {
-          min-height: 38px;
-          padding: 0 14px;
+          min-height: 40px;
+          padding: 0 15px;
           border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.06);
           color: #fff;
           font-weight: 700;
-          text-decoration: none;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
           white-space: nowrap;
+        }
+
+        .siteHeader__dropdown {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: calc(100% + 10px);
+          border-radius: 20px;
+          overflow: hidden;
+          background: linear-gradient(
+            180deg,
+            rgba(14, 18, 28, 0.98),
+            rgba(10, 13, 21, 0.98)
+          );
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+          backdrop-filter: blur(16px);
+        }
+
+        .siteHeader__dropdownState {
+          padding: 18px;
+          color: rgba(255, 255, 255, 0.72);
+          font-size: 0.95rem;
+        }
+
+        .siteHeader__result {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .siteHeader__result:hover {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .siteHeader__resultThumb {
+          width: 98px;
+          height: 58px;
+          object-fit: cover;
+          border-radius: 12px;
+          flex-shrink: 0;
+          background: #111827;
+        }
+
+        .siteHeader__resultBody {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .siteHeader__resultTitle {
+          color: #fff;
+          font-weight: 800;
+          line-height: 1.3;
+        }
+
+        .siteHeader__resultMeta {
+          margin-top: 4px;
+          color: rgba(255, 255, 255, 0.62);
+          font-size: 0.9rem;
+        }
+
+        .siteHeader__viewAll {
+          width: 100%;
+          border: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          background: rgba(255, 255, 255, 0.04);
+          color: #fff;
+          font-weight: 800;
+          min-height: 48px;
+        }
+
+        .siteHeader__viewAll:hover {
+          background: rgba(255, 255, 255, 0.08);
         }
 
         @media (max-width: 1240px) {
@@ -202,24 +472,26 @@ export default function SiteHeader() {
             padding-bottom: 12px;
           }
 
-          .siteHeader__search {
+          .siteHeader__searchWrap {
             order: 3;
             width: 100%;
             margin-left: 0;
           }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 820px) {
           .siteHeader__nav {
             width: 100%;
             overflow-x: auto;
-            padding-bottom: 2px;
+            padding-bottom: 6px;
           }
 
           .siteHeader__nav::-webkit-scrollbar {
             display: none;
           }
+        }
 
+        @media (max-width: 640px) {
           .siteHeader__search {
             flex-wrap: wrap;
           }
@@ -227,6 +499,11 @@ export default function SiteHeader() {
           .siteHeader__button,
           .siteHeader__advancedButton {
             flex: 1;
+          }
+
+          .siteHeader__resultThumb {
+            width: 84px;
+            height: 50px;
           }
         }
       `}</style>

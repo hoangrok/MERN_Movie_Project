@@ -17,10 +17,10 @@ export const metadata = {
 };
 
 const featuredVideo = {
-  title: "Kho clip 18+ hiện đại, tối giản và cuốn hơn",
+  title: "Nội dung 18+ hiện đại, tối giản và cuốn hơn",
   subtitle:
-    "Tổng hợp nội dung hot, mới cập nhật và được xem nhiều với giao diện tối ưu trải nghiệm xem trên desktop lẫn mobile.",
-  badge: "18+ Premium",
+    "Khám phá danh sách clip hot, video mới cập nhật và nội dung đang được xem nhiều với giao diện tối ưu cho cả desktop lẫn mobile.",
+  badge: "Chuyên mục dành cho người trưởng thành 18+",
 };
 
 function SectionHeader({ title, desc }) {
@@ -40,20 +40,25 @@ function CTAButton({ href, children, primary = false }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: 48,
-        padding: "0 20px",
-        borderRadius: 14,
+        minHeight: 52,
+        padding: "0 22px",
+        borderRadius: 16,
         textDecoration: "none",
-        fontWeight: 700,
-        fontSize: "0.96rem",
+        fontWeight: 800,
+        fontSize: "0.97rem",
         letterSpacing: "-0.01em",
         transition: "all 0.25s ease",
-        background: primary ? "#ffffff" : "rgba(255,255,255,0.08)",
+        cursor: "pointer",
+        background: primary
+          ? "#ffffff"
+          : "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
         color: primary ? "#05070d" : "#ffffff",
         border: primary
-          ? "1px solid rgba(255,255,255,0.8)"
+          ? "1px solid rgba(255,255,255,0.85)"
           : "1px solid rgba(255,255,255,0.12)",
-        boxShadow: primary ? "0 12px 30px rgba(255,255,255,0.08)" : "none",
+        boxShadow: primary
+          ? "0 14px 32px rgba(255,255,255,0.08)"
+          : "0 14px 32px rgba(0,0,0,0.18)",
       }}
     >
       {children}
@@ -82,7 +87,7 @@ function VideoCard({ item, large = false }) {
         style={{
           position: "relative",
           width: "100%",
-          height: large ? 285 : 230,
+          height: large ? 300 : 236,
           background: "#0d1118",
           overflow: "hidden",
         }}
@@ -95,7 +100,7 @@ function VideoCard({ item, large = false }) {
             height: "100%",
             objectFit: "cover",
             display: "block",
-            transform: "scale(1.01)",
+            transform: "scale(1.02)",
           }}
         />
 
@@ -104,7 +109,7 @@ function VideoCard({ item, large = false }) {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(to top, rgba(3,6,12,0.96) 0%, rgba(3,6,12,0.48) 45%, rgba(3,6,12,0.12) 100%)",
+              "linear-gradient(to top, rgba(3,6,12,0.98) 0%, rgba(3,6,12,0.5) 44%, rgba(3,6,12,0.08) 100%)",
           }}
         />
 
@@ -129,13 +134,13 @@ function VideoCard({ item, large = false }) {
               borderRadius: 999,
               background: "rgba(255, 92, 92, 0.16)",
               border: "1px solid rgba(255, 92, 92, 0.24)",
-              color: "#ff9d9d",
+              color: "#ffb1b1",
               fontSize: "0.78rem",
               fontWeight: 700,
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.category || (item.newPopular ? "Trending" : "18+")}
+            {item.category || (item.newPopular ? "Nổi bật" : "18+")}
           </span>
 
           <span
@@ -171,10 +176,10 @@ function VideoCard({ item, large = false }) {
               margin: 0,
               fontFamily:
                 "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-              fontSize: large ? "1.14rem" : "1rem",
+              fontSize: large ? "1.16rem" : "1rem",
               lineHeight: 1.3,
               letterSpacing: "-0.025em",
-              fontWeight: 700,
+              fontWeight: 800,
               color: "#ffffff",
             }}
           >
@@ -190,7 +195,7 @@ function VideoCard({ item, large = false }) {
               color: "rgba(255,255,255,0.72)",
             }}
           >
-            {item.displayViews || item.views}
+            {item.displayViews || item.views || "Mới cập nhật"}
           </p>
         </div>
       </div>
@@ -198,15 +203,53 @@ function VideoCard({ item, large = false }) {
   );
 }
 
+function InfoStripItem({ value, label }) {
+  return (
+    <div
+      className="surface"
+      style={{
+        padding: "16px 18px",
+      }}
+    >
+      <div
+        style={{
+          fontFamily:
+            "var(--font-manrope), var(--font-inter), Arial, sans-serif",
+          fontSize: "1rem",
+          fontWeight: 800,
+          letterSpacing: "-0.02em",
+          color: "#ffffff",
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: "0.9rem",
+          lineHeight: 1.55,
+          color: "rgba(255,255,255,0.64)",
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
 export default async function AdultPage() {
   const movies = await getAdultMovies();
+
+  const hotMovies = movies.slice(0, 4);
+  const latestMovies = movies.slice(4);
 
   return (
     <main
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, rgba(96, 94, 255, 0.12) 0%, rgba(255,255,255,0.03) 18%, rgba(0,0,0,0) 42%), linear-gradient(180deg, #07090f 0%, #090b12 45%, #040507 100%)",
+          "radial-gradient(circle at top, rgba(120, 89, 255, 0.14) 0%, rgba(255,255,255,0.03) 18%, rgba(0,0,0,0) 42%), linear-gradient(180deg, #07090f 0%, #090b12 45%, #040507 100%)",
       }}
     >
       <section
@@ -221,7 +264,7 @@ export default async function AdultPage() {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(135deg, rgba(255,72,72,0.15) 0%, rgba(92,83,255,0.12) 52%, rgba(0,0,0,0) 100%)",
+              "linear-gradient(135deg, rgba(255,72,72,0.16) 0%, rgba(92,83,255,0.12) 52%, rgba(0,0,0,0) 100%)",
             pointerEvents: "none",
           }}
         />
@@ -231,8 +274,8 @@ export default async function AdultPage() {
           style={{
             position: "relative",
             zIndex: 2,
-            paddingTop: 82,
-            paddingBottom: 62,
+            paddingTop: 86,
+            paddingBottom: 70,
           }}
         >
           <div className="kicker">{featuredVideo.badge}</div>
@@ -240,8 +283,8 @@ export default async function AdultPage() {
           <h1
             className="heading-xl"
             style={{
-              maxWidth: 860,
-              marginTop: 18,
+              maxWidth: 880,
+              marginTop: 20,
               color: "#ffffff",
             }}
           >
@@ -251,7 +294,7 @@ export default async function AdultPage() {
           <p
             className="body-lg"
             style={{
-              maxWidth: 760,
+              maxWidth: 780,
               marginTop: 18,
             }}
           >
@@ -266,79 +309,76 @@ export default async function AdultPage() {
               marginTop: 30,
             }}
           >
-            <CTAButton href="#hot-section" primary>
-              Xem nội dung hot
+            <CTAButton href="/" primary>
+              Về trang chủ
             </CTAButton>
 
-            <CTAButton href="#latest-section">Mới cập nhật</CTAButton>
+            <CTAButton href="/adult">Vào danh mục 18+</CTAButton>
+          </div>
+
+          <div
+            className="surface"
+            style={{
+              marginTop: 34,
+              padding: "22px 24px",
+              maxWidth: 980,
+              background:
+                "linear-gradient(180deg, rgba(255, 183, 77, 0.08), rgba(255, 183, 77, 0.04))",
+              border: "1px solid rgba(255, 183, 77, 0.18)",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.06rem",
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Thông báo độ tuổi
+            </h3>
+            <p
+              style={{
+                marginTop: 8,
+                color: "rgba(255,255,255,0.74)",
+              }}
+            >
+              Chuyên mục này chỉ dành cho người dùng từ 18 tuổi trở lên. Vui
+              lòng đảm bảo bạn đáp ứng độ tuổi phù hợp theo quy định tại khu
+              vực của mình trước khi tiếp tục truy cập và sử dụng nội dung.
+            </p>
           </div>
 
           <div
             style={{
-              marginTop: 38,
+              marginTop: 24,
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
               gap: 14,
-              maxWidth: 900,
+              maxWidth: 980,
             }}
           >
-            {[
-              { label: "Cập nhật liên tục", value: "24/7" },
-              { label: "Danh mục nổi bật", value: "Hot" },
-              { label: "Trải nghiệm hiện đại", value: "Premium" },
-              { label: "Tối ưu giao diện", value: "Desktop + Mobile" },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="surface"
-                style={{
-                  padding: "16px 18px",
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily:
-                      "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-                    fontSize: "1rem",
-                    fontWeight: 700,
-                    letterSpacing: "-0.02em",
-                    color: "#ffffff",
-                  }}
-                >
-                  {item.value}
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: "0.9rem",
-                    lineHeight: 1.55,
-                    color: "rgba(255,255,255,0.64)",
-                  }}
-                >
-                  {item.label}
-                </div>
-              </div>
-            ))}
+            <InfoStripItem value="24/7" label="Nội dung mới cập nhật" />
+            <InfoStripItem value="Hot" label="Danh mục nổi bật" />
+            <InfoStripItem value="Mượt" label="Xem nhanh, tối ưu tải" />
+            <InfoStripItem value="Premium" label="Giao diện hiện đại" />
           </div>
         </div>
       </section>
 
-      <div className="container">
+      <div className="container" style={{ paddingTop: 26 }}>
         <ContinueWatching />
       </div>
 
       <section
-        id="hot-section"
         className="container"
         style={{
-          paddingTop: 42,
-          paddingBottom: 18,
+          paddingTop: 28,
+          paddingBottom: 16,
         }}
       >
         <SectionHeader
           title="Hot hôm nay"
-          desc="Những nội dung nổi bật đang được xem nhiều, hiển thị theo phong cách hiện đại và dễ theo dõi hơn."
+          desc="Những nội dung nổi bật đang được xem nhiều, trình bày theo layout hiện đại và dễ nhìn hơn."
         />
 
         <div
@@ -348,14 +388,13 @@ export default async function AdultPage() {
             gap: 20,
           }}
         >
-          {movies.slice(0, 4).map((item) => (
+          {hotMovies.map((item) => (
             <VideoCard key={item._id} item={item} large />
           ))}
         </div>
       </section>
 
       <section
-        id="latest-section"
         className="container"
         style={{
           paddingTop: 28,
@@ -364,7 +403,7 @@ export default async function AdultPage() {
       >
         <SectionHeader
           title="Mới cập nhật"
-          desc="Danh sách video mới được thêm gần đây với bố cục gọn, đậm chất premium và dễ mở rộng sau này khi nối dữ liệu thật."
+          desc="Danh sách video mới được thêm gần đây, bố cục gọn hơn và dễ mở rộng cho dữ liệu thật."
         />
 
         <div
@@ -374,11 +413,17 @@ export default async function AdultPage() {
             gap: 18,
           }}
         >
-          {movies.slice(4).map((item) => (
+          {latestMovies.map((item) => (
             <VideoCard key={item._id} item={item} />
           ))}
         </div>
       </section>
+
+      <style jsx>{`
+        a:hover {
+          transform: translateY(-2px);
+        }
+      `}</style>
     </main>
   );
 }
