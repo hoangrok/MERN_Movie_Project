@@ -117,6 +117,7 @@ export default function SiteHeader() {
   const getMovieMeta = (item) => {
     const bits = [];
     if (item?.year) bits.push(item.year);
+
     if (item?.displayDuration) bits.push(item.displayDuration);
     else if (typeof item?.duration === "number" && item.duration > 0) {
       const total = Math.floor(item.duration);
@@ -125,12 +126,15 @@ export default function SiteHeader() {
       if (h > 0) bits.push(`${h} giờ ${m} phút`);
       else if (m > 0) bits.push(`${m} phút`);
     }
+
     if (typeof item?.views === "number") {
       bits.push(`${item.views.toLocaleString("vi-VN")} lượt xem`);
     } else if (item?.displayViews) {
       bits.push(item.displayViews);
     }
+
     if (item?.language) bits.push(item.language);
+
     return bits.join(" • ");
   };
 
@@ -145,14 +149,15 @@ export default function SiteHeader() {
   return (
     <header className="siteHeader">
       <div className="container siteHeader__inner">
-        <Link href="/" className="siteHeader__brand">
-          ClipDam18
+        <Link href="/" className="siteHeader__brand" aria-label="ClipDam18">
+          <span className="siteHeader__brandMark">Clip</span>
+          <span className="siteHeader__brandText">Dam18</span>
         </Link>
 
         <nav className="siteHeader__nav">
           <Link
             href="/"
-            className={`siteHeader__link ${
+            className={`siteHeader__pill ${
               isActive("/") && pathname === "/" ? "isActive" : ""
             }`}
           >
@@ -161,21 +166,21 @@ export default function SiteHeader() {
 
           <Link
             href="/adult"
-            className={`siteHeader__link ${isActive("/adult") ? "isActive" : ""}`}
+            className={`siteHeader__pill ${isActive("/adult") ? "isActive" : ""}`}
           >
             18+
           </Link>
 
           <Link
             href="/search"
-            className={`siteHeader__link ${isActive("/search") ? "isActive" : ""}`}
+            className={`siteHeader__pill ${isActive("/search") ? "isActive" : ""}`}
           >
             Tìm kiếm
           </Link>
 
           <Link
             href="/search/advanced"
-            className={`siteHeader__link ${
+            className={`siteHeader__pill ${
               isActive("/search/advanced") ? "isActive" : ""
             }`}
           >
@@ -184,7 +189,9 @@ export default function SiteHeader() {
 
           <Link
             href="/my-list"
-            className={`siteHeader__link ${isActive("/my-list") ? "isActive" : ""}`}
+            className={`siteHeader__pill siteHeader__pill--mylist ${
+              isActive("/my-list") ? "isActive" : ""
+            }`}
           >
             Danh sách của tôi
           </Link>
@@ -275,25 +282,48 @@ export default function SiteHeader() {
           top: 0;
           z-index: 50;
           backdrop-filter: blur(18px);
-          background:
-            linear-gradient(180deg, rgba(5, 8, 15, 0.9), rgba(5, 8, 15, 0.72));
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+          background: linear-gradient(
+            180deg,
+            rgba(4, 7, 14, 0.92),
+            rgba(4, 7, 14, 0.78)
+          );
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
         }
 
         .siteHeader__inner {
           min-height: 78px;
           display: flex;
           align-items: center;
-          gap: 18px;
+          gap: 14px;
         }
 
         .siteHeader__brand {
           flex-shrink: 0;
-          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 0 4px 0 0;
+          white-space: nowrap;
+        }
+
+        .siteHeader__brandMark {
+          font-size: 1.45rem;
           font-weight: 900;
-          letter-spacing: -0.04em;
-          font-size: 1.22rem;
+          letter-spacing: -0.05em;
+          color: #ffffff;
+          line-height: 1;
+        }
+
+        .siteHeader__brandText {
+          font-size: 1.45rem;
+          font-weight: 900;
+          letter-spacing: -0.05em;
+          line-height: 1;
+          background: linear-gradient(135deg, #ff5c71 0%, #ffb36a 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
         }
 
         .siteHeader__nav {
@@ -301,36 +331,40 @@ export default function SiteHeader() {
           align-items: center;
           gap: 8px;
           flex-shrink: 0;
-          padding: 6px;
-          border-radius: 18px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.06),
-            rgba(255, 255, 255, 0.025)
-          );
-          box-shadow:
-            0 12px 30px rgba(0, 0, 0, 0.22),
-            inset 0 1px 0 rgba(255, 255, 255, 0.03);
+          min-width: 0;
+          overflow-x: auto;
+          scrollbar-width: none;
         }
 
-        .siteHeader__link {
-          min-height: 42px;
+        .siteHeader__nav::-webkit-scrollbar {
+          display: none;
+        }
+
+        .siteHeader__pill {
+          min-height: 40px;
           padding: 0 14px;
-          border-radius: 12px;
+          border-radius: 999px;
           display: inline-flex;
           align-items: center;
+          justify-content: center;
           color: rgba(255, 255, 255, 0.82);
           font-weight: 700;
-          transition: all 0.22s ease;
           white-space: nowrap;
-          border: 1px solid transparent;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(255, 255, 255, 0.035);
+          transition: all 0.22s ease;
+          flex-shrink: 0;
         }
 
-        .siteHeader__link:hover,
-        .siteHeader__link.isActive {
+        .siteHeader__pill--mylist {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+
+        .siteHeader__pill:hover,
+        .siteHeader__pill.isActive {
           background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.1);
           color: #fff;
           transform: translateY(-1px);
         }
@@ -338,7 +372,7 @@ export default function SiteHeader() {
         .siteHeader__searchWrap {
           position: relative;
           margin-left: auto;
-          width: min(640px, 100%);
+          width: min(520px, 100%);
           min-width: 0;
         }
 
@@ -389,6 +423,7 @@ export default function SiteHeader() {
           color: #05070d;
           font-weight: 800;
           flex-shrink: 0;
+          white-space: nowrap;
         }
 
         .siteHeader__button:hover {
@@ -491,7 +526,7 @@ export default function SiteHeader() {
           background: rgba(255, 255, 255, 0.08);
         }
 
-        @media (max-width: 1240px) {
+        @media (max-width: 1320px) {
           .siteHeader__inner {
             flex-wrap: wrap;
             padding-top: 12px;
@@ -505,15 +540,14 @@ export default function SiteHeader() {
           }
         }
 
-        @media (max-width: 820px) {
-          .siteHeader__nav {
-            width: 100%;
-            overflow-x: auto;
-            padding-bottom: 6px;
+        @media (max-width: 900px) {
+          .siteHeader__brandMark,
+          .siteHeader__brandText {
+            font-size: 1.28rem;
           }
 
-          .siteHeader__nav::-webkit-scrollbar {
-            display: none;
+          .siteHeader__nav {
+            width: 100%;
           }
         }
 

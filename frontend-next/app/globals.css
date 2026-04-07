@@ -346,3 +346,52 @@ a {
 .adultCta--ghost span {
   color: #ffffff !important;
 }
+.adultCta,
+.adultCta:visited,
+.adultCta:hover,
+.adultCta:active {
+  text-decoration: none !important;
+}
+
+.adultCta--primary,
+.adultCta--primary:visited,
+.adultCta--primary:hover,
+.adultCta--primary:active {
+  background: #ffffff !important;
+  color: #05070d !important;
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  box-shadow: 0 14px 32px rgba(255, 255, 255, 0.08) !important;
+}
+
+.adultCta--primary * {
+  color: #05070d !important;
+  fill: #05070d !important;
+}
+
+.adultCta--ghost,
+.adultCta--ghost:visited,
+.adultCta--ghost:hover,
+.adultCta--ghost:active {
+  color: #ffffff !important;
+}
+
+.siteHeader__pill,
+.siteHeader__pill:visited,
+.siteHeader__pill:hover,
+.siteHeader__pill:active {
+  color: rgba(255, 255, 255, 0.84) !important;
+}
+
+.siteHeader__pill.isActive,
+.siteHeader__pill.isActive:visited,
+.siteHeader__pill.isActive:hover,
+.siteHeader__pill.isActive:active {
+  color: #ffffff !important;
+}
+
+.siteHeader__brand,
+.siteHeader__brand:visited,
+.siteHeader__brand:hover,
+.siteHeader__brand:active {
+  opacity: 1 !important;
+}
