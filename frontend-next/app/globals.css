@@ -297,3 +297,52 @@ a {
 .surface:hover {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
 }
+.adultPageCard,
+.adultPageButton {
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    opacity 0.22s ease,
+    background 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.adultPageCard:hover,
+.adultPageButton:hover {
+  transform: translateY(-2px);
+}
+.siteHeader__button,
+.siteHeader__button:visited,
+.siteHeader__button:hover,
+.siteHeader__button:active {
+  color: #05070d !important;
+}
+
+.siteHeader__advancedButton,
+.siteHeader__advancedButton:visited,
+.siteHeader__advancedButton:hover,
+.siteHeader__advancedButton:active {
+  color: #ffffff !important;
+}
+
+.adultCta--primary,
+.adultCta--primary:visited,
+.adultCta--primary:hover,
+.adultCta--primary:active {
+  color: #05070d !important;
+}
+
+.adultCta--primary span {
+  color: #05070d !important;
+}
+
+.adultCta--ghost,
+.adultCta--ghost:visited,
+.adultCta--ghost:hover,
+.adultCta--ghost:active {
+  color: #ffffff !important;
+}
+
+.adultCta--ghost span {
+  color: #ffffff !important;
+}

@@ -17,9 +17,9 @@ export const metadata = {
 };
 
 const featuredVideo = {
-  title: "Nội dung 18+ hiện đại, tối giản và cuốn hơn",
+  title: "Nội dung 18+ dành cho người trưởng thành",
   subtitle:
-    "Khám phá danh sách clip hot, video mới cập nhật và nội dung đang được xem nhiều với giao diện tối ưu cho cả desktop lẫn mobile.",
+    "Chuyên mục 18+ tại ClipDam18 được xây dựng dành cho người dùng trưởng thành, với nội dung được sắp xếp rõ ràng, dễ tìm kiếm và tối ưu trải nghiệm xem trực tuyến.",
   badge: "Chuyên mục dành cho người trưởng thành 18+",
 };
 
@@ -36,32 +36,9 @@ function CTAButton({ href, children, primary = false }) {
   return (
     <a
       href={href}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 52,
-        padding: "0 22px",
-        borderRadius: 16,
-        textDecoration: "none",
-        fontWeight: 800,
-        fontSize: "0.97rem",
-        letterSpacing: "-0.01em",
-        transition: "all 0.25s ease",
-        cursor: "pointer",
-        background: primary
-          ? "#ffffff"
-          : "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
-        color: primary ? "#05070d" : "#ffffff",
-        border: primary
-          ? "1px solid rgba(255,255,255,0.85)"
-          : "1px solid rgba(255,255,255,0.12)",
-        boxShadow: primary
-          ? "0 14px 32px rgba(255,255,255,0.08)"
-          : "0 14px 32px rgba(0,0,0,0.18)",
-      }}
+      className={primary ? "adultCta adultCta--primary" : "adultCta adultCta--ghost"}
     >
-      {children}
+      <span>{children}</span>
     </a>
   );
 }
@@ -70,6 +47,7 @@ function VideoCard({ item, large = false }) {
   return (
     <a
       href={`/adult/${item.slug}`}
+      className="adultPageCard"
       style={{
         display: "block",
         textDecoration: "none",
@@ -80,7 +58,6 @@ function VideoCard({ item, large = false }) {
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
-        transition: "transform 0.25s ease, box-shadow 0.25s ease",
       }}
     >
       <div
@@ -313,7 +290,9 @@ export default async function AdultPage() {
               Về trang chủ
             </CTAButton>
 
-            <CTAButton href="/adult">Vào danh mục 18+</CTAButton>
+            <CTAButton href="/adult">
+              Nội dung mới cập nhật
+            </CTAButton>
           </div>
 
           <div
@@ -359,10 +338,65 @@ export default async function AdultPage() {
           >
             <InfoStripItem value="24/7" label="Nội dung mới cập nhật" />
             <InfoStripItem value="Hot" label="Danh mục nổi bật" />
-            <InfoStripItem value="Mượt" label="Xem nhanh, tối ưu tải" />
+            <InfoStripItem value="Mượt" label="Xem mượt, tải nhanh" />
             <InfoStripItem value="Premium" label="Giao diện hiện đại" />
           </div>
         </div>
+
+        <style jsx>{`
+          .adultCta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 16px;
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 0.97rem;
+            letter-spacing: -0.01em;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.12);
+          }
+
+          .adultCta span {
+            position: relative;
+            z-index: 2;
+          }
+
+          .adultCta--primary {
+            background: #ffffff;
+            color: #05070d !important;
+            border-color: rgba(255,255,255,0.85);
+            box-shadow: 0 14px 32px rgba(255,255,255,0.08);
+          }
+
+          .adultCta--primary span {
+            color: #05070d !important;
+          }
+
+          .adultCta--ghost {
+            background: linear-gradient(
+              180deg,
+              rgba(255,255,255,0.08),
+              rgba(255,255,255,0.04)
+            );
+            color: #ffffff !important;
+            border-color: rgba(255,255,255,0.12);
+            box-shadow: 0 14px 32px rgba(0,0,0,0.18);
+          }
+
+          .adultCta--ghost span {
+            color: #ffffff !important;
+          }
+
+          .adultCta:hover {
+            transform: translateY(-2px);
+          }
+        `}</style>
       </section>
 
       <div className="container" style={{ paddingTop: 26 }}>
@@ -418,12 +452,6 @@ export default async function AdultPage() {
           ))}
         </div>
       </section>
-
-      <style jsx>{`
-        a:hover {
-          transform: translateY(-2px);
-        }
-      `}</style>
     </main>
   );
 }

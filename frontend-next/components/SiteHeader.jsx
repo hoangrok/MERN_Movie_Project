@@ -46,6 +46,7 @@ export default function SiteHeader() {
     if (!keyword) {
       setResults([]);
       setLoading(false);
+      setOpen(false);
       return;
     }
 
@@ -56,7 +57,7 @@ export default function SiteHeader() {
         setLoading(true);
 
         const res = await fetch(
-          `${API_BASE}/movies?search=${encodeURIComponent(keyword)}&limit=8`,
+          `${API_BASE}/movies?q=${encodeURIComponent(keyword)}&limit=8`,
           {
             method: "GET",
             cache: "no-store",
@@ -68,10 +69,12 @@ export default function SiteHeader() {
 
         if (!res.ok) {
           setResults([]);
+          setOpen(true);
           return;
         }
 
         const items =
+          data?.items ||
           data?.movies ||
           data?.results ||
           data?.data ||
@@ -82,6 +85,7 @@ export default function SiteHeader() {
       } catch (error) {
         if (error?.name !== "AbortError") {
           setResults([]);
+          setOpen(true);
         }
       } finally {
         setLoading(false);
@@ -100,7 +104,6 @@ export default function SiteHeader() {
 
   const getMovieHref = (item) => {
     if (item?.slug) return `/adult/${item.slug}`;
-    if (item?._id) return `/adult/${item._id}`;
     return "/adult";
   };
 
@@ -115,7 +118,18 @@ export default function SiteHeader() {
     const bits = [];
     if (item?.year) bits.push(item.year);
     if (item?.displayDuration) bits.push(item.displayDuration);
-    if (item?.displayViews) bits.push(item.displayViews);
+    else if (typeof item?.duration === "number" && item.duration > 0) {
+      const total = Math.floor(item.duration);
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      if (h > 0) bits.push(`${h} giờ ${m} phút`);
+      else if (m > 0) bits.push(`${m} phút`);
+    }
+    if (typeof item?.views === "number") {
+      bits.push(`${item.views.toLocaleString("vi-VN")} lượt xem`);
+    } else if (item?.displayViews) {
+      bits.push(item.displayViews);
+    }
     if (item?.language) bits.push(item.language);
     return bits.join(" • ");
   };
@@ -165,7 +179,7 @@ export default function SiteHeader() {
               isActive("/search/advanced") ? "isActive" : ""
             }`}
           >
-            Nâng cao
+            Tìm kiếm nâng cao
           </Link>
 
           <Link
@@ -188,7 +202,7 @@ export default function SiteHeader() {
               onFocus={() => {
                 if (query.trim()) setOpen(true);
               }}
-              placeholder="Tìm video theo tên, nội dung..."
+              placeholder="Tìm video..."
               className="siteHeader__input"
               autoComplete="off"
             />
@@ -261,8 +275,10 @@ export default function SiteHeader() {
           top: 0;
           z-index: 50;
           backdrop-filter: blur(18px);
-          background: rgba(6, 8, 14, 0.76);
+          background:
+            linear-gradient(180deg, rgba(5, 8, 15, 0.9), rgba(5, 8, 15, 0.72));
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
         }
 
         .siteHeader__inner {
@@ -375,6 +391,11 @@ export default function SiteHeader() {
           flex-shrink: 0;
         }
 
+        .siteHeader__button:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 10px 24px rgba(255, 255, 255, 0.12);
+        }
+
         .siteHeader__advancedButton {
           min-height: 40px;
           padding: 0 15px;
@@ -388,6 +409,11 @@ export default function SiteHeader() {
           justify-content: center;
           flex-shrink: 0;
           white-space: nowrap;
+        }
+
+        .siteHeader__advancedButton:hover {
+          background: rgba(255, 255, 255, 0.1);
+          transform: translateY(-1px);
         }
 
         .siteHeader__dropdown {
