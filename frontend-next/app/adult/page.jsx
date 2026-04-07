@@ -38,7 +38,7 @@ function CTAButton({ href, children, primary = false }) {
       href={href}
       className={primary ? "adultCta adultCta--primary" : "adultCta adultCta--ghost"}
     >
-      <span>{children}</span>
+      {children}
     </a>
   );
 }
@@ -77,7 +77,6 @@ function VideoCard({ item, large = false }) {
             height: "100%",
             objectFit: "cover",
             display: "block",
-            transform: "scale(1.02)",
           }}
         />
 
@@ -93,86 +92,15 @@ function VideoCard({ item, large = false }) {
         <div
           style={{
             position: "absolute",
-            left: 16,
-            right: 16,
-            top: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 32,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255, 92, 92, 0.16)",
-              border: "1px solid rgba(255, 92, 92, 0.24)",
-              color: "#ffb1b1",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {item.category || (item.newPopular ? "Nổi bật" : "18+")}
-          </span>
-
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 32,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.12)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              color: "#ffffff",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {item.displayDuration || item.duration || "HD"}
-          </span>
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
             left: 18,
             right: 18,
             bottom: 18,
           }}
         >
-          <h3
-            className="line-clamp-2"
-            style={{
-              margin: 0,
-              fontFamily:
-                "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-              fontSize: large ? "1.16rem" : "1rem",
-              lineHeight: 1.3,
-              letterSpacing: "-0.025em",
-              fontWeight: 800,
-              color: "#ffffff",
-            }}
-          >
-            {item.title}
-          </h3>
+          <h3 className="line-clamp-2">{item.title}</h3>
 
-          <p
-            style={{
-              marginTop: 8,
-              marginBottom: 0,
-              fontSize: "0.92rem",
-              lineHeight: 1.6,
-              color: "rgba(255,255,255,0.72)",
-            }}
-          >
-            {item.displayViews || item.views || "Mới cập nhật"}
+          <p style={{ marginTop: 8 }}>
+            {item.displayViews || "Mới cập nhật"}
           </p>
         </div>
       </div>
@@ -182,33 +110,9 @@ function VideoCard({ item, large = false }) {
 
 function InfoStripItem({ value, label }) {
   return (
-    <div
-      className="surface"
-      style={{
-        padding: "16px 18px",
-      }}
-    >
-      <div
-        style={{
-          fontFamily:
-            "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-          fontSize: "1rem",
-          fontWeight: 800,
-          letterSpacing: "-0.02em",
-          color: "#ffffff",
-        }}
-      >
-        {value}
-      </div>
-
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: "0.9rem",
-          lineHeight: 1.55,
-          color: "rgba(255,255,255,0.64)",
-        }}
-      >
+    <div className="surface" style={{ padding: "16px 18px" }}>
+      <div style={{ fontWeight: 800, color: "#fff" }}>{value}</div>
+      <div style={{ marginTop: 6, color: "rgba(255,255,255,0.64)" }}>
         {label}
       </div>
     </div>
@@ -222,231 +126,50 @@ export default async function AdultPage() {
   const latestMovies = movies.slice(4);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, rgba(120, 89, 255, 0.14) 0%, rgba(255,255,255,0.03) 18%, rgba(0,0,0,0) 42%), linear-gradient(180deg, #07090f 0%, #090b12 45%, #040507 100%)",
-      }}
-    >
-      <section
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(135deg, rgba(255,72,72,0.16) 0%, rgba(92,83,255,0.12) 52%, rgba(0,0,0,0) 100%)",
-            pointerEvents: "none",
-          }}
-        />
+    <main>
+      <section className="container" style={{ paddingTop: 80 }}>
+        <div className="kicker">{featuredVideo.badge}</div>
 
-        <div
-          className="container"
-          style={{
-            position: "relative",
-            zIndex: 2,
-            paddingTop: 86,
-            paddingBottom: 70,
-          }}
-        >
-          <div className="kicker">{featuredVideo.badge}</div>
+        <h1 style={{ marginTop: 20 }}>{featuredVideo.title}</h1>
 
-          <h1
-            className="heading-xl"
-            style={{
-              maxWidth: 880,
-              marginTop: 20,
-              color: "#ffffff",
-            }}
-          >
-            {featuredVideo.title}
-          </h1>
+        <p style={{ marginTop: 18 }}>{featuredVideo.subtitle}</p>
 
-          <p
-            className="body-lg"
-            style={{
-              maxWidth: 780,
-              marginTop: 18,
-            }}
-          >
-            {featuredVideo.subtitle}
-          </p>
+        <div style={{ display: "flex", gap: 14, marginTop: 30 }}>
+          <CTAButton href="/" primary>
+            Về trang chủ
+          </CTAButton>
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 14,
-              marginTop: 30,
-            }}
-          >
-            <CTAButton href="/" primary>
-              Về trang chủ
-            </CTAButton>
-
-            <CTAButton href="/adult">
-              Nội dung mới cập nhật
-            </CTAButton>
-          </div>
-
-          <div
-            className="surface"
-            style={{
-              marginTop: 34,
-              padding: "22px 24px",
-              maxWidth: 980,
-              background:
-                "linear-gradient(180deg, rgba(255, 183, 77, 0.08), rgba(255, 183, 77, 0.04))",
-              border: "1px solid rgba(255, 183, 77, 0.18)",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "1.06rem",
-                fontWeight: 800,
-                margin: 0,
-              }}
-            >
-              Thông báo độ tuổi
-            </h3>
-            <p
-              style={{
-                marginTop: 8,
-                color: "rgba(255,255,255,0.74)",
-              }}
-            >
-              Chuyên mục này chỉ dành cho người dùng từ 18 tuổi trở lên. Vui
-              lòng đảm bảo bạn đáp ứng độ tuổi phù hợp theo quy định tại khu
-              vực của mình trước khi tiếp tục truy cập và sử dụng nội dung.
-            </p>
-          </div>
-
-          <div
-            style={{
-              marginTop: 24,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-              gap: 14,
-              maxWidth: 980,
-            }}
-          >
-            <InfoStripItem value="24/7" label="Nội dung mới cập nhật" />
-            <InfoStripItem value="Hot" label="Danh mục nổi bật" />
-            <InfoStripItem value="Mượt" label="Xem mượt, tải nhanh" />
-            <InfoStripItem value="Premium" label="Giao diện hiện đại" />
-          </div>
+          <CTAButton href="/adult">
+            Nội dung mới cập nhật
+          </CTAButton>
         </div>
 
-        <style jsx>{`
-          .adultCta {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 52px;
-            padding: 0 22px;
-            border-radius: 16px;
-            text-decoration: none;
-            font-weight: 800;
-            font-size: 0.97rem;
-            letter-spacing: -0.01em;
-            transition: all 0.25s ease;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.12);
-          }
-
-          .adultCta span {
-            position: relative;
-            z-index: 2;
-          }
-
-          .adultCta--primary {
-            background: #ffffff;
-            color: #05070d !important;
-            border-color: rgba(255,255,255,0.85);
-            box-shadow: 0 14px 32px rgba(255,255,255,0.08);
-          }
-
-          .adultCta--primary span {
-            color: #05070d !important;
-          }
-
-          .adultCta--ghost {
-            background: linear-gradient(
-              180deg,
-              rgba(255,255,255,0.08),
-              rgba(255,255,255,0.04)
-            );
-            color: #ffffff !important;
-            border-color: rgba(255,255,255,0.12);
-            box-shadow: 0 14px 32px rgba(0,0,0,0.18);
-          }
-
-          .adultCta--ghost span {
-            color: #ffffff !important;
-          }
-
-          .adultCta:hover {
-            transform: translateY(-2px);
-          }
-        `}</style>
+        <div className="surface" style={{ marginTop: 30, padding: 20 }}>
+          <h3>Thông báo độ tuổi</h3>
+          <p style={{ marginTop: 8 }}>
+            Chuyên mục này chỉ dành cho người dùng từ 18 tuổi trở lên.
+          </p>
+        </div>
       </section>
 
-      <div className="container" style={{ paddingTop: 26 }}>
+      <div className="container" style={{ marginTop: 40 }}>
         <ContinueWatching />
       </div>
 
-      <section
-        className="container"
-        style={{
-          paddingTop: 28,
-          paddingBottom: 16,
-        }}
-      >
-        <SectionHeader
-          title="Hot hôm nay"
-          desc="Những nội dung nổi bật đang được xem nhiều, trình bày theo layout hiện đại và dễ nhìn hơn."
-        />
+      <section className="container" style={{ marginTop: 40 }}>
+        <SectionHeader title="Hot hôm nay" />
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 20,
-          }}
-        >
+        <div style={{ display: "grid", gap: 20 }}>
           {hotMovies.map((item) => (
-            <VideoCard key={item._id} item={item} large />
+            <VideoCard key={item._id} item={item} />
           ))}
         </div>
       </section>
 
-      <section
-        className="container"
-        style={{
-          paddingTop: 28,
-          paddingBottom: 70,
-        }}
-      >
-        <SectionHeader
-          title="Mới cập nhật"
-          desc="Danh sách video mới được thêm gần đây, bố cục gọn hơn và dễ mở rộng cho dữ liệu thật."
-        />
+      <section className="container" style={{ marginTop: 40 }}>
+        <SectionHeader title="Mới cập nhật" />
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 18,
-          }}
-        >
+        <div style={{ display: "grid", gap: 20 }}>
           {latestMovies.map((item) => (
             <VideoCard key={item._id} item={item} />
           ))}
