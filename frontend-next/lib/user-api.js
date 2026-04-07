@@ -1,6 +1,37 @@
-import { getAuthToken, saveAuthUser, updateLikedMovies } from "@/lib/auth";
+import {
+  getAuthToken,
+  saveAuthUser,
+  updateLikedMovies,
+  clearAuthUser,
+} from "@/lib/auth";
 
-const API_BASE = "https://dam18-api.onrender.com/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "https://dam18-api.onrender.com/api";
+
+async function parseJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeLikedMovies(data) {
+  if (Array.isArray(data?.likedMovies)) return data.likedMovies;
+  if (Array.isArray(data?.movies)) return data.movies;
+  if (Array.isArray(data?.user?.likedMovies)) return data.user.likedMovies;
+  if (Array.isArray(data)) return data;
+  return [];
+}
+
+function normalizeAuthUser(data) {
+  if (!data?.user) return null;
+
+  return {
+    ...data.user,
+    token: data?.token || data?.user?.token || "",
+  };
+}
 
 export async function loginUser({ email, password }) {
   const res = await fetch(`${API_BASE}/users/login`, {
@@ -12,14 +43,15 @@ export async function loginUser({ email, password }) {
     body: JSON.stringify({ email, password }),
   });
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok || !data?.success) {
     throw new Error(data?.message || "Đăng nhập thất bại");
   }
 
-  if (data?.user) {
-    saveAuthUser(data.user);
+  const authUser = normalizeAuthUser(data);
+  if (authUser) {
+    saveAuthUser(authUser);
   }
 
   return data;
@@ -35,14 +67,15 @@ export async function registerUser({ name, email, password }) {
     body: JSON.stringify({ name, email, password }),
   });
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok || data?.success === false) {
     throw new Error(data?.message || "Đăng ký thất bại");
   }
 
-  if (data?.user) {
-    saveAuthUser(data.user);
+  const authUser = normalizeAuthUser(data);
+  if (authUser) {
+    saveAuthUser(authUser);
   }
 
   return data;
@@ -63,13 +96,16 @@ export async function fetchLikedMovies() {
     cache: "no-store",
   });
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthUser();
+    }
     throw new Error(data?.message || "Không tải được My List");
   }
 
-  const likedMovies = data?.likedMovies || data?.movies || data || [];
+  const likedMovies = normalizeLikedMovies(data);
   updateLikedMovies(likedMovies);
 
   return likedMovies;
@@ -92,14 +128,17 @@ export async function addToLiked(movieId) {
     body: JSON.stringify({ movieId }),
   });
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthUser();
+    }
     throw new Error(data?.message || "Không thể thêm vào My List");
   }
 
-  const likedMovies = data?.likedMovies || data?.user?.likedMovies || [];
-  if (likedMovies.length) updateLikedMovies(likedMovies);
+  const likedMovies = normalizeLikedMovies(data);
+  updateLikedMovies(likedMovies);
 
   return data;
 }
@@ -121,13 +160,16 @@ export async function removeFromLiked(movieId) {
     body: JSON.stringify({ movieId }),
   });
 
-  const data = await res.json();
+  const data = await parseJson(res);
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearAuthUser();
+    }
     throw new Error(data?.message || "Không thể xoá khỏi My List");
   }
 
-  const likedMovies = data?.likedMovies || data?.user?.likedMovies || [];
+  const likedMovies = normalizeLikedMovies(data);
   updateLikedMovies(likedMovies);
 
   return data;

@@ -2,6 +2,7 @@ const AUTH_KEY = "dam18_user";
 
 export function saveAuthUser(user) {
   if (typeof window === "undefined") return;
+
   localStorage.setItem(AUTH_KEY, JSON.stringify(user || null));
   window.dispatchEvent(new Event("auth-updated"));
   window.dispatchEvent(new Event("liked-updated"));
@@ -26,20 +27,27 @@ export function isLoggedIn() {
   return !!getAuthToken();
 }
 
-export function logout() {
+export function clearAuthUser() {
   if (typeof window === "undefined") return;
+
   localStorage.removeItem(AUTH_KEY);
   window.dispatchEvent(new Event("auth-updated"));
   window.dispatchEvent(new Event("liked-updated"));
 }
 
+export function logout() {
+  clearAuthUser();
+}
+
 export function updateLikedMovies(likedMovies = []) {
+  if (typeof window === "undefined") return;
+
   const user = getAuthUser();
   if (!user) return;
 
   const updatedUser = {
     ...user,
-    likedMovies,
+    likedMovies: Array.isArray(likedMovies) ? likedMovies : [],
   };
 
   localStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
