@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getMovieBySlug, getRelatedMovies } from "@/lib/api";
 import AdultPlayer from "@/components/AdultPlayer";
 import RelatedSlider from "@/components/RelatedSlider";
+import MovieActionBar from "@/components/MovieActionBar";
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -133,7 +134,28 @@ export default async function Detail({ params }) {
                 {movie.language}
               </span>
             ) : null}
+
+            {Array.isArray(movie.genre) && movie.genre.length ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 38,
+                  padding: "0 14px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontSize: "0.9rem",
+                  fontWeight: 800,
+                }}
+              >
+                {movie.genre.slice(0, 2).join(" • ")}
+              </span>
+            ) : null}
           </div>
+
+          <MovieActionBar movie={movie} />
         </div>
 
         <AdultPlayer movie={movie} />

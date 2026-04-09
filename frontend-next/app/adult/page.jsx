@@ -1,415 +1,207 @@
 import ContinueWatching from "@/components/ContinueWatching";
+import AdultCard from "@/components/AdultCard";
 import { getAdultMovies } from "@/lib/api";
 
 export const metadata = {
   title: "Clip 18+",
-  description:
-    "Xem clip 18+ mới nhất, danh sách video hot và nội dung được cập nhật liên tục tại ClipDam18.",
-  robots: "index, follow",
-  openGraph: {
-    title: "Clip 18+ | ClipDam18",
-    description:
-      "Xem clip 18+ mới nhất, danh sách video hot và nội dung được cập nhật liên tục tại ClipDam18.",
-    url: "https://clipdam18.com/adult",
-    siteName: "ClipDam18",
-    type: "website",
-  },
+  description: "Kho video 18+ cập nhật liên tục tại ClipDam18.",
 };
-
-const featuredVideo = {
-  title: "Kho nội dung 18+ tuyển chọn cập nhật mỗi ngày",
-  subtitle:
-    "Tổng hợp những những clip sex Việt Nam, Quốc tế hàng ngày.",
-  badge: "Khu vực riêng cho người xem 18+",
-};
-
-function SectionHeader({ title, desc }) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <h2 className="section-title">{title}</h2>
-      {desc ? <p className="section-desc">{desc}</p> : null}
-    </div>
-  );
-}
-
-function CTAButton({ href, children, primary = false }) {
-  return (
-    <a
-      href={href}
-      className={primary ? "adultCta adultCta--primary" : "adultCta adultCta--ghost"}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 52,
-        padding: "0 22px",
-        borderRadius: 16,
-        fontWeight: 800,
-        fontSize: "0.97rem",
-        letterSpacing: "-0.01em",
-        whiteSpace: "nowrap",
-        textDecoration: "none",
-      }}
-    >
-      <span style={{ color: primary ? "#05070d" : "#ffffff" }}>{children}</span>
-    </a>
-  );
-}
-
-function VideoCard({ item, large = false }) {
-  return (
-    <a
-      href={`/adult/${item.slug}`}
-      className="adultPageCard"
-      style={{
-        display: "block",
-        textDecoration: "none",
-        color: "inherit",
-        borderRadius: 24,
-        overflow: "hidden",
-        position: "relative",
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
-      }}
-    >
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          aspectRatio: "16 / 10",
-          background: "#0d1118",
-          overflow: "hidden",
-        }}
-      >
-        <img
-          src={item.displayImage || item.displayBackdrop || item.image || item.poster}
-          alt={item.title}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(to top, rgba(3,6,12,0.98) 0%, rgba(3,6,12,0.58) 42%, rgba(3,6,12,0.1) 100%)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            left: 16,
-            right: 16,
-            top: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 32,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255, 92, 92, 0.16)",
-              border: "1px solid rgba(255, 92, 92, 0.24)",
-              color: "#ffb1b1",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {item.category || (item.newPopular ? "Nóng trong ngày" : "18+")}
-          </span>
-
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 32,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.12)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              color: "#ffffff",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              backdropFilter: "blur(10px)",
-            }}
-          >
-            {item.displayDuration || item.duration || "HD"}
-          </span>
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            left: 18,
-            right: 18,
-            bottom: 18,
-          }}
-        >
-          <h3
-            className="line-clamp-2"
-            style={{
-              margin: 0,
-              fontFamily:
-                "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-              fontSize: large ? "1.08rem" : "1rem",
-              lineHeight: 1.28,
-              letterSpacing: "-0.025em",
-              fontWeight: 800,
-              color: "#ffffff",
-            }}
-          >
-            {item.title}
-          </h3>
-
-          <p
-            style={{
-              marginTop: 8,
-              marginBottom: 0,
-              fontSize: "0.9rem",
-              lineHeight: 1.55,
-              color: "rgba(255,255,255,0.72)",
-            }}
-          >
-            {item.displayViews || item.views || "Mới cập nhật"}
-          </p>
-        </div>
-      </div>
-    </a>
-  );
-}
-
-function InfoStripItem({ value, label }) {
-  return (
-    <div
-      className="surface"
-      style={{
-        padding: "16px 18px",
-      }}
-    >
-      <div
-        style={{
-          fontFamily:
-            "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-          fontSize: "1rem",
-          fontWeight: 800,
-          letterSpacing: "-0.02em",
-          color: "#ffffff",
-        }}
-      >
-        {value}
-      </div>
-
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: "0.9rem",
-          lineHeight: 1.55,
-          color: "rgba(255,255,255,0.64)",
-        }}
-      >
-        {label}
-      </div>
-    </div>
-  );
-}
 
 export default async function AdultPage() {
   const movies = await getAdultMovies();
 
-  const hotMovies = movies.slice(0, 8);
-  const latestMovies = movies.slice(8, 16);
+  const hero = movies[0];
+  const trending = movies.slice(1, 7);
+  const latest = movies.slice(7, 19);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, rgba(120, 89, 255, 0.14) 0%, rgba(255,255,255,0.03) 18%, rgba(0,0,0,0) 42%), linear-gradient(180deg, #07090f 0%, #090b12 45%, #040507 100%)",
-      }}
-    >
-      <section
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(135deg, rgba(255,72,72,0.16) 0%, rgba(92,83,255,0.12) 52%, rgba(0,0,0,0) 100%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div
-          className="container"
-          style={{
-            position: "relative",
-            zIndex: 2,
-            paddingTop: 110,
-            paddingBottom: 70,
-          }}
-        >
-          <div className="kicker" style={{ marginTop: 8 }}>
-            {featuredVideo.badge}
-          </div>
-
-          <h1
-            className="heading-xl"
-            style={{
-              maxWidth: 920,
-              marginTop: 20,
-              color: "#ffffff",
-            }}
-          >
-            {featuredVideo.title}
-          </h1>
-
-          <p
-            className="body-lg"
-            style={{
-              maxWidth: 900,
-              marginTop: 18,
-            }}
-          >
-            {featuredVideo.subtitle}
-          </p>
-
+    <main className="homeWrap">
+      {/* HERO */}
+      {hero && (
+        <section className="hero">
           <div
+            className="heroBg"
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 14,
-              marginTop: 30,
-              justifyContent: "center",
+              backgroundImage: `url(${hero.displayBackdrop || hero.displayImage})`,
             }}
-          >
-            <CTAButton href="/" primary>
-              Về trang chủ
-            </CTAButton>
+          />
 
-            <CTAButton href="/latest">Mới cập nhật</CTAButton>
-            <CTAButton href="/trending">Top lượt xem</CTAButton>
+          <div className="heroOverlay" />
+
+          <div className="container heroContent">
+            <div className="heroText">
+              <div className="kicker">🔥 Trending</div>
+
+              <h1 className="heroTitle">{hero.title}</h1>
+
+              <p className="heroDesc">
+                {hero.description || "Nội dung đang được xem nhiều nhất."}
+              </p>
+
+              <div className="heroMeta">
+                <span>{hero.displayDuration || "HD"}</span>
+                <span>•</span>
+                <span>{hero.displayViews || "Hot"}</span>
+              </div>
+
+              <div className="heroActions">
+                <a href={`/adult/${hero.slug}`} className="btnPrimary">
+                  ▶ Xem ngay
+                </a>
+
+                <a href="/latest" className="btnGhost">
+                  Mới cập nhật
+                </a>
+              </div>
+            </div>
           </div>
+        </section>
+      )}
 
-          <div
-            className="surface"
-            style={{
-              marginTop: 34,
-              padding: "22px 24px",
-              maxWidth: 1080,
-              background:
-                "linear-gradient(180deg, rgba(255, 183, 77, 0.08), rgba(255, 183, 77, 0.04))",
-              border: "1px solid rgba(255, 183, 77, 0.18)",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "1.06rem",
-                fontWeight: 800,
-                margin: 0,
-              }}
-            >
-              Khu vực người lớn
-            </h3>
-            <p
-              style={{
-                marginTop: 8,
-                color: "rgba(255,255,255,0.74)",
-              }}
-            >
-              Nội dung tại đây dành riêng cho người xem từ 18 tuổi trở lên, với
-              nhiều video nóng bỏng, táo bạo và có tính kích thích cao.
-            </p>
-          </div>
-
-          <div
-            style={{
-              marginTop: 24,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-              gap: 14,
-              maxWidth: 1080,
-            }}
-          >
-            <InfoStripItem value="24/7" label="Video mới lên sóng liên tục" />
-            <InfoStripItem value="Bỏng mắt" label="Nội dung nóng và nổi bật" />
-            <InfoStripItem value="Mượt" label="Xem nhanh, tải ổn định" />
-            <InfoStripItem value="Cuốn" label="Giao diện tối ưu để cày lâu" />
-          </div>
-        </div>
-      </section>
-
-      <div className="container" style={{ paddingTop: 26 }}>
+      {/* CONTINUE */}
+      <div className="container">
         <ContinueWatching />
       </div>
 
-      <section
-        className="container"
-        style={{
-          paddingTop: 28,
-          paddingBottom: 16,
-        }}
-      >
+      {/* TRENDING */}
+      <section className="container section">
         <SectionHeader
-          title="Nóng nhất hôm nay"
-          desc="Loạt video đang kéo view mạnh và được mở xem nhiều nhất."
+          title="🔥 Đang hot"
+          desc="Những video đang được xem nhiều nhất hiện tại."
         />
 
-        <div
-          style={{
-            display: "grid",
-            gap: 18,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          }}
-        >
-          {hotMovies.map((item) => (
-            <VideoCard key={item._id} item={item} large />
+        <div className="grid">
+          {trending.map((m, i) => (
+            <AdultCard key={m._id} movie={m} priority={i < 4} />
           ))}
         </div>
       </section>
 
-      <section
-        className="container"
-        style={{
-          paddingTop: 28,
-          paddingBottom: 70,
-        }}
-      >
+      {/* LATEST */}
+      <section className="container section">
         <SectionHeader
-          title="Mới cập nhật liên tục"
-          desc="Danh sách video vừa được đẩy lên, xem trước khi thành hàng hot."
+          title="🆕 Mới cập nhật"
+          desc="Video vừa upload, chưa ai xem nhiều."
         />
 
-        <div
-          style={{
-            display: "grid",
-            gap: 18,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          }}
-        >
-          {latestMovies.map((item) => (
-            <VideoCard key={item._id} item={item} />
+        <div className="grid">
+          {latest.map((m, i) => (
+            <AdultCard key={m._id} movie={m} priority={i < 4} />
           ))}
         </div>
       </section>
+
+      <style jsx>{`
+        .homeWrap {
+          min-height: 100vh;
+          background:
+            radial-gradient(circle at top, rgba(96,94,255,0.12), transparent 40%),
+            linear-gradient(180deg, #07090f, #040507);
+        }
+
+        /* HERO */
+        .hero {
+          position: relative;
+          height: 70vh;
+          min-height: 520px;
+          display: flex;
+          align-items: flex-end;
+          overflow: hidden;
+        }
+
+        .heroBg {
+          position: absolute;
+          inset: 0;
+          background-size: cover;
+          background-position: center;
+          filter: blur(10px) brightness(0.6);
+          transform: scale(1.1);
+        }
+
+        .heroOverlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            to top,
+            rgba(4,7,14,0.95) 10%,
+            rgba(4,7,14,0.6) 50%,
+            rgba(4,7,14,0.2) 100%
+          );
+        }
+
+        .heroContent {
+          position: relative;
+          z-index: 2;
+          padding-bottom: 60px;
+        }
+
+        .heroText {
+          max-width: 680px;
+        }
+
+        .heroTitle {
+          font-size: clamp(2rem, 5vw, 3.6rem);
+          font-weight: 900;
+          margin-top: 14px;
+        }
+
+        .heroDesc {
+          margin-top: 12px;
+          color: rgba(255,255,255,0.7);
+        }
+
+        .heroMeta {
+          margin-top: 14px;
+          display: flex;
+          gap: 8px;
+          color: rgba(255,255,255,0.7);
+        }
+
+        .heroActions {
+          margin-top: 20px;
+          display: flex;
+          gap: 12px;
+        }
+
+        .btnPrimary {
+          padding: 12px 20px;
+          border-radius: 12px;
+          background: #fff;
+          color: #000;
+          font-weight: 800;
+          text-decoration: none;
+        }
+
+        .btnGhost {
+          padding: 12px 20px;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.1);
+          color: #fff;
+          text-decoration: none;
+        }
+
+        /* SECTION */
+        .section {
+          padding-top: 40px;
+          padding-bottom: 20px;
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 20px;
+        }
+      `}</style>
     </main>
+  );
+}
+
+/* HEADER */
+function SectionHeader({ title, desc }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <h2 className="section-title">{title}</h2>
+      <p className="section-desc">{desc}</p>
+    </div>
   );
 }
