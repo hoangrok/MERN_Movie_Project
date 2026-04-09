@@ -136,16 +136,16 @@ export default async function AdvancedSearchPage({ searchParams }) {
               marginTop: 24,
               padding: 20,
               borderRadius: 24,
-              maxWidth: 920,
+              maxWidth: 980,
               marginLeft: "auto",
               marginRight: "auto",
               display: "grid",
-              gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: 14,
               boxShadow: "0 24px 60px rgba(0,0,0,0.38)",
             }}
           >
-            <div style={{ gridColumn: "span 12" }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
               <label style={labelStyle}>Từ khoá</label>
               <input
                 type="text"
@@ -156,7 +156,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 12" }}>
+            <div style={{ gridColumn: "1 / -1", minWidth: 0 }}>
               <label style={labelStyle}>Thể loại</label>
               <input
                 type="text"
@@ -176,7 +176,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               </div>
             </div>
 
-            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Năm từ</label>
               <input
                 type="number"
@@ -187,7 +187,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Đến năm</label>
               <input
                 type="number"
@@ -198,7 +198,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Rating từ</label>
               <input
                 type="number"
@@ -210,7 +210,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Đến rating</label>
               <input
                 type="number"
@@ -222,7 +222,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 6", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Ngôn ngữ</label>
               <input
                 type="text"
@@ -233,7 +233,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 6", minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Quốc gia</label>
               <input
                 type="text"
@@ -246,7 +246,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
 
             <div
               style={{
-                gridColumn: "span 12",
+                gridColumn: "1 / -1",
                 display: "flex",
                 gap: 12,
                 flexWrap: "wrap",
