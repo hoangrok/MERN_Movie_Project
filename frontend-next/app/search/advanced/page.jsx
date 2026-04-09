@@ -49,6 +49,17 @@ export default async function AdvancedSearchPage({ searchParams }) {
       })
     : [];
 
+  const activeFilters = [
+    keyword ? `Từ khoá: ${keyword}` : null,
+    genres.length ? `Thể loại: ${genres.join(", ")}` : null,
+    minYear ? `Năm từ: ${minYear}` : null,
+    maxYear ? `Đến năm: ${maxYear}` : null,
+    minRating ? `Rating từ: ${minRating}` : null,
+    maxRating ? `Đến rating: ${maxRating}` : null,
+    language ? `Ngôn ngữ: ${language}` : null,
+    country ? `Quốc gia: ${country}` : null,
+  ].filter(Boolean);
+
   return (
     <main
       style={{
@@ -66,7 +77,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
           className="container"
           style={{
             paddingTop: 46,
-            paddingBottom: 30,
+            paddingBottom: 34,
           }}
         >
           <div className="kicker">Advanced Search</div>
@@ -88,8 +99,34 @@ export default async function AdvancedSearchPage({ searchParams }) {
               maxWidth: 760,
             }}
           >
-            Lọc theo từ khoá, thể loại, năm, rating, ngôn ngữ hoặc quốc gia.
+            Lọc nhanh theo từ khoá, thể loại, năm, rating, ngôn ngữ hoặc quốc gia
+            để ra đúng nội dung bạn muốn xem.
           </p>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              marginTop: 18,
+            }}
+          >
+            <Link href="/search/advanced?q=test" style={quickTagStyle}>
+              test
+            </Link>
+            <Link href="/search/advanced?genre=asian" style={quickTagStyle}>
+              asian
+            </Link>
+            <Link href="/search/advanced?genre=Thu%20Dam" style={quickTagStyle}>
+              Thủ Dâm
+            </Link>
+            <Link href="/search/advanced?minRating=8" style={quickTagStyle}>
+              rating 8+
+            </Link>
+            <Link href="/search/advanced?language=English" style={quickTagStyle}>
+              English
+            </Link>
+          </div>
 
           <form
             action="/search/advanced"
@@ -97,25 +134,19 @@ export default async function AdvancedSearchPage({ searchParams }) {
             className="surface"
             style={{
               marginTop: 24,
-              padding: 18,
-              borderRadius: 20,
+              padding: 20,
+              borderRadius: 24,
+              maxWidth: 920,
+              marginLeft: "auto",
+              marginRight: "auto",
               display: "grid",
               gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
               gap: 14,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.38)",
             }}
           >
             <div style={{ gridColumn: "span 12" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Từ khoá
-              </label>
+              <label style={labelStyle}>Từ khoá</label>
               <input
                 type="text"
                 name="q"
@@ -126,17 +157,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
             </div>
 
             <div style={{ gridColumn: "span 12" }}>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Thể loại
-              </label>
+              <label style={labelStyle}>Thể loại</label>
               <input
                 type="text"
                 name="genre"
@@ -155,23 +176,8 @@ export default async function AdvancedSearchPage({ searchParams }) {
               </div>
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 3",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Năm từ
-              </label>
+            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+              <label style={labelStyle}>Năm từ</label>
               <input
                 type="number"
                 name="minYear"
@@ -181,23 +187,8 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 3",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Đến năm
-              </label>
+            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+              <label style={labelStyle}>Đến năm</label>
               <input
                 type="number"
                 name="maxYear"
@@ -207,23 +198,8 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 3",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Rating từ
-              </label>
+            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+              <label style={labelStyle}>Rating từ</label>
               <input
                 type="number"
                 step="0.1"
@@ -234,23 +210,8 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 3",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Đến rating
-              </label>
+            <div style={{ gridColumn: "span 3", minWidth: 0 }}>
+              <label style={labelStyle}>Đến rating</label>
               <input
                 type="number"
                 step="0.1"
@@ -261,54 +222,24 @@ export default async function AdvancedSearchPage({ searchParams }) {
               />
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 6",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Ngôn ngữ
-              </label>
+            <div style={{ gridColumn: "span 6", minWidth: 0 }}>
+              <label style={labelStyle}>Ngôn ngữ</label>
               <input
                 type="text"
                 name="language"
                 defaultValue={language}
-                placeholder="Ví dụ: japanese"
+                placeholder="Ví dụ: English, Japanese"
                 style={inputStyle}
               />
             </div>
 
-            <div
-              style={{
-                gridColumn: "span 6",
-                minWidth: 0,
-              }}
-            >
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  color: "#fff",
-                  fontSize: "0.92rem",
-                  fontWeight: 700,
-                }}
-              >
-                Quốc gia
-              </label>
+            <div style={{ gridColumn: "span 6", minWidth: 0 }}>
+              <label style={labelStyle}>Quốc gia</label>
               <input
                 type="text"
                 name="country"
                 defaultValue={country}
-                placeholder="Ví dụ: korea"
+                placeholder="Ví dụ: Việt Nam, Korea"
                 style={inputStyle}
               />
             </div>
@@ -323,7 +254,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               }}
             >
               <button type="submit" style={primaryButtonStyle}>
-                Tìm kiếm nâng cao
+                Lọc kết quả
               </button>
 
               <Link href="/search" style={secondaryButtonStyle}>
@@ -351,7 +282,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems: "start",
                   justifyContent: "space-between",
                   gap: 16,
                   marginBottom: 18,
@@ -366,7 +297,28 @@ export default async function AdvancedSearchPage({ searchParams }) {
                     Kết quả phù hợp với bộ lọc bạn đã chọn.
                   </p>
                 </div>
+
+                <Link href="/search/advanced" style={secondaryButtonStyle}>
+                  Xoá toàn bộ filter
+                </Link>
               </div>
+
+              {activeFilters.length ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginBottom: 22,
+                  }}
+                >
+                  {activeFilters.map((item) => (
+                    <span key={item} style={filterTagStyle}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               <div
                 style={{
@@ -455,10 +407,7 @@ export default async function AdvancedSearchPage({ searchParams }) {
               <Link href="/search/advanced?q=test" style={tagStyle}>
                 test
               </Link>
-              <Link
-                href="/search/advanced?genre=cosplay,asian"
-                style={tagStyle}
-              >
+              <Link href="/search/advanced?genre=cosplay,asian" style={tagStyle}>
                 cosplay, asian
               </Link>
               <Link href="/search/advanced?language=japanese" style={tagStyle}>
@@ -474,6 +423,14 @@ export default async function AdvancedSearchPage({ searchParams }) {
     </main>
   );
 }
+
+const labelStyle = {
+  display: "block",
+  marginBottom: 8,
+  color: "#fff",
+  fontSize: "0.92rem",
+  fontWeight: 700,
+};
 
 const inputStyle = {
   width: "100%",
@@ -527,4 +484,31 @@ const tagStyle = {
   color: "#fff",
   fontWeight: 700,
   fontSize: "0.92rem",
+};
+
+const quickTagStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 36,
+  padding: "0 14px",
+  borderRadius: 999,
+  textDecoration: "none",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: "0.86rem",
+};
+
+const filterTagStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 36,
+  padding: "0 14px",
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: "0.86rem",
 };
