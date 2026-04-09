@@ -7,201 +7,327 @@ export const metadata = {
   description: "Kho video 18+ cập nhật liên tục tại ClipDam18.",
 };
 
+const styles = {
+  homeWrap: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(circle at top, rgba(96,94,255,0.12), transparent 40%), linear-gradient(180deg, #07090f, #040507)",
+  },
+  hero: {
+    position: "relative",
+    minHeight: "620px",
+    display: "flex",
+    alignItems: "flex-end",
+    overflow: "hidden",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
+  heroBg: (image) => ({
+    position: "absolute",
+    inset: 0,
+    backgroundImage: `url(${image})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    transform: "scale(1.08)",
+    filter: "blur(8px) brightness(0.52)",
+  }),
+  heroOverlay: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "linear-gradient(to top, rgba(4,7,14,0.98) 8%, rgba(4,7,14,0.72) 36%, rgba(4,7,14,0.34) 58%, rgba(4,7,14,0.12) 100%)",
+  },
+  heroGlow: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(circle at 22% 30%, rgba(255,92,92,0.18), transparent 26%), radial-gradient(circle at 78% 18%, rgba(96,94,255,0.18), transparent 26%)",
+    pointerEvents: "none",
+  },
+  heroContent: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    paddingTop: 120,
+    paddingBottom: 72,
+  },
+  heroCard: {
+    maxWidth: 760,
+    padding: "26px 26px 24px",
+    borderRadius: 28,
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.035))",
+    border: "1px solid rgba(255,255,255,0.1)",
+    boxShadow:
+      "0 22px 60px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.05)",
+    backdropFilter: "blur(14px)",
+  },
+  heroTitle: {
+    fontSize: "clamp(2.2rem, 5vw, 4rem)",
+    fontWeight: 900,
+    lineHeight: 0.95,
+    letterSpacing: "-0.05em",
+    margin: "16px 0 0",
+    color: "#fff",
+  },
+  heroDesc: {
+    marginTop: 14,
+    maxWidth: 680,
+    color: "rgba(255,255,255,0.76)",
+    fontSize: "1rem",
+    lineHeight: 1.7,
+  },
+  heroMeta: {
+    marginTop: 18,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  heroMetaPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 38,
+    padding: "0 14px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#fff",
+    fontSize: "0.88rem",
+    fontWeight: 800,
+  },
+  heroActions: {
+    marginTop: 22,
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  btnPrimary: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    padding: "0 20px",
+    borderRadius: 14,
+    background: "#fff",
+    color: "#05070d",
+    fontWeight: 800,
+    textDecoration: "none",
+    boxShadow: "0 12px 28px rgba(255,255,255,0.12)",
+  },
+  btnGhost: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    padding: "0 20px",
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.08)",
+    color: "#fff",
+    textDecoration: "none",
+    border: "1px solid rgba(255,255,255,0.1)",
+  },
+  heroStrip: {
+    marginTop: 22,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: 12,
+  },
+  heroStripItem: {
+    padding: "14px 16px",
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  heroStripValue: {
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: "1rem",
+  },
+  heroStripLabel: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.64)",
+    fontSize: "0.88rem",
+    lineHeight: 1.5,
+  },
+  section: {
+    paddingTop: 38,
+    paddingBottom: 16,
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    margin: 0,
+  },
+  sectionDesc: {
+    marginTop: 8,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gap: 22,
+  },
+};
+
 export default async function AdultPage() {
   const movies = await getAdultMovies();
 
-  const hero = movies[0];
-  const trending = movies.slice(1, 7);
-  const latest = movies.slice(7, 19);
+  const hero = movies[0] || null;
+  const continueHint = movies.slice(1, 7);
+  const trending = movies.slice(7, 13);
+  const latest = movies.slice(13, 25);
 
   return (
-    <main className="homeWrap">
-      {/* HERO */}
-      {hero && (
-        <section className="hero">
+    <main style={styles.homeWrap}>
+      {hero ? (
+        <section style={styles.hero}>
           <div
-            className="heroBg"
-            style={{
-              backgroundImage: `url(${hero.displayBackdrop || hero.displayImage})`,
-            }}
+            style={styles.heroBg(
+              hero.displayBackdrop || hero.displayImage || hero.poster || ""
+            )}
           />
+          <div style={styles.heroOverlay} />
+          <div style={styles.heroGlow} />
 
-          <div className="heroOverlay" />
+          <div className="container" style={styles.heroContent}>
+            <div style={styles.heroCard}>
+              <div className="kicker">🔥 Trending now</div>
 
-          <div className="container heroContent">
-            <div className="heroText">
-              <div className="kicker">🔥 Trending</div>
+              <h1 style={styles.heroTitle}>{hero.title}</h1>
 
-              <h1 className="heroTitle">{hero.title}</h1>
-
-              <p className="heroDesc">
-                {hero.description || "Nội dung đang được xem nhiều nhất."}
+              <p style={styles.heroDesc}>
+                {hero.description ||
+                  "Nội dung đang được xem nhiều và nổi bật nhất hiện tại."}
               </p>
 
-              <div className="heroMeta">
-                <span>{hero.displayDuration || "HD"}</span>
-                <span>•</span>
-                <span>{hero.displayViews || "Hot"}</span>
+              <div style={styles.heroMeta}>
+                <span style={styles.heroMetaPill}>
+                  {hero.displayDuration || "HD"}
+                </span>
+                <span style={styles.heroMetaPill}>
+                  {hero.displayViews || "Hot"}
+                </span>
+                {Array.isArray(hero.genre) && hero.genre.length ? (
+                  <span style={styles.heroMetaPill}>
+                    {hero.genre.slice(0, 2).join(" • ")}
+                  </span>
+                ) : null}
               </div>
 
-              <div className="heroActions">
-                <a href={`/adult/${hero.slug}`} className="btnPrimary">
+              <div style={styles.heroActions}>
+                <a href={`/adult/${hero.slug}`} style={styles.btnPrimary}>
                   ▶ Xem ngay
                 </a>
 
-                <a href="/latest" className="btnGhost">
+                <a href="/latest" style={styles.btnGhost}>
                   Mới cập nhật
                 </a>
+
+                <a href="/trending" style={styles.btnGhost}>
+                  Top lượt xem
+                </a>
+              </div>
+
+              <div style={styles.heroStrip}>
+                <div style={styles.heroStripItem}>
+                  <div style={styles.heroStripValue}>24/7</div>
+                  <div style={styles.heroStripLabel}>
+                    Video mới được cập nhật liên tục mỗi ngày.
+                  </div>
+                </div>
+
+                <div style={styles.heroStripItem}>
+                  <div style={styles.heroStripValue}>Mượt</div>
+                  <div style={styles.heroStripLabel}>
+                    Tối ưu trải nghiệm xem nhanh và tải ổn định.
+                  </div>
+                </div>
+
+                <div style={styles.heroStripItem}>
+                  <div style={styles.heroStripValue}>Nổi bật</div>
+                  <div style={styles.heroStripLabel}>
+                    Tập trung các nội dung đang hot và được quan tâm.
+                  </div>
+                </div>
+
+                <div style={styles.heroStripItem}>
+                  <div style={styles.heroStripValue}>Cày lâu</div>
+                  <div style={styles.heroStripLabel}>
+                    Giao diện tối, thoải mái mắt và dễ khám phá hơn.
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
-      )}
+      ) : null}
 
-      {/* CONTINUE */}
-      <div className="container">
+      <div className="container" style={{ paddingTop: 24 }}>
         <ContinueWatching />
       </div>
 
-      {/* TRENDING */}
-      <section className="container section">
-        <SectionHeader
-          title="🔥 Đang hot"
-          desc="Những video đang được xem nhiều nhất hiện tại."
-        />
+      {!!continueHint.length && (
+        <section className="container" style={styles.section}>
+          <SectionHeader
+            title="⚡ Gợi ý xem tiếp"
+            desc="Những video mới đáng chú ý để bạn nhảy vào nhanh hơn."
+          />
 
-        <div className="grid">
-          {trending.map((m, i) => (
-            <AdultCard key={m._id} movie={m} priority={i < 4} />
-          ))}
-        </div>
-      </section>
+          <div style={styles.grid}>
+            {continueHint.map((movie, index) => (
+              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* LATEST */}
-      <section className="container section">
-        <SectionHeader
-          title="🆕 Mới cập nhật"
-          desc="Video vừa upload, chưa ai xem nhiều."
-        />
+      {!!trending.length && (
+        <section className="container" style={styles.section}>
+          <SectionHeader
+            title="🔥 Đang hot"
+            desc="Những video đang được xem nhiều nhất hiện tại."
+          />
 
-        <div className="grid">
-          {latest.map((m, i) => (
-            <AdultCard key={m._id} movie={m} priority={i < 4} />
-          ))}
-        </div>
-      </section>
+          <div style={styles.grid}>
+            {trending.map((movie, index) => (
+              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
+            ))}
+          </div>
+        </section>
+      )}
 
-      <style jsx>{`
-        .homeWrap {
-          min-height: 100vh;
-          background:
-            radial-gradient(circle at top, rgba(96,94,255,0.12), transparent 40%),
-            linear-gradient(180deg, #07090f, #040507);
-        }
+      {!!latest.length && (
+        <section
+          className="container"
+          style={{
+            ...styles.section,
+            paddingBottom: 70,
+          }}
+        >
+          <SectionHeader
+            title="🆕 Mới cập nhật"
+            desc="Video vừa upload, mới lên sóng và còn rất mới."
+          />
 
-        /* HERO */
-        .hero {
-          position: relative;
-          height: 70vh;
-          min-height: 520px;
-          display: flex;
-          align-items: flex-end;
-          overflow: hidden;
-        }
-
-        .heroBg {
-          position: absolute;
-          inset: 0;
-          background-size: cover;
-          background-position: center;
-          filter: blur(10px) brightness(0.6);
-          transform: scale(1.1);
-        }
-
-        .heroOverlay {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            to top,
-            rgba(4,7,14,0.95) 10%,
-            rgba(4,7,14,0.6) 50%,
-            rgba(4,7,14,0.2) 100%
-          );
-        }
-
-        .heroContent {
-          position: relative;
-          z-index: 2;
-          padding-bottom: 60px;
-        }
-
-        .heroText {
-          max-width: 680px;
-        }
-
-        .heroTitle {
-          font-size: clamp(2rem, 5vw, 3.6rem);
-          font-weight: 900;
-          margin-top: 14px;
-        }
-
-        .heroDesc {
-          margin-top: 12px;
-          color: rgba(255,255,255,0.7);
-        }
-
-        .heroMeta {
-          margin-top: 14px;
-          display: flex;
-          gap: 8px;
-          color: rgba(255,255,255,0.7);
-        }
-
-        .heroActions {
-          margin-top: 20px;
-          display: flex;
-          gap: 12px;
-        }
-
-        .btnPrimary {
-          padding: 12px 20px;
-          border-radius: 12px;
-          background: #fff;
-          color: #000;
-          font-weight: 800;
-          text-decoration: none;
-        }
-
-        .btnGhost {
-          padding: 12px 20px;
-          border-radius: 12px;
-          background: rgba(255,255,255,0.1);
-          color: #fff;
-          text-decoration: none;
-        }
-
-        /* SECTION */
-        .section {
-          padding-top: 40px;
-          padding-bottom: 20px;
-        }
-
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 20px;
-        }
-      `}</style>
+          <div style={styles.grid}>
+            {latest.map((movie, index) => (
+              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
 
-/* HEADER */
 function SectionHeader({ title, desc }) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <h2 className="section-title">{title}</h2>
-      <p className="section-desc">{desc}</p>
+    <div style={styles.sectionHeader}>
+      <h2 className="section-title" style={styles.sectionTitle}>
+        {title}
+      </h2>
+      <p className="section-desc" style={styles.sectionDesc}>
+        {desc}
+      </p>
     </div>
   );
 }
