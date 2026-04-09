@@ -17,10 +17,10 @@ export const metadata = {
 };
 
 const featuredVideo = {
-  title: "Nội dung 18+ dành cho người trưởng thành",
+  title: "Kho nội dung 18+ tuyển chọn dành cho người trưởng thành",
   subtitle:
-    "Chuyên mục 18+ tại ClipDam18 được xây dựng dành cho người dùng trưởng thành, với nội dung được sắp xếp rõ ràng, dễ tìm kiếm và tối ưu trải nghiệm xem trực tuyến.",
-  badge: "Chuyên mục dành cho người trưởng thành 18+",
+    "Tổng hợp những video nóng bỏng, táo bạo và cuốn hút được sắp xếp rõ ràng để người xem trưởng thành dễ khám phá, xem nhanh và theo dõi nội dung nổi bật theo từng nhóm.",
+  badge: "Khu vực riêng cho người xem 18+",
 };
 
 function SectionHeader({ title, desc }) {
@@ -129,7 +129,7 @@ function VideoCard({ item, large = false }) {
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.category || (item.newPopular ? "Nổi bật" : "18+")}
+            {item.category || (item.newPopular ? "Nóng trong ngày" : "18+")}
           </span>
 
           <span
@@ -272,7 +272,7 @@ export default async function AdultPage() {
           <h1
             className="heading-xl"
             style={{
-              maxWidth: 880,
+              maxWidth: 920,
               marginTop: 20,
               color: "#ffffff",
             }}
@@ -302,7 +302,8 @@ export default async function AdultPage() {
               Về trang chủ
             </CTAButton>
 
-            <CTAButton href="/adult">Nội dung mới cập nhật</CTAButton>
+            <CTAButton href="/latest">Mới cập nhật</CTAButton>
+            <CTAButton href="/trending">Top lượt xem</CTAButton>
           </div>
 
           <div
@@ -323,7 +324,7 @@ export default async function AdultPage() {
                 margin: 0,
               }}
             >
-              Thông báo độ tuổi
+              Khu vực người lớn
             </h3>
             <p
               style={{
@@ -331,7 +332,8 @@ export default async function AdultPage() {
                 color: "rgba(255,255,255,0.74)",
               }}
             >
-              Chuyên mục này chỉ dành cho người dùng từ 18 tuổi trở lên.
+              Nội dung tại đây dành riêng cho người xem từ 18 tuổi trở lên, với
+              nhiều video nóng bỏng, táo bạo và có tính kích thích cao.
             </p>
           </div>
 
@@ -344,10 +346,10 @@ export default async function AdultPage() {
               maxWidth: 1080,
             }}
           >
-            <InfoStripItem value="24/7" label="Nội dung mới cập nhật" />
-            <InfoStripItem value="Hot" label="Danh mục nổi bật" />
-            <InfoStripItem value="Mượt" label="Xem mượt, tải nhanh" />
-            <InfoStripItem value="Premium" label="Giao diện hiện đại" />
+            <InfoStripItem value="24/7" label="Video mới lên sóng liên tục" />
+            <InfoStripItem value="Bỏng mắt" label="Nội dung nóng và nổi bật" />
+            <InfoStripItem value="Mượt" label="Xem nhanh, tải ổn định" />
+            <InfoStripItem value="Cuốn" label="Giao diện tối ưu để cày lâu" />
           </div>
         </div>
       </section>
@@ -364,8 +366,8 @@ export default async function AdultPage() {
         }}
       >
         <SectionHeader
-          title="Hot hôm nay"
-          desc="Những nội dung nổi bật đang được xem nhiều."
+          title="Nóng nhất hôm nay"
+          desc="Loạt video đang kéo view mạnh và được mở xem nhiều nhất."
         />
 
         <div
@@ -389,8 +391,8 @@ export default async function AdultPage() {
         }}
       >
         <SectionHeader
-          title="Mới cập nhật"
-          desc="Danh sách video mới được thêm gần đây."
+          title="Mới cập nhật liên tục"
+          desc="Danh sách video vừa được đẩy lên, xem trước khi thành hàng hot."
         />
 
         <div
