@@ -1,4 +1,5 @@
 import ContinueWatching from "@/components/ContinueWatching";
+import AdultCard from "@/components/AdultCard";
 import { getAdultMovies } from "@/lib/api";
 
 export const metadata = {
@@ -18,8 +19,7 @@ export const metadata = {
 
 const featuredVideo = {
   title: "Kho nội dung 18+ tuyển chọn cập nhật mỗi ngày",
-  subtitle:
-    "Tổng hợp những những clip sex Việt Nam, Quốc tế hàng ngày.",
+  subtitle: "Tổng hợp những clip nổi bật, nội dung đang hot và video mới lên sóng mỗi ngày.",
   badge: "Khu vực riêng cho người xem 18+",
 };
 
@@ -49,47 +49,53 @@ function CTAButton({ href, children, primary = false }) {
         letterSpacing: "-0.01em",
         whiteSpace: "nowrap",
         textDecoration: "none",
+        background: primary ? "#fff" : "rgba(255,255,255,0.06)",
+        color: primary ? "#05070d" : "#ffffff",
+        border: "1px solid rgba(255,255,255,0.1)",
+        boxShadow: primary ? "0 12px 28px rgba(255,255,255,0.12)" : "none",
       }}
     >
-      <span style={{ color: primary ? "#05070d" : "#ffffff" }}>{children}</span>
+      {children}
     </a>
   );
 }
 
-function VideoCard({ item, large = false }) {
+function HeroFeatureCard({ item }) {
+  if (!item) return null;
+
   return (
     <a
       href={`/adult/${item.slug}`}
-      className="adultPageCard"
       style={{
         display: "block",
         textDecoration: "none",
         color: "inherit",
-        borderRadius: 24,
+        borderRadius: 26,
         overflow: "hidden",
         position: "relative",
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
       }}
     >
       <div
         style={{
           position: "relative",
           width: "100%",
-          aspectRatio: "16 / 10",
+          aspectRatio: "16 / 8.4",
           background: "#0d1118",
           overflow: "hidden",
         }}
       >
         <img
-          src={item.displayImage || item.displayBackdrop || item.image || item.poster}
+          src={item.displayBackdrop || item.displayImage || item.poster || ""}
           alt={item.title}
           style={{
             width: "100%",
             height: "100%",
             objectFit: "cover",
             display: "block",
+            transform: "scale(1.02)",
           }}
         />
 
@@ -98,16 +104,16 @@ function VideoCard({ item, large = false }) {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(to top, rgba(3,6,12,0.98) 0%, rgba(3,6,12,0.58) 42%, rgba(3,6,12,0.1) 100%)",
+              "linear-gradient(to top, rgba(3,6,12,0.98) 0%, rgba(3,6,12,0.7) 34%, rgba(3,6,12,0.12) 100%)",
           }}
         />
 
         <div
           style={{
             position: "absolute",
-            left: 16,
-            right: 16,
-            top: 16,
+            left: 20,
+            right: 20,
+            top: 20,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -118,7 +124,7 @@ function VideoCard({ item, large = false }) {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              minHeight: 32,
+              minHeight: 34,
               padding: "0 12px",
               borderRadius: 999,
               background: "rgba(255, 92, 92, 0.16)",
@@ -129,14 +135,14 @@ function VideoCard({ item, large = false }) {
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.category || (item.newPopular ? "Nóng trong ngày" : "18+")}
+            {item.newPopular ? "Đang nổi bật" : "Hot hôm nay"}
           </span>
 
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
-              minHeight: 32,
+              minHeight: 34,
               padding: "0 12px",
               borderRadius: 999,
               background: "rgba(255,255,255,0.12)",
@@ -147,28 +153,26 @@ function VideoCard({ item, large = false }) {
               backdropFilter: "blur(10px)",
             }}
           >
-            {item.displayDuration || item.duration || "HD"}
+            {item.displayViews || "Hot"}
           </span>
         </div>
 
         <div
           style={{
             position: "absolute",
-            left: 18,
-            right: 18,
-            bottom: 18,
+            left: 20,
+            right: 20,
+            bottom: 20,
           }}
         >
           <h3
-            className="line-clamp-2"
             style={{
               margin: 0,
-              fontFamily:
-                "var(--font-manrope), var(--font-inter), Arial, sans-serif",
-              fontSize: large ? "1.08rem" : "1rem",
-              lineHeight: 1.28,
-              letterSpacing: "-0.025em",
-              fontWeight: 800,
+              fontFamily: "var(--font-manrope), var(--font-inter), Arial, sans-serif",
+              fontSize: "clamp(1.2rem, 3vw, 1.8rem)",
+              lineHeight: 1.18,
+              letterSpacing: "-0.03em",
+              fontWeight: 900,
               color: "#ffffff",
             }}
           >
@@ -177,15 +181,61 @@ function VideoCard({ item, large = false }) {
 
           <p
             style={{
-              marginTop: 8,
+              marginTop: 10,
               marginBottom: 0,
-              fontSize: "0.9rem",
-              lineHeight: 1.55,
-              color: "rgba(255,255,255,0.72)",
+              maxWidth: 760,
+              fontSize: "0.96rem",
+              lineHeight: 1.7,
+              color: "rgba(255,255,255,0.76)",
             }}
           >
-            {item.displayViews || item.views || "Mới cập nhật"}
+            {item.description || "Nội dung đang được xem nhiều và nổi bật nhất hiện tại."}
           </p>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 34,
+                padding: "0 12px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#fff",
+                fontSize: "0.84rem",
+                fontWeight: 800,
+              }}
+            >
+              {item.displayDuration || "HD"}
+            </span>
+
+            {Array.isArray(item.genre) && item.genre.length ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 34,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontSize: "0.84rem",
+                  fontWeight: 800,
+                }}
+              >
+                {item.genre.slice(0, 2).join(" • ")}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
     </a>
@@ -198,12 +248,12 @@ function InfoStripItem({ value, label }) {
       className="surface"
       style={{
         padding: "16px 18px",
+        borderRadius: 20,
       }}
     >
       <div
         style={{
-          fontFamily:
-            "var(--font-manrope), var(--font-inter), Arial, sans-serif",
+          fontFamily: "var(--font-manrope), var(--font-inter), Arial, sans-serif",
           fontSize: "1rem",
           fontWeight: 800,
           letterSpacing: "-0.02em",
@@ -230,8 +280,9 @@ function InfoStripItem({ value, label }) {
 export default async function AdultPage() {
   const movies = await getAdultMovies();
 
-  const hotMovies = movies.slice(0, 8);
-  const latestMovies = movies.slice(8, 16);
+  const heroMovie = movies[0] || null;
+  const hotMovies = movies.slice(1, 9);
+  const latestMovies = movies.slice(9, 21);
 
   return (
     <main
@@ -315,6 +366,7 @@ export default async function AdultPage() {
               marginTop: 34,
               padding: "22px 24px",
               maxWidth: 1080,
+              borderRadius: 24,
               background:
                 "linear-gradient(180deg, rgba(255, 183, 77, 0.08), rgba(255, 183, 77, 0.04))",
               border: "1px solid rgba(255, 183, 77, 0.18)",
@@ -336,7 +388,7 @@ export default async function AdultPage() {
               }}
             >
               Nội dung tại đây dành riêng cho người xem từ 18 tuổi trở lên, với
-              nhiều video nóng bỏng, táo bạo và có tính kích thích cao.
+              nhiều video nổi bật, bố cục dễ theo dõi và trải nghiệm xem trực tuyến mượt hơn.
             </p>
           </div>
 
@@ -350,14 +402,31 @@ export default async function AdultPage() {
             }}
           >
             <InfoStripItem value="24/7" label="Video mới lên sóng liên tục" />
-            <InfoStripItem value="Bỏng mắt" label="Nội dung nóng và nổi bật" />
+            <InfoStripItem value="Nổi bật" label="Tập trung nội dung đang hot" />
             <InfoStripItem value="Mượt" label="Xem nhanh, tải ổn định" />
-            <InfoStripItem value="Cuốn" label="Giao diện tối ưu để cày lâu" />
+            <InfoStripItem value="Khám phá" label="Dễ tìm các nội dung mới hơn" />
           </div>
         </div>
       </section>
 
-      <div className="container" style={{ paddingTop: 26 }}>
+      {heroMovie ? (
+        <section
+          className="container"
+          style={{
+            paddingTop: 30,
+            paddingBottom: 6,
+          }}
+        >
+          <SectionHeader
+            title="⭐ Nổi bật hôm nay"
+            desc="Video mở đầu đáng chú ý nhất để vào xem nhanh hơn."
+          />
+
+          <HeroFeatureCard item={heroMovie} />
+        </section>
+      ) : null}
+
+      <div className="container" style={{ paddingTop: 12 }}>
         <ContinueWatching />
       </div>
 
@@ -376,12 +445,12 @@ export default async function AdultPage() {
         <div
           style={{
             display: "grid",
-            gap: 18,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
           }}
         >
-          {hotMovies.map((item) => (
-            <VideoCard key={item._id} item={item} large />
+          {hotMovies.map((item, index) => (
+            <AdultCard key={item._id || item.id} movie={item} priority={index < 4} />
           ))}
         </div>
       </section>
@@ -401,12 +470,12 @@ export default async function AdultPage() {
         <div
           style={{
             display: "grid",
-            gap: 18,
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 20,
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
           }}
         >
-          {latestMovies.map((item) => (
-            <VideoCard key={item._id} item={item} />
+          {latestMovies.map((item, index) => (
+            <AdultCard key={item._id || item.id} movie={item} priority={index < 4} />
           ))}
         </div>
       </section>
