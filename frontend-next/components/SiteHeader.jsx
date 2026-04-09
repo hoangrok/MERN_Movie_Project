@@ -148,112 +148,114 @@ export default function SiteHeader() {
 
   return (
     <header className="siteHeader">
-      <div className="container siteHeader__inner">
-        <Link href="/" className="siteHeader__brand" aria-label="ClipDam18">
-          <span className="siteHeader__brandMark">Clip</span>
-          <span className="siteHeader__brandText">Dam18</span>
-        </Link>
-
-        <nav className="siteHeader__nav">
-          <Link
-            href="/latest"
-            className={`siteHeader__pill ${isActive("/latest") ? "isActive" : ""}`}
-          >
-            Mới cập nhật
+      <div className="container">
+        <div className="siteHeader__inner">
+          <Link href="/" className="siteHeader__brand" aria-label="ClipDam18">
+            <span className="siteHeader__brandMark">Clip</span>
+            <span className="siteHeader__brandText">Dam18</span>
           </Link>
 
-          <Link
-            href="/trending"
-            className={`siteHeader__pill ${isActive("/trending") ? "isActive" : ""}`}
-          >
-            Top lượt xem
-          </Link>
-
-          <Link
-            href="/genres"
-            className={`siteHeader__pill ${isActive("/genres") ? "isActive" : ""}`}
-          >
-            Thể loại
-          </Link>
-        </nav>
-
-        <div className="siteHeader__searchWrap" ref={wrapRef}>
-          <form onSubmit={handleSubmit} className="siteHeader__search">
-            <span className="siteHeader__searchIcon">🔎</span>
-
-            <input
-              type="text"
-              name="q"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => {
-                if (query.trim()) setOpen(true);
-              }}
-              placeholder="Tìm video..."
-              className="siteHeader__input"
-              autoComplete="off"
-            />
-
-            <button type="submit" className="siteHeader__button">
-              Tìm
-            </button>
-
-            <Link href="/search/advanced" className="siteHeader__advancedButton">
-              Nâng cao
+          <nav className="siteHeader__nav">
+            <Link
+              href="/latest"
+              className={`siteHeader__pill ${isActive("/latest") ? "isActive" : ""}`}
+            >
+              Mới cập nhật
             </Link>
-          </form>
 
-          {hasDropdown ? (
-            <div className="siteHeader__dropdown">
-              {loading ? (
-                <div className="siteHeader__dropdownState">Đang tìm video...</div>
-              ) : results.length > 0 ? (
-                <>
-                  {results.map((item) => (
-                    <Link
-                      key={item?._id || item?.slug || item?.title}
-                      href={getMovieHref(item)}
-                      className="siteHeader__result"
-                      onClick={() => setOpen(false)}
+            <Link
+              href="/trending"
+              className={`siteHeader__pill ${isActive("/trending") ? "isActive" : ""}`}
+            >
+              Top lượt xem
+            </Link>
+
+            <Link
+              href="/genres"
+              className={`siteHeader__pill ${isActive("/genres") ? "isActive" : ""}`}
+            >
+              Thể loại
+            </Link>
+          </nav>
+
+          <div className="siteHeader__searchWrap" ref={wrapRef}>
+            <form onSubmit={handleSubmit} className="siteHeader__search">
+              <span className="siteHeader__searchIcon">🔎</span>
+
+              <input
+                type="text"
+                name="q"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => {
+                  if (query.trim()) setOpen(true);
+                }}
+                placeholder="Tìm video..."
+                className="siteHeader__input"
+                autoComplete="off"
+              />
+
+              <button type="submit" className="siteHeader__button">
+                Tìm
+              </button>
+
+              <Link href="/search/advanced" className="siteHeader__advancedButton">
+                Nâng cao
+              </Link>
+            </form>
+
+            {hasDropdown ? (
+              <div className="siteHeader__dropdown">
+                {loading ? (
+                  <div className="siteHeader__dropdownState">Đang tìm video...</div>
+                ) : results.length > 0 ? (
+                  <>
+                    {results.map((item) => (
+                      <Link
+                        key={item?._id || item?.slug || item?.title}
+                        href={getMovieHref(item)}
+                        className="siteHeader__result"
+                        onClick={() => setOpen(false)}
+                      >
+                        <img
+                          src={getMovieImage(item)}
+                          alt={item?.title || "video"}
+                          className="siteHeader__resultThumb"
+                        />
+
+                        <div className="siteHeader__resultBody">
+                          <div className="siteHeader__resultTitle line-clamp-1">
+                            {item?.title || "Video không có tiêu đề"}
+                          </div>
+                          <div className="siteHeader__resultMeta line-clamp-1">
+                            {getMovieMeta(item) || "Nội dung liên quan"}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+
+                    <button
+                      type="button"
+                      className="siteHeader__viewAll"
+                      onClick={() => {
+                        setOpen(false);
+                        router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+                      }}
                     >
-                      <img
-                        src={getMovieImage(item)}
-                        alt={item?.title || "video"}
-                        className="siteHeader__resultThumb"
-                      />
+                      Xem tất cả kết quả cho “{query.trim()}”
+                    </button>
+                  </>
+                ) : (
+                  <div className="siteHeader__dropdownState">
+                    Không tìm thấy video phù hợp
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
 
-                      <div className="siteHeader__resultBody">
-                        <div className="siteHeader__resultTitle line-clamp-1">
-                          {item?.title || "Video không có tiêu đề"}
-                        </div>
-                        <div className="siteHeader__resultMeta line-clamp-1">
-                          {getMovieMeta(item) || "Nội dung liên quan"}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-
-                  <button
-                    type="button"
-                    className="siteHeader__viewAll"
-                    onClick={() => {
-                      setOpen(false);
-                      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-                    }}
-                  >
-                    Xem tất cả kết quả cho “{query.trim()}”
-                  </button>
-                </>
-              ) : (
-                <div className="siteHeader__dropdownState">
-                  Không tìm thấy video phù hợp
-                </div>
-              )}
-            </div>
-          ) : null}
+          <AuthButtons />
         </div>
-
-        <AuthButtons />
       </div>
 
       <style jsx>{`
@@ -261,21 +263,33 @@ export default function SiteHeader() {
           position: sticky;
           top: 0;
           z-index: 50;
+          padding-top: 8px;
           backdrop-filter: blur(18px);
           background: linear-gradient(
             180deg,
             rgba(4, 7, 14, 0.92),
             rgba(4, 7, 14, 0.78)
           );
-          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
           box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
         }
 
         .siteHeader__inner {
-          min-height: 78px;
+          min-height: 72px;
           display: flex;
           align-items: center;
           gap: 14px;
+          padding: 10px 14px;
+          border-radius: 22px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.06),
+            rgba(255, 255, 255, 0.025)
+          );
+          box-shadow:
+            0 18px 48px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .siteHeader__brand {
@@ -330,8 +344,8 @@ export default function SiteHeader() {
           color: rgba(255, 255, 255, 0.82);
           font-weight: 700;
           white-space: nowrap;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.035);
+          border: 1px solid transparent;
+          background: transparent;
           transition: all 0.22s ease;
           flex-shrink: 0;
         }

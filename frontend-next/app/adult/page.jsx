@@ -17,9 +17,9 @@ export const metadata = {
 };
 
 const featuredVideo = {
-  title: "Kho nội dung 18+ tuyển chọn dành cho người trưởng thành",
+  title: "Kho nội dung 18+ tuyển chọn cập nhật mỗi ngày",
   subtitle:
-    "Tổng hợp những video nóng bỏng, táo bạo và cuốn hút được sắp xếp rõ ràng để người xem trưởng thành dễ khám phá, xem nhanh và theo dõi nội dung nổi bật theo từng nhóm.",
+    "Tổng hợp những những clip sex Việt Nam, Quốc tế hàng ngày.",
   badge: "Khu vực riêng cho người xem 18+",
 };
 
@@ -263,11 +263,13 @@ export default async function AdultPage() {
           style={{
             position: "relative",
             zIndex: 2,
-            paddingTop: 86,
+            paddingTop: 110,
             paddingBottom: 70,
           }}
         >
-          <div className="kicker">{featuredVideo.badge}</div>
+          <div className="kicker" style={{ marginTop: 8 }}>
+            {featuredVideo.badge}
+          </div>
 
           <h1
             className="heading-xl"
@@ -296,6 +298,7 @@ export default async function AdultPage() {
               flexWrap: "wrap",
               gap: 14,
               marginTop: 30,
+              justifyContent: "center",
             }}
           >
             <CTAButton href="/" primary>
