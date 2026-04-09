@@ -8,6 +8,22 @@ import AuthButtons from "@/components/AuthButtons";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "https://dam18-api.onrender.com/api";
 
+type MovieItem = {
+  _id?: string;
+  slug?: string;
+  title?: string;
+  displayImage?: string;
+  displayBackdrop?: string;
+  poster?: string;
+  backdrop?: string;
+  year?: number;
+  displayDuration?: string;
+  duration?: number;
+  views?: number;
+  displayViews?: string;
+  language?: string;
+};
+
 export default function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
@@ -19,10 +35,10 @@ export default function SiteHeader() {
   const [query, setQuery] = useState(initialQuery);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
-  const wrapRef = useRef(null);
+  const [results, setResults] = useState<MovieItem[]>([]);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  const isActive = (path) =>
+  const isActive = (path: string) =>
     pathname === path || (path !== "/" && pathname?.startsWith(path));
 
   useEffect(() => {
@@ -30,8 +46,8 @@ export default function SiteHeader() {
   }, [initialQuery]);
 
   useEffect(() => {
-    const onClickOutside = (e) => {
-      if (!wrapRef.current?.contains(e.target)) {
+    const onClickOutside = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     };
@@ -82,7 +98,7 @@ export default function SiteHeader() {
 
         setResults(Array.isArray(items) ? items.slice(0, 8) : []);
         setOpen(true);
-      } catch (error) {
+      } catch (error: any) {
         if (error?.name !== "AbortError") {
           setResults([]);
           setOpen(true);
@@ -102,27 +118,30 @@ export default function SiteHeader() {
     return open && query.trim().length > 0;
   }, [open, query]);
 
-  const getMovieHref = (item) => {
+  const getMovieHref = (item: MovieItem) => {
     if (item?.slug) return `/adult/${item.slug}`;
     return "/adult";
   };
 
-  const getMovieImage = (item) =>
+  const getMovieImage = (item: MovieItem) =>
     item?.displayImage ||
     item?.displayBackdrop ||
     item?.poster ||
     item?.backdrop ||
     "https://dummyimage.com/160x90/111827/ffffff&text=Video";
 
-  const getMovieMeta = (item) => {
-    const bits = [];
-    if (item?.year) bits.push(item.year);
+  const getMovieMeta = (item: MovieItem) => {
+    const bits: string[] = [];
 
-    if (item?.displayDuration) bits.push(item.displayDuration);
-    else if (typeof item?.duration === "number" && item.duration > 0) {
+    if (item?.year) bits.push(String(item.year));
+
+    if (item?.displayDuration) {
+      bits.push(item.displayDuration);
+    } else if (typeof item?.duration === "number" && item.duration > 0) {
       const total = Math.floor(item.duration);
       const h = Math.floor(total / 3600);
       const m = Math.floor((total % 3600) / 60);
+
       if (h > 0) bits.push(`${h} giờ ${m} phút`);
       else if (m > 0) bits.push(`${m} phút`);
     }
@@ -138,10 +157,11 @@ export default function SiteHeader() {
     return bits.join(" • ");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const keyword = query.trim();
     if (!keyword) return;
+
     setOpen(false);
     router.push(`/search?q=${encodeURIComponent(keyword)}`);
   };
@@ -205,10 +225,6 @@ export default function SiteHeader() {
                 <button type="submit" className="siteHeader__button">
                   Tìm
                 </button>
-
-                <Link href="/search/advanced" className="siteHeader__advancedButton">
-                  Nâng cao
-                </Link>
               </form>
 
               {hasDropdown ? (
@@ -268,16 +284,15 @@ export default function SiteHeader() {
         .siteHeader {
           position: sticky;
           top: 0;
-          z-index: 50;
-          padding-top: 8px;
+          z-index: 60;
+          padding: 10px 0 0;
           backdrop-filter: blur(18px);
           background: linear-gradient(
             180deg,
             rgba(4, 7, 14, 0.92),
-            rgba(4, 7, 14, 0.78)
+            rgba(4, 7, 14, 0.82)
           );
           border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
           overflow-x: clip;
         }
 
@@ -447,26 +462,6 @@ export default function SiteHeader() {
           box-shadow: 0 10px 24px rgba(255, 255, 255, 0.12);
         }
 
-        .siteHeader__advancedButton {
-          min-height: 40px;
-          padding: 0 15px;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(255, 255, 255, 0.06);
-          color: #fff;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          white-space: nowrap;
-        }
-
-        .siteHeader__advancedButton:hover {
-          background: rgba(255, 255, 255, 0.1);
-          transform: translateY(-1px);
-        }
-
         .siteHeader__dropdown {
           position: absolute;
           left: 0;
@@ -482,7 +477,7 @@ export default function SiteHeader() {
           border: 1px solid rgba(255, 255, 255, 0.1);
           box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
           backdrop-filter: blur(16px);
-          z-index: 60;
+          z-index: 70;
         }
 
         .siteHeader__dropdownState {
@@ -575,33 +570,20 @@ export default function SiteHeader() {
 
           .siteHeader__search {
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto auto;
+            grid-template-columns: auto minmax(0, 1fr) auto;
             align-items: center;
-          }
-
-          .siteHeader__button,
-          .siteHeader__advancedButton {
-            min-height: 38px;
-            padding: 0 12px;
           }
         }
 
         @media (max-width: 520px) {
           .siteHeader__search {
-            grid-template-columns: auto minmax(0, 1fr);
-          }
-
-          .siteHeader__button,
-          .siteHeader__advancedButton {
-            width: 100%;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
           }
 
           .siteHeader__button {
-            grid-column: 1 / span 1;
-          }
-
-          .siteHeader__advancedButton {
-            grid-column: 2 / span 1;
+            min-height: 38px;
+            padding: 0 12px;
           }
 
           .siteHeader__resultThumb {

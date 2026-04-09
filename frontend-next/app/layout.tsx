@@ -106,7 +106,8 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <SiteHeader />
         </Suspense>
-        {children}
+
+        <div className="appShell">{children}</div>
       </body>
     </html>
   );
