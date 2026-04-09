@@ -150,111 +150,117 @@ export default function SiteHeader() {
     <header className="siteHeader">
       <div className="container">
         <div className="siteHeader__inner">
-          <Link href="/" className="siteHeader__brand" aria-label="ClipDam18">
-            <span className="siteHeader__brandMark">Clip</span>
-            <span className="siteHeader__brandText">Dam18</span>
-          </Link>
-
-          <nav className="siteHeader__nav">
-            <Link
-              href="/latest"
-              className={`siteHeader__pill ${isActive("/latest") ? "isActive" : ""}`}
-            >
-              Mới cập nhật
+          <div className="siteHeader__topRow">
+            <Link href="/" className="siteHeader__brand" aria-label="ClipDam18">
+              <span className="siteHeader__brandMark">Clip</span>
+              <span className="siteHeader__brandText">Dam18</span>
             </Link>
 
-            <Link
-              href="/trending"
-              className={`siteHeader__pill ${isActive("/trending") ? "isActive" : ""}`}
-            >
-              Top lượt xem
-            </Link>
-
-            <Link
-              href="/genres"
-              className={`siteHeader__pill ${isActive("/genres") ? "isActive" : ""}`}
-            >
-              Thể loại
-            </Link>
-          </nav>
-
-          <div className="siteHeader__searchWrap" ref={wrapRef}>
-            <form onSubmit={handleSubmit} className="siteHeader__search">
-              <span className="siteHeader__searchIcon">🔎</span>
-
-              <input
-                type="text"
-                name="q"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => {
-                  if (query.trim()) setOpen(true);
-                }}
-                placeholder="Tìm video..."
-                className="siteHeader__input"
-                autoComplete="off"
-              />
-
-              <button type="submit" className="siteHeader__button">
-                Tìm
-              </button>
-
-              <Link href="/search/advanced" className="siteHeader__advancedButton">
-                Nâng cao
+            <nav className="siteHeader__nav">
+              <Link
+                href="/latest"
+                className={`siteHeader__pill ${isActive("/latest") ? "isActive" : ""}`}
+              >
+                Mới cập nhật
               </Link>
-            </form>
 
-            {hasDropdown ? (
-              <div className="siteHeader__dropdown">
-                {loading ? (
-                  <div className="siteHeader__dropdownState">Đang tìm video...</div>
-                ) : results.length > 0 ? (
-                  <>
-                    {results.map((item) => (
-                      <Link
-                        key={item?._id || item?.slug || item?.title}
-                        href={getMovieHref(item)}
-                        className="siteHeader__result"
-                        onClick={() => setOpen(false)}
-                      >
-                        <img
-                          src={getMovieImage(item)}
-                          alt={item?.title || "video"}
-                          className="siteHeader__resultThumb"
-                        />
+              <Link
+                href="/trending"
+                className={`siteHeader__pill ${isActive("/trending") ? "isActive" : ""}`}
+              >
+                Top lượt xem
+              </Link>
 
-                        <div className="siteHeader__resultBody">
-                          <div className="siteHeader__resultTitle line-clamp-1">
-                            {item?.title || "Video không có tiêu đề"}
-                          </div>
-                          <div className="siteHeader__resultMeta line-clamp-1">
-                            {getMovieMeta(item) || "Nội dung liên quan"}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
+              <Link
+                href="/genres"
+                className={`siteHeader__pill ${isActive("/genres") ? "isActive" : ""}`}
+              >
+                Thể loại
+              </Link>
+            </nav>
 
-                    <button
-                      type="button"
-                      className="siteHeader__viewAll"
-                      onClick={() => {
-                        setOpen(false);
-                        router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-                      }}
-                    >
-                      Xem tất cả kết quả cho “{query.trim()}”
-                    </button>
-                  </>
-                ) : (
-                  <div className="siteHeader__dropdownState">
-                    Không tìm thấy video phù hợp
-                  </div>
-                )}
-              </div>
-            ) : null}
+            <div className="siteHeader__auth">
+              <AuthButtons />
+            </div>
           </div>
 
-          <AuthButtons />
+          <div className="siteHeader__bottomRow">
+            <div className="siteHeader__searchWrap" ref={wrapRef}>
+              <form onSubmit={handleSubmit} className="siteHeader__search">
+                <span className="siteHeader__searchIcon">🔎</span>
+
+                <input
+                  type="text"
+                  name="q"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => {
+                    if (query.trim()) setOpen(true);
+                  }}
+                  placeholder="Tìm video..."
+                  className="siteHeader__input"
+                  autoComplete="off"
+                />
+
+                <button type="submit" className="siteHeader__button">
+                  Tìm
+                </button>
+
+                <Link href="/search/advanced" className="siteHeader__advancedButton">
+                  Nâng cao
+                </Link>
+              </form>
+
+              {hasDropdown ? (
+                <div className="siteHeader__dropdown">
+                  {loading ? (
+                    <div className="siteHeader__dropdownState">Đang tìm video...</div>
+                  ) : results.length > 0 ? (
+                    <>
+                      {results.map((item) => (
+                        <Link
+                          key={item?._id || item?.slug || item?.title}
+                          href={getMovieHref(item)}
+                          className="siteHeader__result"
+                          onClick={() => setOpen(false)}
+                        >
+                          <img
+                            src={getMovieImage(item)}
+                            alt={item?.title || "video"}
+                            className="siteHeader__resultThumb"
+                          />
+
+                          <div className="siteHeader__resultBody">
+                            <div className="siteHeader__resultTitle line-clamp-1">
+                              {item?.title || "Video không có tiêu đề"}
+                            </div>
+                            <div className="siteHeader__resultMeta line-clamp-1">
+                              {getMovieMeta(item) || "Nội dung liên quan"}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="siteHeader__viewAll"
+                        onClick={() => {
+                          setOpen(false);
+                          router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+                        }}
+                      >
+                        Xem tất cả kết quả cho “{query.trim()}”
+                      </button>
+                    </>
+                  ) : (
+                    <div className="siteHeader__dropdownState">
+                      Không tìm thấy video phù hợp
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -272,14 +278,14 @@ export default function SiteHeader() {
           );
           border-bottom: 1px solid rgba(255, 255, 255, 0.06);
           box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+          overflow-x: clip;
         }
 
         .siteHeader__inner {
           min-height: 72px;
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 10px 14px;
+          display: grid;
+          gap: 12px;
+          padding: 12px 14px;
           border-radius: 22px;
           border: 1px solid rgba(255, 255, 255, 0.1);
           background: linear-gradient(
@@ -290,9 +296,23 @@ export default function SiteHeader() {
           box-shadow:
             0 18px 48px rgba(0, 0, 0, 0.3),
             inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          min-width: 0;
+        }
+
+        .siteHeader__topRow {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: auto 1fr auto;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .siteHeader__bottomRow {
+          min-width: 0;
         }
 
         .siteHeader__brand {
+          min-width: 0;
           flex-shrink: 0;
           display: inline-flex;
           align-items: center;
@@ -321,11 +341,10 @@ export default function SiteHeader() {
         }
 
         .siteHeader__nav {
+          min-width: 0;
           display: flex;
           align-items: center;
           gap: 8px;
-          flex-shrink: 0;
-          min-width: 0;
           overflow-x: auto;
           scrollbar-width: none;
         }
@@ -358,11 +377,17 @@ export default function SiteHeader() {
           transform: translateY(-1px);
         }
 
+        .siteHeader__auth {
+          min-width: 0;
+          display: flex;
+          justify-content: flex-end;
+        }
+
         .siteHeader__searchWrap {
           position: relative;
-          margin-left: auto;
-          width: min(520px, 100%);
+          width: 100%;
           min-width: 0;
+          max-width: 100%;
         }
 
         .siteHeader__search {
@@ -382,6 +407,7 @@ export default function SiteHeader() {
           box-shadow:
             0 16px 38px rgba(0, 0, 0, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          min-width: 0;
         }
 
         .siteHeader__searchIcon {
@@ -390,8 +416,9 @@ export default function SiteHeader() {
         }
 
         .siteHeader__input {
-          flex: 1;
+          flex: 1 1 auto;
           min-width: 0;
+          width: 100%;
           background: transparent;
           border: none;
           outline: none;
@@ -455,6 +482,7 @@ export default function SiteHeader() {
           border: 1px solid rgba(255, 255, 255, 0.1);
           box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
           backdrop-filter: blur(16px);
+          z-index: 60;
         }
 
         .siteHeader__dropdownState {
@@ -515,43 +543,69 @@ export default function SiteHeader() {
           background: rgba(255, 255, 255, 0.08);
         }
 
-        @media (max-width: 1320px) {
-          .siteHeader__inner {
-            flex-wrap: wrap;
-            padding-top: 12px;
-            padding-bottom: 12px;
+        @media (max-width: 1100px) {
+          .siteHeader__topRow {
+            grid-template-columns: 1fr;
+            align-items: start;
           }
 
-          .siteHeader__searchWrap {
-            order: 3;
-            width: 100%;
-            margin-left: 0;
+          .siteHeader__auth {
+            justify-content: flex-start;
           }
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 760px) {
+          .siteHeader {
+            padding-top: 6px;
+          }
+
+          .siteHeader__inner {
+            padding: 10px 10px 12px;
+            border-radius: 18px;
+          }
+
           .siteHeader__brandMark,
           .siteHeader__brandText {
-            font-size: 1.28rem;
+            font-size: 1.24rem;
           }
 
           .siteHeader__nav {
             width: 100%;
           }
-        }
 
-        @media (max-width: 640px) {
           .siteHeader__search {
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto auto;
+            align-items: center;
           }
 
           .siteHeader__button,
           .siteHeader__advancedButton {
-            flex: 1;
+            min-height: 38px;
+            padding: 0 12px;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .siteHeader__search {
+            grid-template-columns: auto minmax(0, 1fr);
+          }
+
+          .siteHeader__button,
+          .siteHeader__advancedButton {
+            width: 100%;
+          }
+
+          .siteHeader__button {
+            grid-column: 1 / span 1;
+          }
+
+          .siteHeader__advancedButton {
+            grid-column: 2 / span 1;
           }
 
           .siteHeader__resultThumb {
-            width: 84px;
+            width: 82px;
             height: 50px;
           }
         }
