@@ -49,84 +49,91 @@ export default async function Detail({ params }) {
   if (!movie) return notFound();
 
   return (
-    <div className="container" style={{ paddingTop: 40, paddingBottom: 40 }}>
+    <div className="container" style={{ paddingTop: 52, paddingBottom: 54 }}>
       <div
         style={{
-          maxWidth: 920,
+          maxWidth: 1120,
           margin: "0 auto",
         }}
       >
-        <h1
-          style={{
-            margin: 0,
-            fontSize: "clamp(2rem, 5vw, 4rem)",
-            lineHeight: 1.02,
-            letterSpacing: "-0.04em",
-          }}
-        >
-          {movie.title}
-        </h1>
-
         <div
           style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 10,
-            marginTop: 14,
+            display: "grid",
+            gap: 18,
+            marginBottom: 20,
           }}
         >
-          <span
+          <h1
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 34,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "#fff",
-              fontSize: "0.86rem",
-              fontWeight: 700,
+              margin: 0,
+              fontSize: "clamp(2.4rem, 5vw, 4.8rem)",
+              lineHeight: 0.98,
+              letterSpacing: "-0.05em",
             }}
           >
-            {movie.displayDuration || "HD"}
-          </span>
+            {movie.title}
+          </h1>
 
-          <span
+          <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 34,
-              padding: "0 12px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "#fff",
-              fontSize: "0.86rem",
-              fontWeight: 700,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
             }}
           >
-            {movie.displayViews || "Mới cập nhật"}
-          </span>
-
-          {movie.language ? (
             <span
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                minHeight: 34,
-                padding: "0 12px",
+                minHeight: 38,
+                padding: "0 14px",
                 borderRadius: 999,
                 background: "rgba(255,255,255,0.08)",
                 border: "1px solid rgba(255,255,255,0.12)",
                 color: "#fff",
-                fontSize: "0.86rem",
-                fontWeight: 700,
+                fontSize: "0.9rem",
+                fontWeight: 800,
               }}
             >
-              {movie.language}
+              {movie.displayDuration || "HD"}
             </span>
-          ) : null}
+
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 38,
+                padding: "0 14px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "#fff",
+                fontSize: "0.9rem",
+                fontWeight: 800,
+              }}
+            >
+              {movie.displayViews || "Mới cập nhật"}
+            </span>
+
+            {movie.language ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 38,
+                  padding: "0 14px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontSize: "0.9rem",
+                  fontWeight: 800,
+                }}
+              >
+                {movie.language}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <AdultPlayer movie={movie} />
@@ -134,13 +141,14 @@ export default async function Detail({ params }) {
         <div
           className="surface"
           style={{
-            padding: 18,
-            marginTop: 22,
+            padding: 20,
+            marginTop: 24,
+            borderRadius: 24,
           }}
         >
           <h2
             style={{
-              fontSize: "1.08rem",
+              fontSize: "1.12rem",
               margin: 0,
               marginBottom: 10,
             }}
@@ -154,7 +162,7 @@ export default async function Detail({ params }) {
         </div>
 
         {relatedMovies?.length ? (
-          <section style={{ marginTop: 32 }}>
+          <section style={{ marginTop: 34 }}>
             <div
               style={{
                 display: "flex",
