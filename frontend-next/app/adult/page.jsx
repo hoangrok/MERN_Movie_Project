@@ -1,333 +1,415 @@
 import ContinueWatching from "@/components/ContinueWatching";
-import AdultCard from "@/components/AdultCard";
 import { getAdultMovies } from "@/lib/api";
 
 export const metadata = {
   title: "Clip 18+",
-  description: "Kho video 18+ cập nhật liên tục tại ClipDam18.",
+  description:
+    "Xem clip 18+ mới nhất, danh sách video hot và nội dung được cập nhật liên tục tại ClipDam18.",
+  robots: "index, follow",
+  openGraph: {
+    title: "Clip 18+ | ClipDam18",
+    description:
+      "Xem clip 18+ mới nhất, danh sách video hot và nội dung được cập nhật liên tục tại ClipDam18.",
+    url: "https://clipdam18.com/adult",
+    siteName: "ClipDam18",
+    type: "website",
+  },
 };
 
-const styles = {
-  homeWrap: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(circle at top, rgba(96,94,255,0.12), transparent 40%), linear-gradient(180deg, #07090f, #040507)",
-  },
-  hero: {
-    position: "relative",
-    minHeight: "620px",
-    display: "flex",
-    alignItems: "flex-end",
-    overflow: "hidden",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  heroBg: (image) => ({
-    position: "absolute",
-    inset: 0,
-    backgroundImage: `url(${image})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    transform: "scale(1.08)",
-    filter: "blur(8px) brightness(0.52)",
-  }),
-  heroOverlay: {
-    position: "absolute",
-    inset: 0,
-    background:
-      "linear-gradient(to top, rgba(4,7,14,0.98) 8%, rgba(4,7,14,0.72) 36%, rgba(4,7,14,0.34) 58%, rgba(4,7,14,0.12) 100%)",
-  },
-  heroGlow: {
-    position: "absolute",
-    inset: 0,
-    background:
-      "radial-gradient(circle at 22% 30%, rgba(255,92,92,0.18), transparent 26%), radial-gradient(circle at 78% 18%, rgba(96,94,255,0.18), transparent 26%)",
-    pointerEvents: "none",
-  },
-  heroContent: {
-    position: "relative",
-    zIndex: 2,
-    width: "100%",
-    paddingTop: 120,
-    paddingBottom: 72,
-  },
-  heroCard: {
-    maxWidth: 760,
-    padding: "26px 26px 24px",
-    borderRadius: 28,
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.035))",
-    border: "1px solid rgba(255,255,255,0.1)",
-    boxShadow:
-      "0 22px 60px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.05)",
-    backdropFilter: "blur(14px)",
-  },
-  heroTitle: {
-    fontSize: "clamp(2.2rem, 5vw, 4rem)",
-    fontWeight: 900,
-    lineHeight: 0.95,
-    letterSpacing: "-0.05em",
-    margin: "16px 0 0",
-    color: "#fff",
-  },
-  heroDesc: {
-    marginTop: 14,
-    maxWidth: 680,
-    color: "rgba(255,255,255,0.76)",
-    fontSize: "1rem",
-    lineHeight: 1.7,
-  },
-  heroMeta: {
-    marginTop: 18,
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  heroMetaPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: 38,
-    padding: "0 14px",
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#fff",
-    fontSize: "0.88rem",
-    fontWeight: 800,
-  },
-  heroActions: {
-    marginTop: 22,
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  btnPrimary: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
-    padding: "0 20px",
-    borderRadius: 14,
-    background: "#fff",
-    color: "#05070d",
-    fontWeight: 800,
-    textDecoration: "none",
-    boxShadow: "0 12px 28px rgba(255,255,255,0.12)",
-  },
-  btnGhost: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
-    padding: "0 20px",
-    borderRadius: 14,
-    background: "rgba(255,255,255,0.08)",
-    color: "#fff",
-    textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.1)",
-  },
-  heroStrip: {
-    marginTop: 22,
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    gap: 12,
-  },
-  heroStripItem: {
-    padding: "14px 16px",
-    borderRadius: 18,
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-  },
-  heroStripValue: {
-    color: "#fff",
-    fontWeight: 800,
-    fontSize: "1rem",
-  },
-  heroStripLabel: {
-    marginTop: 6,
-    color: "rgba(255,255,255,0.64)",
-    fontSize: "0.88rem",
-    lineHeight: 1.5,
-  },
-  section: {
-    paddingTop: 38,
-    paddingBottom: 16,
-  },
-  sectionHeader: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    margin: 0,
-  },
-  sectionDesc: {
-    marginTop: 8,
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-    gap: 22,
-  },
+const featuredVideo = {
+  title: "Kho nội dung 18+ tuyển chọn cập nhật mỗi ngày",
+  subtitle:
+    "Tổng hợp những những clip sex Việt Nam, Quốc tế hàng ngày.",
+  badge: "Khu vực riêng cho người xem 18+",
 };
+
+function SectionHeader({ title, desc }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h2 className="section-title">{title}</h2>
+      {desc ? <p className="section-desc">{desc}</p> : null}
+    </div>
+  );
+}
+
+function CTAButton({ href, children, primary = false }) {
+  return (
+    <a
+      href={href}
+      className={primary ? "adultCta adultCta--primary" : "adultCta adultCta--ghost"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 52,
+        padding: "0 22px",
+        borderRadius: 16,
+        fontWeight: 800,
+        fontSize: "0.97rem",
+        letterSpacing: "-0.01em",
+        whiteSpace: "nowrap",
+        textDecoration: "none",
+      }}
+    >
+      <span style={{ color: primary ? "#05070d" : "#ffffff" }}>{children}</span>
+    </a>
+  );
+}
+
+function VideoCard({ item, large = false }) {
+  return (
+    <a
+      href={`/adult/${item.slug}`}
+      className="adultPageCard"
+      style={{
+        display: "block",
+        textDecoration: "none",
+        color: "inherit",
+        borderRadius: 24,
+        overflow: "hidden",
+        position: "relative",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.28)",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: "16 / 10",
+          background: "#0d1118",
+          overflow: "hidden",
+        }}
+      >
+        <img
+          src={item.displayImage || item.displayBackdrop || item.image || item.poster}
+          alt={item.title}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to top, rgba(3,6,12,0.98) 0%, rgba(3,6,12,0.58) 42%, rgba(3,6,12,0.1) 100%)",
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            left: 16,
+            right: 16,
+            top: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 32,
+              padding: "0 12px",
+              borderRadius: 999,
+              background: "rgba(255, 92, 92, 0.16)",
+              border: "1px solid rgba(255, 92, 92, 0.24)",
+              color: "#ffb1b1",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            {item.category || (item.newPopular ? "Nóng trong ngày" : "18+")}
+          </span>
+
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 32,
+              padding: "0 12px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.12)",
+              border: "1px solid rgba(255,255,255,0.14)",
+              color: "#ffffff",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            {item.displayDuration || item.duration || "HD"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            left: 18,
+            right: 18,
+            bottom: 18,
+          }}
+        >
+          <h3
+            className="line-clamp-2"
+            style={{
+              margin: 0,
+              fontFamily:
+                "var(--font-manrope), var(--font-inter), Arial, sans-serif",
+              fontSize: large ? "1.08rem" : "1rem",
+              lineHeight: 1.28,
+              letterSpacing: "-0.025em",
+              fontWeight: 800,
+              color: "#ffffff",
+            }}
+          >
+            {item.title}
+          </h3>
+
+          <p
+            style={{
+              marginTop: 8,
+              marginBottom: 0,
+              fontSize: "0.9rem",
+              lineHeight: 1.55,
+              color: "rgba(255,255,255,0.72)",
+            }}
+          >
+            {item.displayViews || item.views || "Mới cập nhật"}
+          </p>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function InfoStripItem({ value, label }) {
+  return (
+    <div
+      className="surface"
+      style={{
+        padding: "16px 18px",
+      }}
+    >
+      <div
+        style={{
+          fontFamily:
+            "var(--font-manrope), var(--font-inter), Arial, sans-serif",
+          fontSize: "1rem",
+          fontWeight: 800,
+          letterSpacing: "-0.02em",
+          color: "#ffffff",
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          marginTop: 6,
+          fontSize: "0.9rem",
+          lineHeight: 1.55,
+          color: "rgba(255,255,255,0.64)",
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
 
 export default async function AdultPage() {
   const movies = await getAdultMovies();
 
-  const hero = movies[0] || null;
-  const continueHint = movies.slice(1, 7);
-  const trending = movies.slice(7, 13);
-  const latest = movies.slice(13, 25);
+  const hotMovies = movies.slice(0, 8);
+  const latestMovies = movies.slice(8, 16);
 
   return (
-    <main style={styles.homeWrap}>
-      {hero ? (
-        <section style={styles.hero}>
-          <div
-            style={styles.heroBg(
-              hero.displayBackdrop || hero.displayImage || hero.poster || ""
-            )}
-          />
-          <div style={styles.heroOverlay} />
-          <div style={styles.heroGlow} />
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(circle at top, rgba(120, 89, 255, 0.14) 0%, rgba(255,255,255,0.03) 18%, rgba(0,0,0,0) 42%), linear-gradient(180deg, #07090f 0%, #090b12 45%, #040507 100%)",
+      }}
+    >
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(135deg, rgba(255,72,72,0.16) 0%, rgba(92,83,255,0.12) 52%, rgba(0,0,0,0) 100%)",
+            pointerEvents: "none",
+          }}
+        />
 
-          <div className="container" style={styles.heroContent}>
-            <div style={styles.heroCard}>
-              <div className="kicker">🔥 Trending now</div>
-
-              <h1 style={styles.heroTitle}>{hero.title}</h1>
-
-              <p style={styles.heroDesc}>
-                {hero.description ||
-                  "Nội dung đang được xem nhiều và nổi bật nhất hiện tại."}
-              </p>
-
-              <div style={styles.heroMeta}>
-                <span style={styles.heroMetaPill}>
-                  {hero.displayDuration || "HD"}
-                </span>
-                <span style={styles.heroMetaPill}>
-                  {hero.displayViews || "Hot"}
-                </span>
-                {Array.isArray(hero.genre) && hero.genre.length ? (
-                  <span style={styles.heroMetaPill}>
-                    {hero.genre.slice(0, 2).join(" • ")}
-                  </span>
-                ) : null}
-              </div>
-
-              <div style={styles.heroActions}>
-                <a href={`/adult/${hero.slug}`} style={styles.btnPrimary}>
-                  ▶ Xem ngay
-                </a>
-
-                <a href="/latest" style={styles.btnGhost}>
-                  Mới cập nhật
-                </a>
-
-                <a href="/trending" style={styles.btnGhost}>
-                  Top lượt xem
-                </a>
-              </div>
-
-              <div style={styles.heroStrip}>
-                <div style={styles.heroStripItem}>
-                  <div style={styles.heroStripValue}>24/7</div>
-                  <div style={styles.heroStripLabel}>
-                    Video mới được cập nhật liên tục mỗi ngày.
-                  </div>
-                </div>
-
-                <div style={styles.heroStripItem}>
-                  <div style={styles.heroStripValue}>Mượt</div>
-                  <div style={styles.heroStripLabel}>
-                    Tối ưu trải nghiệm xem nhanh và tải ổn định.
-                  </div>
-                </div>
-
-                <div style={styles.heroStripItem}>
-                  <div style={styles.heroStripValue}>Nổi bật</div>
-                  <div style={styles.heroStripLabel}>
-                    Tập trung các nội dung đang hot và được quan tâm.
-                  </div>
-                </div>
-
-                <div style={styles.heroStripItem}>
-                  <div style={styles.heroStripValue}>Cày lâu</div>
-                  <div style={styles.heroStripLabel}>
-                    Giao diện tối, thoải mái mắt và dễ khám phá hơn.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <div className="container" style={{ paddingTop: 24 }}>
-        <ContinueWatching />
-      </div>
-
-      {!!continueHint.length && (
-        <section className="container" style={styles.section}>
-          <SectionHeader
-            title="⚡ Gợi ý xem tiếp"
-            desc="Những video mới đáng chú ý để bạn nhảy vào nhanh hơn."
-          />
-
-          <div style={styles.grid}>
-            {continueHint.map((movie, index) => (
-              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!!trending.length && (
-        <section className="container" style={styles.section}>
-          <SectionHeader
-            title="🔥 Đang hot"
-            desc="Những video đang được xem nhiều nhất hiện tại."
-          />
-
-          <div style={styles.grid}>
-            {trending.map((movie, index) => (
-              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!!latest.length && (
-        <section
+        <div
           className="container"
           style={{
-            ...styles.section,
+            position: "relative",
+            zIndex: 2,
+            paddingTop: 110,
             paddingBottom: 70,
           }}
         >
-          <SectionHeader
-            title="🆕 Mới cập nhật"
-            desc="Video vừa upload, mới lên sóng và còn rất mới."
-          />
-
-          <div style={styles.grid}>
-            {latest.map((movie, index) => (
-              <AdultCard key={movie._id || movie.id} movie={movie} priority={index < 4} />
-            ))}
+          <div className="kicker" style={{ marginTop: 8 }}>
+            {featuredVideo.badge}
           </div>
-        </section>
-      )}
-    </main>
-  );
-}
 
-function SectionHeader({ title, desc }) {
-  return (
-    <div style={styles.sectionHeader}>
-      <h2 className="section-title" style={styles.sectionTitle}>
-        {title}
-      </h2>
-      <p className="section-desc" style={styles.sectionDesc}>
-        {desc}
-      </p>
-    </div>
+          <h1
+            className="heading-xl"
+            style={{
+              maxWidth: 920,
+              marginTop: 20,
+              color: "#ffffff",
+            }}
+          >
+            {featuredVideo.title}
+          </h1>
+
+          <p
+            className="body-lg"
+            style={{
+              maxWidth: 900,
+              marginTop: 18,
+            }}
+          >
+            {featuredVideo.subtitle}
+          </p>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 14,
+              marginTop: 30,
+              justifyContent: "center",
+            }}
+          >
+            <CTAButton href="/" primary>
+              Về trang chủ
+            </CTAButton>
+
+            <CTAButton href="/latest">Mới cập nhật</CTAButton>
+            <CTAButton href="/trending">Top lượt xem</CTAButton>
+          </div>
+
+          <div
+            className="surface"
+            style={{
+              marginTop: 34,
+              padding: "22px 24px",
+              maxWidth: 1080,
+              background:
+                "linear-gradient(180deg, rgba(255, 183, 77, 0.08), rgba(255, 183, 77, 0.04))",
+              border: "1px solid rgba(255, 183, 77, 0.18)",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "1.06rem",
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Khu vực người lớn
+            </h3>
+            <p
+              style={{
+                marginTop: 8,
+                color: "rgba(255,255,255,0.74)",
+              }}
+            >
+              Nội dung tại đây dành riêng cho người xem từ 18 tuổi trở lên, với
+              nhiều video nóng bỏng, táo bạo và có tính kích thích cao.
+            </p>
+          </div>
+
+          <div
+            style={{
+              marginTop: 24,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 14,
+              maxWidth: 1080,
+            }}
+          >
+            <InfoStripItem value="24/7" label="Video mới lên sóng liên tục" />
+            <InfoStripItem value="Bỏng mắt" label="Nội dung nóng và nổi bật" />
+            <InfoStripItem value="Mượt" label="Xem nhanh, tải ổn định" />
+            <InfoStripItem value="Cuốn" label="Giao diện tối ưu để cày lâu" />
+          </div>
+        </div>
+      </section>
+
+      <div className="container" style={{ paddingTop: 26 }}>
+        <ContinueWatching />
+      </div>
+
+      <section
+        className="container"
+        style={{
+          paddingTop: 28,
+          paddingBottom: 16,
+        }}
+      >
+        <SectionHeader
+          title="Nóng nhất hôm nay"
+          desc="Loạt video đang kéo view mạnh và được mở xem nhiều nhất."
+        />
+
+        <div
+          style={{
+            display: "grid",
+            gap: 18,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
+          {hotMovies.map((item) => (
+            <VideoCard key={item._id} item={item} large />
+          ))}
+        </div>
+      </section>
+
+      <section
+        className="container"
+        style={{
+          paddingTop: 28,
+          paddingBottom: 70,
+        }}
+      >
+        <SectionHeader
+          title="Mới cập nhật liên tục"
+          desc="Danh sách video vừa được đẩy lên, xem trước khi thành hàng hot."
+        />
+
+        <div
+          style={{
+            display: "grid",
+            gap: 18,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
+          {latestMovies.map((item) => (
+            <VideoCard key={item._id} item={item} />
+          ))}
+        </div>
+      </section>
+    </main>
   );
 }
