@@ -16,7 +16,7 @@ const normalizeText = (text = "") =>
 
 export default function Search() {
   const [searchParams] = useSearchParams();
-  const query = searchParams.get("q") || "";
+  const query = searchParams.get("q") || searchParams.get("keyword") || "";
 
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,6 +24,8 @@ export default function Search() {
   const [sortBy, setSortBy] = useState("relevance");
 
   useEffect(() => {
+    let active = true;
+
     const loadSearch = async () => {
       if (!query.trim()) {
         setMovies([]);
@@ -38,6 +40,8 @@ export default function Search() {
         );
         const data = await res.json();
 
+        if (!active) return;
+
         if (data.success) {
           setMovies(data.items || []);
         } else {
@@ -45,13 +49,22 @@ export default function Search() {
         }
       } catch (err) {
         console.error("Search error:", err);
-        setMovies([]);
+        if (active) setMovies([]);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     loadSearch();
+
+    return () => {
+      active = false;
+    };
+  }, [query]);
+
+  useEffect(() => {
+    setActiveGenre("all");
+    setSortBy("relevance");
   }, [query]);
 
   const allGenres = useMemo(() => {
@@ -93,6 +106,12 @@ export default function Search() {
     filteredMovies?.[0]?.poster ||
     FALLBACK_BACKDROP;
 
+  useEffect(() => {
+    if (!heroImage) return;
+    const img = new Image();
+    img.src = heroImage;
+  }, [heroImage]);
+
   return (
     <div className="search-page">
       <Navbar isScrolled={true} />
@@ -101,6 +120,8 @@ export default function Search() {
         <img
           src={heroImage}
           alt="search-backdrop"
+          decoding="async"
+          fetchPriority="high"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_BACKDROP;
           }}

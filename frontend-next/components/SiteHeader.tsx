@@ -46,6 +46,10 @@ export default function SiteHeader() {
   }, [initialQuery]);
 
   useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) {
         setOpen(false);
@@ -106,7 +110,7 @@ export default function SiteHeader() {
       } finally {
         setLoading(false);
       }
-    }, 260);
+    }, 250);
 
     return () => {
       clearTimeout(timer);
@@ -128,7 +132,7 @@ export default function SiteHeader() {
     item?.displayBackdrop ||
     item?.poster ||
     item?.backdrop ||
-    "https://dummyimage.com/160x90/111827/ffffff&text=Video";
+    "https://dummyimage.com/320x180/111827/ffffff&text=Video";
 
   const getMovieMeta = (item: MovieItem) => {
     const bits: string[] = [];
@@ -176,7 +180,7 @@ export default function SiteHeader() {
               <span className="siteHeader__brandText">Dam18</span>
             </Link>
 
-            <nav className="siteHeader__nav">
+            <nav className="siteHeader__nav" aria-label="Điều hướng chính">
               <Link
                 href="/latest"
                 className={`siteHeader__pill ${isActive("/latest") ? "isActive" : ""}`}
@@ -207,7 +211,9 @@ export default function SiteHeader() {
           <div className="siteHeader__bottomRow">
             <div className="siteHeader__searchWrap" ref={wrapRef}>
               <form onSubmit={handleSubmit} className="siteHeader__search">
-                <span className="siteHeader__searchIcon">🔎</span>
+                <span className="siteHeader__searchIcon" aria-hidden="true">
+                  🔎
+                </span>
 
                 <input
                   type="text"
@@ -230,7 +236,9 @@ export default function SiteHeader() {
               {hasDropdown ? (
                 <div className="siteHeader__dropdown">
                   {loading ? (
-                    <div className="siteHeader__dropdownState">Đang tìm video...</div>
+                    <div className="siteHeader__dropdownState">
+                      Đang tìm video...
+                    </div>
                   ) : results.length > 0 ? (
                     <>
                       {results.map((item) => (
@@ -285,7 +293,7 @@ export default function SiteHeader() {
           position: sticky;
           top: 0;
           z-index: 60;
-          padding: 10px 0 0;
+          padding: 10px 0 12px;
           backdrop-filter: blur(18px);
           background: linear-gradient(
             180deg,
@@ -293,11 +301,10 @@ export default function SiteHeader() {
             rgba(4, 7, 14, 0.82)
           );
           border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          overflow-x: clip;
         }
 
         .siteHeader__inner {
-          min-height: 72px;
+          min-width: 0;
           display: grid;
           gap: 12px;
           padding: 12px 14px;
@@ -311,13 +318,12 @@ export default function SiteHeader() {
           box-shadow:
             0 18px 48px rgba(0, 0, 0, 0.3),
             inset 0 1px 0 rgba(255, 255, 255, 0.04);
-          min-width: 0;
         }
 
         .siteHeader__topRow {
           min-width: 0;
           display: grid;
-          grid-template-columns: auto 1fr auto;
+          grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
           gap: 12px;
         }
@@ -328,12 +334,11 @@ export default function SiteHeader() {
 
         .siteHeader__brand {
           min-width: 0;
-          flex-shrink: 0;
           display: inline-flex;
           align-items: center;
           gap: 4px;
-          padding: 0 4px 0 0;
           white-space: nowrap;
+          flex-shrink: 0;
         }
 
         .siteHeader__brandMark {
@@ -395,6 +400,7 @@ export default function SiteHeader() {
         .siteHeader__auth {
           min-width: 0;
           display: flex;
+          align-items: center;
           justify-content: flex-end;
         }
 
@@ -402,11 +408,11 @@ export default function SiteHeader() {
           position: relative;
           width: 100%;
           min-width: 0;
-          max-width: 100%;
         }
 
         .siteHeader__search {
-          display: flex;
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
           gap: 10px;
           width: 100%;
@@ -422,7 +428,6 @@ export default function SiteHeader() {
           box-shadow:
             0 16px 38px rgba(0, 0, 0, 0.28),
             inset 0 1px 0 rgba(255, 255, 255, 0.04);
-          min-width: 0;
         }
 
         .siteHeader__searchIcon {
@@ -431,7 +436,6 @@ export default function SiteHeader() {
         }
 
         .siteHeader__input {
-          flex: 1 1 auto;
           min-width: 0;
           width: 100%;
           background: transparent;
@@ -538,13 +542,18 @@ export default function SiteHeader() {
           background: rgba(255, 255, 255, 0.08);
         }
 
-        @media (max-width: 1100px) {
+        @media (max-width: 980px) {
           .siteHeader__topRow {
             grid-template-columns: 1fr;
-            align-items: start;
+            gap: 10px;
+          }
+
+          .siteHeader__nav {
+            order: 2;
           }
 
           .siteHeader__auth {
+            order: 3;
             justify-content: flex-start;
           }
         }
@@ -552,10 +561,11 @@ export default function SiteHeader() {
         @media (max-width: 760px) {
           .siteHeader {
             padding-top: 6px;
+            padding-bottom: 10px;
           }
 
           .siteHeader__inner {
-            padding: 10px 10px 12px;
+            padding: 10px;
             border-radius: 18px;
           }
 
@@ -564,31 +574,22 @@ export default function SiteHeader() {
             font-size: 1.24rem;
           }
 
-          .siteHeader__nav {
-            width: 100%;
+          .siteHeader__pill {
+            min-height: 38px;
+            padding: 0 12px;
+            font-size: 0.92rem;
           }
 
-          .siteHeader__search {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
-            align-items: center;
+          .siteHeader__resultThumb {
+            width: 84px;
+            height: 50px;
           }
         }
 
         @media (max-width: 520px) {
-          .siteHeader__search {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
-          }
-
           .siteHeader__button {
             min-height: 38px;
             padding: 0 12px;
-          }
-
-          .siteHeader__resultThumb {
-            width: 82px;
-            height: 50px;
           }
         }
       `}</style>

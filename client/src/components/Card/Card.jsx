@@ -1,13 +1,14 @@
-import React, { useRef, useState } from "react";
+import React, { memo, useRef, useState } from "react";
 import "./Card.scss";
 import { Link } from "react-router-dom";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
 
-const Card = ({ movie }) => {
+function CardComponent({ movie }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const videoRef = useRef(null);
   const hoverTimerRef = useRef(null);
 
@@ -21,30 +22,14 @@ const Card = ({ movie }) => {
     ? movie.genre.slice(0, 3).join(" • ")
     : movie?.genre || "";
 
-  // Ưu tiên preview riêng, rồi trailer
-  const previewUrl = movie?.previewUrl || movie?.trailer || "";
+  const rawPreviewUrl = movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
+  const isDirectVideoFile =
+    typeof rawPreviewUrl === "string" &&
+    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
+  const previewUrl = isDirectVideoFile ? rawPreviewUrl.trim() : "";
 
-    if (previewUrl) {
-      hoverTimerRef.current = setTimeout(async () => {
-        setCanPlayPreview(true);
-
-        try {
-          if (videoRef.current) {
-            videoRef.current.currentTime = 0;
-            await videoRef.current.play();
-          }
-        } catch (err) {
-          console.log("Preview autoplay blocked:", err);
-        }
-      }, 450);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
+  const resetPreview = () => {
     setCanPlayPreview(false);
 
     if (hoverTimerRef.current) {
@@ -53,9 +38,40 @@ const Card = ({ movie }) => {
     }
 
     if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+      try {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      } catch {}
     }
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+
+    if (!previewUrl || previewFailed) return;
+
+    hoverTimerRef.current = setTimeout(async () => {
+      try {
+        if (!videoRef.current) return;
+
+        videoRef.current.currentTime = 0;
+        const playPromise = videoRef.current.play();
+
+        if (playPromise && typeof playPromise.then === "function") {
+          await playPromise;
+        }
+
+        setCanPlayPreview(true);
+      } catch (err) {
+        console.log("Preview autoplay blocked:", err);
+        setCanPlayPreview(false);
+      }
+    }, 450);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    resetPreview();
   };
 
   return (
@@ -72,12 +88,13 @@ const Card = ({ movie }) => {
           src={poster}
           alt={title}
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
         />
 
-        {previewUrl ? (
+        {previewUrl && !previewFailed ? (
           <video
             ref={videoRef}
             className={`movieCard__video ${canPlayPreview ? "is-visible" : ""}`}
@@ -85,8 +102,17 @@ const Card = ({ movie }) => {
             muted
             playsInline
             loop
-            preload="metadata"
+            preload="none"
             poster={poster}
+            onWaiting={() => setCanPlayPreview(false)}
+            onCanPlay={() => {
+              if (isHovered) setCanPlayPreview(true);
+            }}
+            onPlaying={() => setCanPlayPreview(true)}
+            onError={() => {
+              setPreviewFailed(true);
+              resetPreview();
+            }}
           />
         ) : null}
 
@@ -105,6 +131,7 @@ const Card = ({ movie }) => {
       </div>
     </Link>
   );
-};
+}
 
+const Card = memo(CardComponent);
 export default Card;

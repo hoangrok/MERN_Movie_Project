@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/TopViewedMovies.scss";
 import { API_URL } from "../utils/api";
+import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -12,6 +13,15 @@ const FALLBACK_BACKDROP =
 export default function TopViewedMovies() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setSEO({
+      title: "Top phim lượt xem cao | ClipDam18",
+      description: "Những phim hot nhất theo lượt xem.",
+      url: window.location.href,
+      image: "https://clipdam18.com/og-image.jpg",
+    });
+  }, []);
 
   useEffect(() => {
     const loadMovies = async () => {

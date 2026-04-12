@@ -23,6 +23,8 @@ export default function GenreMovies() {
   }, [searchParams]);
 
   useEffect(() => {
+    let active = true;
+
     const loadMovies = async () => {
       try {
         setLoading(true);
@@ -31,6 +33,8 @@ export default function GenreMovies() {
         const res = await fetch(`${API_URL}/movies?genre=${query}`);
         const data = await res.json();
 
+        if (!active) return;
+
         if (data.success) {
           setMovies(data.items || []);
         } else {
@@ -38,9 +42,9 @@ export default function GenreMovies() {
         }
       } catch (err) {
         console.error("GenreMovies error:", err);
-        setMovies([]);
+        if (active) setMovies([]);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
@@ -50,9 +54,21 @@ export default function GenreMovies() {
       setMovies([]);
       setLoading(false);
     }
+
+    return () => {
+      active = false;
+    };
   }, [genreList]);
 
   const heroMovie = useMemo(() => movies?.[0] || null, [movies]);
+  const heroImage =
+    heroMovie?.backdrop || heroMovie?.poster || FALLBACK_BACKDROP;
+
+  useEffect(() => {
+    if (!heroImage) return;
+    const img = new Image();
+    img.src = heroImage;
+  }, [heroImage]);
 
   return (
     <div className="genre-page">
@@ -60,8 +76,10 @@ export default function GenreMovies() {
 
       <div className="genre-page__backdrop">
         <img
-          src={heroMovie?.backdrop || heroMovie?.poster || FALLBACK_BACKDROP}
+          src={heroImage}
           alt={heroMovie?.title || "genre-backdrop"}
+          decoding="async"
+          fetchPriority="high"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_BACKDROP;
           }}
@@ -108,7 +126,7 @@ export default function GenreMovies() {
           </div>
         ) : (
           <div className="genre-grid">
-            {movies.map((movie) => (
+            {movies.map((movie, index) => (
               <Link
                 key={movie._id}
                 to={`/movie/${movie._id}`}
@@ -119,6 +137,8 @@ export default function GenreMovies() {
                     className="genre-card__image"
                     src={movie.poster || movie.backdrop || FALLBACK_POSTER}
                     alt={movie.title}
+                    loading={index < 4 ? "eager" : "lazy"}
+                    decoding="async"
                     onError={(e) => {
                       e.currentTarget.src = FALLBACK_POSTER;
                     }}

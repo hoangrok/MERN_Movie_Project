@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaChevronRight, FaPlay, FaCheck, FaTimes } from "react-icons/fa";
+import {
+  FaChevronRight,
+  FaPlay,
+  FaCheck,
+  FaTimes,
+  FaFire,
+  FaEye,
+} from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
 import Loader from "../components/Loader/Loader";
@@ -10,6 +17,7 @@ import {
   removeContinueWatching,
   formatRemainingTime,
 } from "../utils/continueWatching";
+import { setSEO } from "../utils/seo";
 import "../assets/styles/Home.scss";
 
 const FALLBACK_POSTER =
@@ -31,6 +39,16 @@ export default function Home() {
   const [selectedGenres, setSelectedGenres] = useState([]);
 
   useEffect(() => {
+    setSEO({
+      title: "ClipDam18 - Xem phim mới nhất 2026",
+      description:
+        "Kho phim mới cập nhật hàng ngày, trải nghiệm xem mượt như Netflix.",
+      url: window.location.href,
+      image: "https://clipdam18.com/og-image.jpg",
+    });
+  }, []);
+
+  useEffect(() => {
     if (status === "idle") {
       dispatch(fetchMovies({ type: "all" }));
       dispatch(getTrending());
@@ -39,22 +57,7 @@ export default function Home() {
 
   useEffect(() => {
     const loadCW = () => {
-      const raw = getContinueWatching() || [];
-      const mapped = raw.map((item) => {
-        const duration = Number(item.duration || 0);
-        const currentTime = Number(item.currentTime || 0);
-        const progress =
-          duration > 0
-            ? Math.max(0, Math.min((currentTime / duration) * 100, 100))
-            : 0;
-
-        return {
-          ...item,
-          progress,
-        };
-      });
-
-      setContinueWatching(mapped);
+      setContinueWatching(getContinueWatching() || []);
     };
 
     loadCW();
@@ -140,7 +143,14 @@ export default function Home() {
 
   const latestMovies = useMemo(() => movies.slice(0, 6), [movies]);
   const topMovies = useMemo(() => trendingMovies.slice(0, 5), [trendingMovies]);
-  const cwMovies = useMemo(() => continueWatching.slice(0, 5), [continueWatching]);
+  const cwMovies = useMemo(
+    () => continueWatching.slice(0, 6),
+    [continueWatching]
+  );
+
+  const featuredMovie = useMemo(() => {
+    return trendingMovies[0] || suggestedMovies[0] || movies[0] || null;
+  }, [trendingMovies, suggestedMovies, movies]);
 
   const togglePreferredGenre = (genre) => {
     setSelectedGenres((prev) =>
@@ -178,12 +188,25 @@ export default function Home() {
       <Navbar isScrolled={isScrolling} />
 
       <main className="homeLayout homeShell">
+        {featuredMovie ? (
+          <HeroFeature
+            movie={featuredMovie}
+            recommendationGenres={recommendationGenres}
+          />
+        ) : null}
+
         <div className="homeBoard">
           <aside className="homeBoard__left">
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="Xem tiếp" to="/continue-watching" />
               <div className="continueColumn">
-                {cwMovies.length > 0 ? (
+                {status === "loading" && cwMovies.length === 0 ? (
+                  <>
+                    <SideSkeleton />
+                    <SideSkeleton />
+                    <SideSkeleton />
+                  </>
+                ) : cwMovies.length > 0 ? (
                   cwMovies.map((movie, index) => (
                     <ContinueCard
                       key={movie._id || index}
@@ -205,7 +228,13 @@ export default function Home() {
                 onClick={handleRecommendedMore}
               />
               <div className="posterRow">
-                {suggestedMovies.length > 0 ? (
+                {status === "loading" && suggestedMovies.length === 0 ? (
+                  <>
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                  </>
+                ) : suggestedMovies.length > 0 ? (
                   suggestedMovies.map((movie, index) => (
                     <PosterCard
                       key={movie._id || index}
@@ -222,7 +251,13 @@ export default function Home() {
             <div className="homePanel">
               <SectionHeadLink title="Mới cập nhật" to="/latest" />
               <div className="posterRow">
-                {latestMovies.length > 0 ? (
+                {status === "loading" && latestMovies.length === 0 ? (
+                  <>
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                  </>
+                ) : latestMovies.length > 0 ? (
                   latestMovies.map((movie, index) => (
                     <PosterCard key={movie._id || index} movie={movie} />
                   ))
@@ -237,9 +272,19 @@ export default function Home() {
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="Top xem" to="/top-viewed" />
               <div className="topColumn">
-                {topMovies.length > 0 ? (
+                {status === "loading" && topMovies.length === 0 ? (
+                  <>
+                    <SideSkeleton compact />
+                    <SideSkeleton compact />
+                    <SideSkeleton compact />
+                  </>
+                ) : topMovies.length > 0 ? (
                   topMovies.map((movie, index) => (
-                    <TopCard key={movie._id || index} movie={movie} index={index} />
+                    <TopCard
+                      key={movie._id || index}
+                      movie={movie}
+                      index={index}
+                    />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có top xem" />
@@ -295,6 +340,61 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+function HeroFeature({ movie, recommendationGenres = [] }) {
+  if (!movie?._id) return null;
+
+  const backdrop = movie.backdrop || movie.poster || FALLBACK_POSTER;
+
+  return (
+    <section
+      className="heroFeature"
+      style={{
+        backgroundImage: `linear-gradient(90deg, rgba(5,7,12,.92) 0%, rgba(5,7,12,.78) 38%, rgba(5,7,12,.45) 62%, rgba(5,7,12,.74) 100%), url(${backdrop})`,
+      }}
+    >
+      <div className="heroFeature__content">
+        <span className="heroFeature__badge">
+          <FaFire />
+        </span>
+
+        <h1 title={movie.title}>{movie.title || "Untitled"}</h1>
+
+        <div className="heroFeature__meta">
+          {movie.year ? <span>{movie.year}</span> : null}
+          {movie.rating ? <span>⭐ {movie.rating}</span> : null}
+          <span>{movie.views || 0} lượt xem</span>
+          <span>HD</span>
+        </div>
+
+        <p>
+          {movie.description?.trim()
+            ? movie.description
+            : "Khám phá nội dung nổi bật được nhiều người xem quan tâm."}
+        </p>
+
+        <div className="heroFeature__genres">
+          {(movie.genre || recommendationGenres || []).slice(0, 4).map((genre) => (
+            <span key={genre}>{genre}</span>
+          ))}
+        </div>
+
+        <div className="heroFeature__actions">
+          <Link
+            to={`/movie/${movie._id}`}
+            className="heroFeature__btn heroFeature__btn--primary"
+          >
+            <FaPlay /> Xem ngay
+          </Link>
+
+          <Link to="/top-viewed" className="heroFeature__btn">
+            <FaEye /> Top lượt xem
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -372,6 +472,7 @@ function ContinueCard({ movie, onRemove }) {
     /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
 
   const previewUrl = isDirectVideoFile ? rawPreviewUrl.trim() : "";
+  const progressValue = Number(movie.progressPercent || movie.progress || 0);
 
   const resetPreview = () => {
     setCanPlayPreview(false);
@@ -484,7 +585,7 @@ function ContinueCard({ movie, onRemove }) {
         <div className="continueItem__progress">
           <div
             className="continueItem__progressBar"
-            style={{ width: `${movie.progress || 0}%` }}
+            style={{ width: `${progressValue}%` }}
           />
         </div>
       </div>
@@ -492,8 +593,8 @@ function ContinueCard({ movie, onRemove }) {
       <div className="continueItem__meta continueItem__meta--row">
         <h3 title={movie.title}>{movie.title}</h3>
         <p>
-          {movie.progress
-            ? `${Math.round(movie.progress)}% • ${formatRemainingTime(movie)}`
+          {progressValue
+            ? `${Math.round(progressValue)}% • ${formatRemainingTime(movie)}`
             : "Đang xem"}
         </p>
       </div>
@@ -528,4 +629,29 @@ function TopCard({ movie, index }) {
 
 function EmptyBox({ text }) {
   return <div className="emptyBox">{text}</div>;
+}
+
+function PosterSkeleton() {
+  return (
+    <div className="posterCard posterCard--skeleton">
+      <div className="posterCard__imageWrap skeleton shimmer" />
+      <div className="posterCard__info">
+        <div className="skeleton shimmer skeleton-title" />
+        <div className="skeleton shimmer skeleton-text" />
+      </div>
+    </div>
+  );
+}
+
+function SideSkeleton({ compact = false }) {
+  return (
+    <div className={`sideSkeleton ${compact ? "is-compact" : ""}`}>
+      <div className="skeleton shimmer sideSkeleton__rank" />
+      <div className="skeleton shimmer sideSkeleton__thumb" />
+      <div className="sideSkeleton__content">
+        <div className="skeleton shimmer skeleton-title" />
+        <div className="skeleton shimmer skeleton-text" />
+      </div>
+    </div>
+  );
 }
