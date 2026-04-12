@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-
-const API_BASE =
-  import.meta.env.VITE_API_URL?.replace("/api", "") ||
-  "http://localhost:5000";
+import { API_URL } from "../utils/api";
 
 export default function AdminNewMovie() {
   const navigate = useNavigate();
@@ -54,7 +51,7 @@ export default function AdminNewMovie() {
     const fd = new FormData();
     fd.append("image", file);
 
-    const res = await fetch(`${API_BASE}/api/upload/image`, {
+    const res = await fetch(`${API_URL}/upload/image`, {
       method: "POST",
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       body: fd,
@@ -75,7 +72,7 @@ export default function AdminNewMovie() {
     const fd = new FormData();
     fd.append("video", file);
 
-    const res = await fetch(`${API_BASE}/api/upload/video/${movieId}`, {
+    const res = await fetch(`${API_URL}/upload/video/${movieId}`, {
       method: "POST",
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       body: fd,
@@ -126,7 +123,7 @@ export default function AdminNewMovie() {
 
       setMessage("Đang tạo movie...");
 
-      const createRes = await fetch(`${API_BASE}/api/movies`, {
+      const createRes = await fetch(`${API_URL}/movies`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,25 +1,17 @@
-// src/store/Slice/movie-slice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-// ============================
-// Base API URL
-// ============================
-const API_BASE =
-  import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
+// ✅ dùng đúng API_URL
+import { API_URL } from "../../utils/api";
 
-console.log("API_BASE:", API_BASE);
+console.log("API_URL:", API_URL);
 
-// ============================
-// Async Thunks
-// ============================
-
-// Lấy tất cả movies
+// 1️⃣ Lấy tất cả movies
 export const fetchMovies = createAsyncThunk(
   "movie/fetchMovies",
   async ({ type }, thunkAPI) => {
     try {
-      const res = await axios.get(`${API_BASE}/api/movies?type=${type}`);
+      const res = await axios.get(`${API_URL}/movies?type=${type}`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -29,15 +21,13 @@ export const fetchMovies = createAsyncThunk(
   }
 );
 
-// Lấy movies theo genre
+// 2️⃣ Lấy movies theo genre
 export const fetchMoviesWithGenre = createAsyncThunk(
   "movie/fetchMoviesWithGenre",
   async ({ type, genre }, thunkAPI) => {
     try {
       const res = await axios.get(
-        `${API_BASE}/api/movies?type=${type}&genre=${encodeURIComponent(
-          genre || ""
-        )}`
+        `${API_URL}/movies?type=${type}&genre=${genre}`
       );
       return res.data.items || [];
     } catch (err) {
@@ -48,14 +38,12 @@ export const fetchMoviesWithGenre = createAsyncThunk(
   }
 );
 
-// Tìm kiếm movies
+// 3️⃣ Tìm kiếm movies
 export const searchMovies = createAsyncThunk(
   "movie/searchMovies",
   async ({ query }, thunkAPI) => {
     try {
-      const res = await axios.get(
-        `${API_BASE}/api/movies?q=${encodeURIComponent(query || "")}&limit=12`
-      );
+      const res = await axios.get(`${API_URL}/movies?q=${query}&limit=12`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -65,13 +53,13 @@ export const searchMovies = createAsyncThunk(
   }
 );
 
-// Lấy chi tiết movie theo ID
+// 4️⃣ Lấy chi tiết movie theo ID
 export const fetchMovieById = createAsyncThunk(
   "movie/fetchMovieById",
   async (id, thunkAPI) => {
     try {
-      const res = await axios.get(`${API_BASE}/api/movies/${id}`);
-      return res.data.movie || null;
+      const res = await axios.get(`${API_URL}/movies/${id}`);
+      return res.data.movie;
     } catch (err) {
       return thunkAPI.rejectWithValue(
         err.response?.data?.message || "Fetch movie by ID failed"
@@ -80,31 +68,16 @@ export const fetchMovieById = createAsyncThunk(
   }
 );
 
-// Lấy trending
+// 5️⃣ Lấy trending top 10
 export const getTrending = createAsyncThunk(
   "movie/getTrending",
   async (_, thunkAPI) => {
     try {
-      const res = await axios.get(`${API_BASE}/api/movies/trending`);
+      const res = await axios.get(`${API_URL}/movies/trending`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
         err.response?.data?.message || "Fetch trending movies failed"
-      );
-    }
-  }
-);
-
-// Lấy genres
-export const getGenres = createAsyncThunk(
-  "movie/getGenres",
-  async (_, thunkAPI) => {
-    try {
-      const res = await axios.get(`${API_BASE}/api/movies/genres`);
-      return res.data.items || [];
-    } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Fetch genres failed"
       );
     }
   }
@@ -118,8 +91,6 @@ const movieSlice = createSlice({
   initialState: {
     movies: [],
     trending: [],
-    genres: [],
-    genresLoaded: false,
     searchedMovies: [],
     current: null,
     likedMovies: [],
@@ -139,8 +110,8 @@ const movieSlice = createSlice({
     removeLikedMovie(state, action) {
       state.likedMovies = state.likedMovies.filter(
         (m) =>
-          String(m?._id) !== String(action.payload?.movie?._id) &&
-          String(m?.id) !== String(action.payload?.movie?.id)
+          m._id !== action.payload.movie._id &&
+          m.id !== action.payload.movie?.id
       );
     },
 
@@ -158,46 +129,42 @@ const movieSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetchMovies
       .addCase(fetchMovies.pending, (state) => {
         state.status = "loading";
       })
       .addCase(fetchMovies.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.movies = action.payload || [];
+        state.movies = action.payload;
       })
       .addCase(fetchMovies.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
       })
 
-      // fetchMoviesWithGenre
       .addCase(fetchMoviesWithGenre.pending, (state) => {
         state.status = "loading";
       })
       .addCase(fetchMoviesWithGenre.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.movies = action.payload || [];
+        state.movies = action.payload;
       })
       .addCase(fetchMoviesWithGenre.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
       })
 
-      // searchMovies
       .addCase(searchMovies.pending, (state) => {
         state.status = "loading";
       })
       .addCase(searchMovies.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.searchedMovies = action.payload || [];
+        state.searchedMovies = action.payload;
       })
       .addCase(searchMovies.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
       })
 
-      // fetchMovieById
       .addCase(fetchMovieById.pending, (state) => {
         state.status = "loading";
       })
@@ -210,39 +177,20 @@ const movieSlice = createSlice({
         state.error = action.payload;
       })
 
-      // getTrending
       .addCase(getTrending.pending, (state) => {
         state.status = "loading";
       })
       .addCase(getTrending.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.trending = action.payload || [];
+        state.trending = action.payload;
       })
       .addCase(getTrending.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
-      })
-
-      // getGenres
-      .addCase(getGenres.pending, (state) => {
-        state.status = "loading";
-      })
-      .addCase(getGenres.fulfilled, (state, action) => {
-        state.status = "succeeded";
-        state.genres = action.payload || [];
-        state.genresLoaded = true;
-      })
-      .addCase(getGenres.rejected, (state, action) => {
-        state.status = "failed";
-        state.error = action.payload;
-        state.genresLoaded = false;
       });
   },
 });
 
-// ============================
-// Exports
-// ============================
 export const {
   clearCurrentMovie,
   clearSearch,
