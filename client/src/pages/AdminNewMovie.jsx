@@ -7,7 +7,7 @@ export default function AdminNewMovie() {
   const navigate = useNavigate();
   const { token, user } = useSelector((state) => state.auth);
 
-  const authToken = token || user?.token;
+  const authToken = token || user?.token || "";
 
   const [form, setForm] = useState({
     title: "",
@@ -45,6 +45,10 @@ export default function AdminNewMovie() {
     }
   };
 
+  const getAuthHeaders = () => {
+    return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  };
+
   const uploadImage = async (file) => {
     if (!file) return "";
 
@@ -53,7 +57,9 @@ export default function AdminNewMovie() {
 
     const res = await fetch(`${API_URL}/upload/image`, {
       method: "POST",
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+      headers: {
+        ...getAuthHeaders(),
+      },
       body: fd,
     });
 
@@ -67,14 +73,16 @@ export default function AdminNewMovie() {
   };
 
   const uploadVideo = async (movieId, file) => {
-    if (!file) return;
+    if (!file) return null;
 
     const fd = new FormData();
     fd.append("video", file);
 
     const res = await fetch(`${API_URL}/upload/video/${movieId}`, {
       method: "POST",
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+      headers: {
+        ...getAuthHeaders(),
+      },
       body: fd,
     });
 
@@ -89,6 +97,12 @@ export default function AdminNewMovie() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!authToken) {
+      setMessage("Thiếu token đăng nhập admin");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -117,7 +131,7 @@ export default function AdminNewMovie() {
           .filter(Boolean),
         year: form.year ? Number(form.year) : null,
         rating: form.rating ? Number(form.rating) : 0,
-        duration: form.duration || "",
+        duration: form.duration ? Number(form.duration) : 0,
         isPublished: form.isPublished,
       };
 
@@ -127,7 +141,7 @@ export default function AdminNewMovie() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
       });
@@ -152,9 +166,9 @@ export default function AdminNewMovie() {
 
       setTimeout(() => {
         navigate(`/movie/${movieId}`);
-      }, 500);
+      }, 600);
     } catch (err) {
-      console.error(err);
+      console.error("AdminNewMovie error:", err);
       setMessage(err.message || "Có lỗi xảy ra");
     } finally {
       setLoading(false);
