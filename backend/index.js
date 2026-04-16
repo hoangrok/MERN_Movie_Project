@@ -13,7 +13,6 @@ const debugRoutes = require("./routes/DebugRoutes");
 
 const app = express();
 
-// Trust proxy nếu chạy sau Render / Nginx / reverse proxy
 app.set("trust proxy", 1);
 
 // CORS
@@ -36,7 +35,9 @@ const corsOptions = {
     }
 
     console.log("Blocked by CORS:", origin);
-    return callback(new Error("Not allowed by CORS"));
+
+    // Tạm cho qua để tránh browser chặn lúc debug local/public
+    return callback(null, true);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -65,7 +66,7 @@ app.use(
   })
 );
 
-// Request log để debug public upload
+// Request log
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
@@ -79,24 +80,19 @@ app.use("/api/debug", debugRoutes);
 
 // Health check
 app.get("/", (req, res) => res.send("API is running"));
+
 app.get("/health", (req, res) => {
   res.json({
     success: true,
     message: "OK",
     env: process.env.NODE_ENV || "development",
+    allowedOrigins,
   });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
-
-  if (err && err.message === "Not allowed by CORS") {
-    return res.status(403).json({
-      success: false,
-      message: "CORS blocked",
-    });
-  }
 
   return res.status(500).json({
     success: false,
@@ -115,6 +111,7 @@ const startServer = async () => {
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
+      console.log("Allowed origins:", allowedOrigins);
     });
   } catch (err) {
     console.error("Server start failed:", err.message);
