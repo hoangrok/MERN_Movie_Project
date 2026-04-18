@@ -6,6 +6,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const sharp = require("sharp");
 const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
+
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
 const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
@@ -190,57 +191,22 @@ const scoreImageBuffer = async (buffer) => {
   const edgeMean = edgeEnergy / pixelCount;
 
   let score = 0;
-  const reasons = [];
 
   score += stdDev * 1.8;
-  reasons.push(`std:${stdDev.toFixed(1)}`);
-
   score += saturationMean * 0.9;
-  reasons.push(`sat:${saturationMean.toFixed(1)}`);
-
   score += edgeMean * 2.2;
-  reasons.push(`edge:${edgeMean.toFixed(1)}`);
-
   score += centerMean * 0.18;
-  reasons.push(`center:${centerMean.toFixed(1)}`);
 
-  if (mean < 45) {
-    score -= 120;
-    reasons.push("too-dark");
-  } else if (mean < 70) {
-    score -= 45;
-    reasons.push("dark");
-  } else if (mean > 220) {
-    score -= 80;
-    reasons.push("too-bright");
-  }
+  if (mean < 45) score -= 120;
+  else if (mean < 70) score -= 45;
+  else if (mean > 220) score -= 80;
 
-  if (darkRatio > 0.65) {
-    score -= 140;
-    reasons.push("many-dark-pixels");
-  } else if (darkRatio > 0.45) {
-    score -= 50;
-    reasons.push("dark-heavy");
-  }
+  if (darkRatio > 0.65) score -= 140;
+  else if (darkRatio > 0.45) score -= 50;
 
-  if (brightRatio > 0.55) {
-    score -= 80;
-    reasons.push("many-bright-pixels");
-  }
+  if (brightRatio > 0.55) score -= 80;
 
-  return {
-    score,
-    reasons,
-    stats: {
-      mean,
-      stdDev,
-      saturationMean,
-      darkRatio,
-      brightRatio,
-      centerMean,
-      edgeMean,
-    },
-  };
+  return { score };
 };
 
 const buildPosterAndBackdrop = async (sourcePath, posterOut, backdropOut) => {
@@ -251,14 +217,9 @@ const buildPosterAndBackdrop = async (sourcePath, posterOut, backdropOut) => {
     throw new Error("Không đọc được kích thước ảnh nguồn");
   }
 
-  const posterWidth = 400;
-  const posterHeight = 600;
-  const backdropWidth = 1280;
-  const backdropHeight = 720;
-
   await source
     .clone()
-    .resize(posterWidth, posterHeight, {
+    .resize(400, 600, {
       fit: "cover",
       position: "attention",
     })
@@ -267,7 +228,7 @@ const buildPosterAndBackdrop = async (sourcePath, posterOut, backdropOut) => {
 
   await source
     .clone()
-    .resize(backdropWidth, backdropHeight, {
+    .resize(1280, 720, {
       fit: "cover",
       position: "attention",
     })
@@ -305,8 +266,6 @@ const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
         path: candidatePath,
         timestamp: t,
         score: result.score,
-        reasons: result.reasons,
-        stats: result.stats,
       });
     } catch (err) {
       console.error(`thumbnail candidate error at ${t}s:`, err.message);
@@ -326,9 +285,7 @@ const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
   await buildPosterAndBackdrop(best.path, posterPath, backdropPath);
 
   for (const item of scored) {
-    if (fs.existsSync(item.path)) {
-      fs.unlinkSync(item.path);
-    }
+    if (fs.existsSync(item.path)) fs.unlinkSync(item.path);
   }
 
   if (fs.existsSync(candidatesDir)) {
@@ -340,17 +297,8 @@ const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
     backdropPath,
     pickedAt: best.timestamp,
     score: best.score,
-    debug: scored.map((x) => ({
-      timestamp: x.timestamp,
-      score: x.score,
-      reasons: x.reasons,
-    })),
   };
 };
-
-// ==========================
-// WATERMARK HELPER
-// ==========================
 
 const getWatermarkPath = () => {
   const envPath = process.env.VIDEO_WATERMARK_PATH;
@@ -370,10 +318,7 @@ const getWatermarkPath = () => {
 
 const addWatermarkToVideo = async (inputPath, outputPath, watermarkPath) => {
   const probe = await ffprobeAsync(inputPath);
-  const videoStream = (probe.streams || []).find(
-    (s) => s.codec_type === "video"
-  );
-
+  const videoStream = (probe.streams || []).find((s) => s.codec_type === "video");
   const width = Number(videoStream?.width || 1280);
   const targetLogoWidth = Math.max(90, Math.round(width * 0.12));
 
@@ -400,6 +345,28 @@ const addWatermarkToVideo = async (inputPath, outputPath, watermarkPath) => {
       .run();
   });
 };
+
+const cleanup = (...paths) => {
+  for (const target of paths) {
+    if (!target) continue;
+    try {
+      if (fs.existsSync(target)) {
+        fs.rmSync(target, { recursive: true, force: true });
+      }
+    } catch (err) {
+      console.warn("cleanup error:", err.message);
+    }
+  }
+};
+
+// Preflight chắc chắn cho upload
+router.options("/video/:movieId", (req, res) => {
+  return res.sendStatus(204);
+});
+
+router.options("/image", (req, res) => {
+  return res.sendStatus(204);
+});
 
 // ==========================
 // UPLOAD IMAGE
@@ -443,8 +410,7 @@ router.post("/image", async (req, res) => {
 });
 
 // ==========================
-// UPLOAD VIDEO -> WATERMARK -> HLS -> R2
-// POST /api/upload/video/:movieId
+// UPLOAD VIDEO
 // ==========================
 
 router.post("/video/:movieId", async (req, res) => {
@@ -457,6 +423,11 @@ router.post("/video/:movieId", async (req, res) => {
   try {
     const { movieId } = req.params;
     const file = req.files?.video;
+
+    console.log("========== VIDEO UPLOAD START ==========");
+    console.log("movieId:", movieId);
+    console.log("origin:", req.headers.origin || "no-origin");
+    console.log("content-length:", req.headers["content-length"] || "unknown");
 
     if (!mongoose.Types.ObjectId.isValid(movieId)) {
       return res.status(400).json({
@@ -494,7 +465,7 @@ router.post("/video/:movieId", async (req, res) => {
     tempVideo = path.join(tmpDir, safeLocalName);
 
     await file.mv(tempVideo);
-    console.log("2️⃣ Save temp video xong");
+    console.log("2️⃣ Save temp video xong:", tempVideo);
 
     let sourceVideoForProcessing = tempVideo;
 
@@ -510,9 +481,7 @@ router.post("/video/:movieId", async (req, res) => {
       sourceVideoForProcessing = watermarkedVideo;
       console.log("2.2️⃣ Add watermark xong");
     } else {
-      console.warn(
-        "⚠️ Không tìm thấy watermark.png hoặc VIDEO_WATERMARK_PATH, tiếp tục xử lý không gắn logo"
-      );
+      console.warn("⚠️ Không tìm thấy watermark, bỏ qua watermark");
     }
 
     outputDir = path.join(tmpDir, `${movieId}-hls`);
@@ -541,6 +510,9 @@ router.post("/video/:movieId", async (req, res) => {
           `-hls_segment_filename ${path.join(variantDir, "seg_%03d.ts")}`,
         ])
         .output(path.join(variantDir, "index.m3u8"))
+        .on("start", (cmd) => {
+          console.log("FFMPEG HLS CMD:", cmd);
+        })
         .on("end", resolve)
         .on("error", reject)
         .run();
@@ -551,9 +523,6 @@ router.post("/video/:movieId", async (req, res) => {
     const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
     let pickedInfo = null;
 
-    // ==========================
-    // AUTO SMART THUMBNAIL
-    // ==========================
     if (!movie.poster || !movie.backdrop) {
       console.log("4.1️⃣ Generating smart thumbnails...");
       const thumbResult = await generateSmartThumbnails(
@@ -585,11 +554,7 @@ router.post("/video/:movieId", async (req, res) => {
       }
     }
 
-    // ==========================
-    // PREVIEW TIMELINE
-    // ==========================
     console.log("4.2️⃣ Generating preview timeline...");
-
     timelineDir = path.join(tmpDir, `${movieId}-timeline`);
     ensureDir(timelineDir);
 
@@ -602,45 +567,23 @@ router.post("/video/:movieId", async (req, res) => {
       }
     );
 
-    console.log(
-      "Preview timeline generated:",
-      timelineResult?.items?.map((item) => ({
-        second: item.second,
-        fileName: item.fileName,
-        path: item.path,
-      }))
-    );
-
     const timelineItems = [];
 
     for (const item of timelineResult.items || []) {
       const fileExists = !!item?.path && fs.existsSync(item.path);
-      console.log("Check preview file:", item?.path, fileExists);
 
-      if (!fileExists) {
-        console.warn("❌ Missing preview file:", item?.path);
-        continue;
-      }
+      if (!fileExists) continue;
 
       const buffer = fs.readFileSync(item.path);
-
-      if (!buffer || buffer.length < 1000) {
-        console.warn("❌ Preview file invalid or too small:", item.fileName);
-        continue;
-      }
+      if (!buffer || buffer.length < 1000) continue;
 
       const key = `videos/${movieId}/timeline/${item.fileName}`;
-
       await uploadFileToR2(key, buffer, "image/jpeg");
 
       timelineItems.push({
         second: item.second,
         url: `${publicBase}/${key}`,
       });
-    }
-
-    if (!timelineItems.length) {
-      console.warn("⚠️ No valid preview images uploaded for movie:", movieId);
     }
 
     movie.previewTimeline = {
@@ -679,30 +622,16 @@ v0/index.m3u8
     console.log("6️⃣ Upload R2 xong");
 
     const streamBase = (process.env.STREAM_BASE_URL || "").replace(/\/+$/, "");
-    if (streamBase) {
-      movie.hlsUrl = `${streamBase}/videos/${movieId}/hls/master.m3u8`;
-    } else {
-      movie.hlsUrl = `/videos/${movieId}/hls/master.m3u8`;
-    }
+    movie.hlsUrl = streamBase
+      ? `${streamBase}/videos/${movieId}/hls/master.m3u8`
+      : `/videos/${movieId}/hls/master.m3u8`;
 
     movie.status = "ready";
     await movie.save();
 
-    if (tempVideo && fs.existsSync(tempVideo)) {
-      fs.rmSync(tempVideo, { force: true });
-    }
-    if (watermarkedVideo && fs.existsSync(watermarkedVideo)) {
-      fs.rmSync(watermarkedVideo, { force: true });
-    }
-    if (outputDir && fs.existsSync(outputDir)) {
-      fs.rmSync(outputDir, { recursive: true, force: true });
-    }
-    if (thumbsDir && fs.existsSync(thumbsDir)) {
-      fs.rmSync(thumbsDir, { recursive: true, force: true });
-    }
-    if (timelineDir && fs.existsSync(timelineDir)) {
-      fs.rmSync(timelineDir, { recursive: true, force: true });
-    }
+    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
+
+    console.log("========== VIDEO UPLOAD DONE ==========");
 
     return res.json({
       success: true,
@@ -719,26 +648,11 @@ v0/index.m3u8
     });
   } catch (err) {
     console.error("upload video error:", err);
-
-    if (tempVideo && fs.existsSync(tempVideo)) {
-      fs.rmSync(tempVideo, { force: true });
-    }
-    if (watermarkedVideo && fs.existsSync(watermarkedVideo)) {
-      fs.rmSync(watermarkedVideo, { force: true });
-    }
-    if (outputDir && fs.existsSync(outputDir)) {
-      fs.rmSync(outputDir, { recursive: true, force: true });
-    }
-    if (thumbsDir && fs.existsSync(thumbsDir)) {
-      fs.rmSync(thumbsDir, { recursive: true, force: true });
-    }
-    if (timelineDir && fs.existsSync(timelineDir)) {
-      fs.rmSync(timelineDir, { recursive: true, force: true });
-    }
+    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
 
     return res.status(500).json({
       success: false,
-      message: err.message,
+      message: err.message || "Upload video failed",
     });
   }
 });

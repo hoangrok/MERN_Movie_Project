@@ -2,7 +2,6 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
-const cors = require("cors");
 const mongoose = require("mongoose");
 const fileUpload = require("express-fileupload");
 
@@ -15,7 +14,6 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// CORS
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -26,26 +24,25 @@ const allowedOrigins = [
   "https://api.clipdam18.com",
 ].filter(Boolean);
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
+// CORS cứng để dễ debug upload/video
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
 
-    console.log("Blocked by CORS:", origin);
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-    // Tạm cho qua để tránh browser chặn lúc debug local/public
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+  next();
+});
 
 // Middleware
 app.use(express.json({ limit: "10mb" }));
@@ -54,13 +51,13 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(
   fileUpload({
     useTempFiles: true,
-    tempFileDir: "/tmp/",
+    tempFileDir: path.join(__dirname, "tmp"),
     createParentPath: true,
     abortOnLimit: true,
     safeFileNames: false,
     preserveExtension: true,
     limits: {
-      fileSize: 2 * 1024 * 1024 * 1024, // 2GB
+      fileSize: 2 * 1024 * 1024 * 1024,
     },
     debug: false,
   })
@@ -94,13 +91,16 @@ app.get("/health", (req, res) => {
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
 
-  return res.status(500).json({
-    success: false,
-    message: err.message || "Internal server error",
-  });
+  if (!res.headersSent) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Internal server error",
+    });
+  }
+
+  next(err);
 });
 
-// Connect MongoDB & Start server
 mongoose.set("strictQuery", false);
 
 const startServer = async () => {

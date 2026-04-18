@@ -5,9 +5,10 @@ import { API_URL } from "../utils/api";
 
 export default function AdminNewMovie() {
   const navigate = useNavigate();
-  const { token, user } = useSelector((state) => state.auth);
+  const authState = useSelector((state) => state.auth);
 
-  const authToken = token || user?.token || "";
+  const authToken =
+    authState?.token || authState?.user?.token || authState?.user?.accessToken || "";
 
   const [form, setForm] = useState({
     title: "",
@@ -27,6 +28,7 @@ export default function AdminNewMovie() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [uploadPercent, setUploadPercent] = useState(0);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -47,6 +49,22 @@ export default function AdminNewMovie() {
 
   const getAuthHeaders = () => {
     return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  };
+
+  const getBaseOrigin = () => {
+    return API_URL.replace(/\/api$/, "");
+  };
+
+  const wakeServer = async () => {
+    const healthUrl = `${getBaseOrigin()}/health`;
+    setMessage("Đang đánh thức server...");
+    try {
+      const res = await fetch(healthUrl, { method: "GET" });
+      await res.text();
+      console.log("Wake server OK:", healthUrl);
+    } catch (err) {
+      console.warn("Wake server failed:", err);
+    }
   };
 
   const uploadImage = async (file) => {
@@ -72,27 +90,57 @@ export default function AdminNewMovie() {
     return data.url;
   };
 
-  const uploadVideo = async (movieId, file) => {
-    if (!file) return null;
+  const uploadVideoWithProgress = (movieId, file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) return resolve(null);
 
-    const fd = new FormData();
-    fd.append("video", file);
+      const xhr = new XMLHttpRequest();
+      const fd = new FormData();
+      fd.append("video", file);
 
-    const res = await fetch(`${API_URL}/upload/video/${movieId}`, {
-      method: "POST",
-      headers: {
-        ...getAuthHeaders(),
-      },
-      body: fd,
+      xhr.open("POST", `${API_URL}/upload/video/${movieId}`, true);
+
+      if (authToken) {
+        xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+      }
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadPercent(percent);
+        setMessage(`Đang upload video... ${percent}%`);
+      };
+
+      xhr.onload = () => {
+        try {
+          const text = xhr.responseText || "";
+          const data = text ? JSON.parse(text) : {};
+
+          if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+            resolve(data);
+          } else {
+            reject(new Error(data.message || `Upload video thất bại (${xhr.status})`));
+          }
+        } catch (err) {
+          reject(new Error("Response upload video không hợp lệ"));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(
+          new Error(
+            "Không thể kết nối API upload video. Kiểm tra CORS / server sleep / backend log."
+          )
+        );
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error("Upload video bị timeout"));
+      };
+
+      xhr.timeout = 1000 * 60 * 20; // 20 phút
+      xhr.send(fd);
     });
-
-    const data = await parseJsonSafe(res);
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.message || "Upload video thất bại");
-    }
-
-    return data;
   };
 
   const handleSubmit = async (e) => {
@@ -105,8 +153,11 @@ export default function AdminNewMovie() {
 
     setLoading(true);
     setMessage("");
+    setUploadPercent(0);
 
     try {
+      await wakeServer();
+
       let posterUrl = form.poster.trim();
       let backdropUrl = form.backdrop.trim();
 
@@ -158,15 +209,17 @@ export default function AdminNewMovie() {
       }
 
       if (videoFile) {
-        setMessage("Đang upload video và convert HLS...");
-        await uploadVideo(movieId, videoFile);
+        setMessage("Chuẩn bị upload video...");
+        await wakeServer();
+        setMessage("Đang upload video...");
+        await uploadVideoWithProgress(movieId, videoFile);
       }
 
       setMessage("Tạo movie thành công");
 
       setTimeout(() => {
         navigate(`/movie/${movieId}`);
-      }, 600);
+      }, 700);
     } catch (err) {
       console.error("AdminNewMovie error:", err);
       setMessage(err.message || "Có lỗi xảy ra");
@@ -186,17 +239,42 @@ export default function AdminNewMovie() {
     >
       <div
         style={{
-          maxWidth: 700,
+          maxWidth: 760,
           margin: "0 auto",
           background: "#181818",
           padding: 24,
           borderRadius: 12,
+          border: "1px solid #2a2a2a",
         }}
       >
         <h1 style={{ marginBottom: 20 }}>Admin - Tạo Movie</h1>
 
         {message && (
-          <p style={{ marginBottom: 16, color: "#f5c542" }}>{message}</p>
+          <p style={{ marginBottom: 16, color: "#f5c542", fontWeight: 600 }}>
+            {message}
+          </p>
+        )}
+
+        {!!uploadPercent && uploadPercent < 100 && (
+          <div
+            style={{
+              width: "100%",
+              height: 10,
+              background: "#2b2b2b",
+              borderRadius: 999,
+              overflow: "hidden",
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                width: `${uploadPercent}%`,
+                height: "100%",
+                background: "#e50914",
+                transition: "width 0.2s ease",
+              }}
+            />
+          </div>
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
@@ -282,7 +360,7 @@ export default function AdminNewMovie() {
 
           <input
             type="file"
-            accept="video/mp4,video/mkv,video/webm,video/quicktime"
+            accept="video/mp4,video/x-matroska,video/webm,video/quicktime"
             onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
             style={inputStyle}
           />
