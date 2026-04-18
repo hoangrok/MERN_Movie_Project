@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import Hls from "hls.js";
@@ -124,6 +124,8 @@ export default function MovieDetail() {
   const previewRafRef = useRef(null);
   const previewHideTimerRef = useRef(null);
   const previewCacheRef = useRef(new Map());
+  const lastKnownTimeRef = useRef(0);
+  const refreshingStreamRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -177,6 +179,37 @@ export default function MovieDetail() {
     isPublished: true,
   });
 
+  const fetchSignedStream = useCallback(async () => {
+    const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
+      headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {},
+    });
+
+    const streamData = await streamRes.json();
+
+    if (streamRes.ok && streamData?.success && streamData?.signedUrl) {
+      return streamData.signedUrl;
+    }
+
+    throw new Error(streamData?.message || "Không lấy được stream");
+  }, [id, user?.token]);
+
+  const refreshSignedStream = useCallback(async () => {
+    if (refreshingStreamRef.current) return null;
+
+    try {
+      refreshingStreamRef.current = true;
+      const newUrl = await fetchSignedStream();
+      setStreamUrl(newUrl);
+      return newUrl;
+    } catch (err) {
+      console.error("refreshSignedStream error:", err);
+      setError("Link phát đã hết hạn hoặc không thể làm mới stream.");
+      return null;
+    } finally {
+      refreshingStreamRef.current = false;
+    }
+  }, [fetchSignedStream]);
+
   const previewItems = useMemo(() => {
     const raw = Array.isArray(movie?.previewTimeline?.items)
       ? movie.previewTimeline.items
@@ -192,11 +225,19 @@ export default function MovieDetail() {
   }, [movie]);
 
   const backdropImage = useMemo(() => {
-    return normalizeImage(movie?.backdrop, "") || normalizeImage(movie?.poster, FALLBACK_BACKDROP);
+    return (
+      normalizeImage(movie?.backdrop, "") ||
+      normalizeImage(movie?.poster, "") ||
+      FALLBACK_BACKDROP
+    );
   }, [movie]);
 
   const posterImage = useMemo(() => {
-    return normalizeImage(movie?.poster, "") || normalizeImage(movie?.backdrop, FALLBACK_POSTER);
+    return (
+      normalizeImage(movie?.poster, "") ||
+      normalizeImage(movie?.backdrop, "") ||
+      FALLBACK_POSTER
+    );
   }, [movie]);
 
   useEffect(() => {
@@ -254,21 +295,8 @@ export default function MovieDetail() {
         }
 
         try {
-          const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
-            headers: user?.token
-              ? { Authorization: `Bearer ${user.token}` }
-              : {},
-          });
-
-          const streamData = await streamRes.json();
-
-          if (streamRes.ok && streamData?.success && streamData?.signedUrl) {
-            setStreamUrl(streamData.signedUrl);
-          } else if (movieData.movie?.hlsUrl) {
-            setStreamUrl(movieData.movie.hlsUrl);
-          } else {
-            setError(streamData?.message || "Không lấy được stream");
-          }
+          const signedUrl = await fetchSignedStream();
+          setStreamUrl(signedUrl);
         } catch (err) {
           console.error("stream error:", err);
           if (movieData.movie?.hlsUrl) {
@@ -286,7 +314,7 @@ export default function MovieDetail() {
     }
 
     loadData();
-  }, [id, user?.token]);
+  }, [id, fetchSignedStream]);
 
   useEffect(() => {
     if (!movie || !user?.likedMovies) {
@@ -355,10 +383,11 @@ export default function MovieDetail() {
 
     setIsReady(false);
     setIsPlaying(false);
-    setCurrentTime(0);
     setBufferedTime(0);
     setDuration(0);
     lastContinueSaveRef.current = 0;
+
+    const preserveTime = lastKnownTimeRef.current || currentTime || 0;
 
     const markReady = () => {
       if (cancelled) return;
@@ -369,6 +398,12 @@ export default function MovieDetail() {
     };
 
     const tryRestoreTime = () => {
+      if (preserveTime > 0 && Number.isFinite(video.duration) && preserveTime < video.duration - 3) {
+        video.currentTime = preserveTime;
+        setCurrentTime(preserveTime);
+        return;
+      }
+
       const list = getContinueWatching();
       const currentMovie = list.find((item) => String(item._id) === String(id));
 
@@ -407,6 +442,7 @@ export default function MovieDetail() {
       if (cancelled) return;
 
       setCurrentTime(video.currentTime || 0);
+      lastKnownTimeRef.current = video.currentTime || 0;
 
       try {
         if (video.buffered && video.buffered.length > 0) {
@@ -455,11 +491,20 @@ export default function MovieDetail() {
       setShowControls(true);
     };
 
-    const onError = () => {
+    const onError = async () => {
       console.error("video element error:", video.error);
-      if (!cancelled) {
-        setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+
+      if (cancelled) return;
+
+      if (/m3u8($|\?)/i.test(streamUrl)) {
+        const refreshed = await refreshSignedStream();
+        if (!refreshed) {
+          setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+        }
+        return;
       }
+
+      setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
     };
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -495,21 +540,28 @@ export default function MovieDetail() {
           markReady();
         });
 
-        hls.on(Hls.Events.ERROR, (_, data) => {
+        hls.on(Hls.Events.ERROR, async (_, data) => {
           console.error("HLS error:", data);
 
           if (!data?.fatal) return;
 
           switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
+            case Hls.ErrorTypes.NETWORK_ERROR: {
+              const refreshed = await refreshSignedStream();
+              if (!refreshed && !cancelled) {
+                setError("Không phát được stream HLS.");
+              }
               break;
+            }
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
               break;
             default:
               if (!cancelled) {
-                setError("Không phát được stream HLS.");
+                const refreshed = await refreshSignedStream();
+                if (!refreshed) {
+                  setError("Không phát được stream HLS.");
+                }
               }
               hls.destroy();
               break;
@@ -556,7 +608,7 @@ export default function MovieDetail() {
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, movie, id]);
+  }, [streamUrl, movie, id, currentTime, refreshSignedStream]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -616,6 +668,7 @@ export default function MovieDetail() {
     const value = Number(e.target.value);
     video.currentTime = value;
     setCurrentTime(value);
+    lastKnownTimeRef.current = value;
   };
 
   const getPreviewImageByTime = (timeInSeconds) => {
@@ -709,6 +762,7 @@ export default function MovieDetail() {
 
     video.currentTime = nextTime;
     setCurrentTime(nextTime);
+    lastKnownTimeRef.current = nextTime;
   };
 
   const showSkipFeedback = (seconds) => {
@@ -1038,8 +1092,10 @@ export default function MovieDetail() {
         <img
           src={backdropSrc || FALLBACK_BACKDROP}
           alt={movie.title}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
           onError={(e) => {
-            const fallback = normalizeImage(movie?.poster, FALLBACK_BACKDROP);
+            const fallback =
+              normalizeImage(movie?.poster, "") || FALLBACK_BACKDROP;
             e.currentTarget.src = fallback;
             setBackdropSrc(fallback);
           }}
@@ -1135,6 +1191,7 @@ export default function MovieDetail() {
                             src={previewImage}
                             alt=""
                             draggable="false"
+                            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
                             onLoad={() => setPreviewLoaded(true)}
                             onError={() => {
                               setPreviewLoaded(false);
@@ -1298,6 +1355,7 @@ export default function MovieDetail() {
                   src={posterImage || FALLBACK_POSTER}
                   alt={movie.title}
                   className="movie-poster"
+                  style={{ objectFit: "cover", objectPosition: "center" }}
                   onError={(e) => {
                     e.currentTarget.src = FALLBACK_POSTER;
                   }}
@@ -1350,6 +1408,7 @@ export default function MovieDetail() {
                             normalizeImage(item.poster, FALLBACK_POSTER)
                           }
                           alt={item.title}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
                           onError={(e) => {
                             e.currentTarget.src = FALLBACK_POSTER;
                           }}
@@ -1389,6 +1448,7 @@ export default function MovieDetail() {
                           normalizeImage(item.poster, FALLBACK_POSTER)
                         }
                         alt={item.title}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
                         onError={(e) => {
                           e.currentTarget.src = FALLBACK_POSTER;
                         }}
