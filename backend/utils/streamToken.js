@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-function signStreamToken({ videoId, expSeconds = 600, secret }) {
+function signStreamToken({ videoId, expSeconds = 60 * 60 * 6, secret }) {
   if (!videoId) {
     throw new Error("videoId is required");
   }
@@ -22,7 +22,11 @@ function signStreamToken({ videoId, expSeconds = 600, secret }) {
   return { token, exp };
 }
 
-function makeStreamUrl(hlsUrl, videoId, secret, expSeconds = 600) {
+function makeStreamUrl(hlsUrl, videoId, secret, expSeconds = 60 * 60 * 6) {
+  if (!hlsUrl) {
+    throw new Error("hlsUrl is required");
+  }
+
   const { token } = signStreamToken({
     videoId,
     expSeconds,
@@ -30,7 +34,6 @@ function makeStreamUrl(hlsUrl, videoId, secret, expSeconds = 600) {
   });
 
   const sep = hlsUrl.includes("?") ? "&" : "?";
-
   return `${hlsUrl}${sep}token=${encodeURIComponent(token)}`;
 }
 

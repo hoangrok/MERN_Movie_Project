@@ -14,7 +14,17 @@ function CardComponent({ movie }) {
 
   if (!movie?._id) return null;
 
-  const poster = movie?.poster || movie?.backdrop || FALLBACK_POSTER;
+  const hasPoster = Boolean(movie?.poster);
+  const hasBackdrop = Boolean(movie?.backdrop);
+
+  const imageSrc = hasPoster
+    ? movie.poster
+    : hasBackdrop
+    ? movie.backdrop
+    : FALLBACK_POSTER;
+
+  const isBackdropFallback = !hasPoster && hasBackdrop;
+
   const title = movie?.title || "Untitled";
   const year = movie?.year || "";
   const rating = movie?.rating || "";
@@ -22,7 +32,9 @@ function CardComponent({ movie }) {
     ? movie.genre.slice(0, 3).join(" • ")
     : movie?.genre || "";
 
-  const rawPreviewUrl = movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
+  const rawPreviewUrl =
+    movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
+
   const isDirectVideoFile =
     typeof rawPreviewUrl === "string" &&
     /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
@@ -84,13 +96,16 @@ function CardComponent({ movie }) {
     >
       <div className="movieCard__media">
         <img
-          className={`movieCard__image ${canPlayPreview ? "is-hidden" : ""}`}
-          src={poster}
+          className={`movieCard__image ${
+            canPlayPreview ? "is-hidden" : ""
+          } ${isBackdropFallback ? "is-backdrop-fallback" : ""}`}
+          src={imageSrc}
           alt={title}
           loading="lazy"
           decoding="async"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
+            e.currentTarget.classList.remove("is-backdrop-fallback");
           }}
         />
 
@@ -103,7 +118,7 @@ function CardComponent({ movie }) {
             playsInline
             loop
             preload="none"
-            poster={poster}
+            poster={imageSrc}
             onWaiting={() => setCanPlayPreview(false)}
             onCanPlay={() => {
               if (isHovered) setCanPlayPreview(true);

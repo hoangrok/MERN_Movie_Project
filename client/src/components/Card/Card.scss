@@ -27,12 +27,18 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
   object-position: center;
 }
 
 .movieCard__image {
+  object-fit: cover;
   transition: transform 0.45s ease, opacity 0.22s ease;
+}
+
+.movieCard__image.is-backdrop-fallback {
+  object-fit: contain;
+  padding: 8px;
+  background: #111;
 }
 
 .movieCard__video {
@@ -41,6 +47,7 @@
   opacity: 0;
   pointer-events: none;
   background: #111;
+  object-fit: cover;
   transition: opacity 0.25s ease;
 }
 
@@ -52,7 +59,7 @@
   opacity: 0;
 }
 
-.movieCard:hover .movieCard__image {
+.movieCard:hover .movieCard__image:not(.is-backdrop-fallback) {
   transform: scale(1.06);
 }
 
