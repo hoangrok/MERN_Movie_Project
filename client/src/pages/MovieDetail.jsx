@@ -126,6 +126,8 @@ export default function MovieDetail() {
   const previewCacheRef = useRef(new Map());
   const lastKnownTimeRef = useRef(0);
   const refreshingStreamRef = useRef(false);
+  const activeStreamUrlRef = useRef("");
+  const streamRefreshTimeRef = useRef(0);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -196,10 +198,20 @@ export default function MovieDetail() {
   const refreshSignedStream = useCallback(async () => {
     if (refreshingStreamRef.current) return null;
 
+    const now = Date.now();
+    if (now - streamRefreshTimeRef.current < 3000) {
+      return activeStreamUrlRef.current || null;
+    }
+
     try {
       refreshingStreamRef.current = true;
+      streamRefreshTimeRef.current = now;
+
       const newUrl = await fetchSignedStream();
-      setStreamUrl(newUrl);
+      if (newUrl) {
+        activeStreamUrlRef.current = newUrl;
+        setStreamUrl((prev) => (prev === newUrl ? prev : newUrl));
+      }
       return newUrl;
     } catch (err) {
       console.error("refreshSignedStream error:", err);
@@ -253,6 +265,7 @@ export default function MovieDetail() {
         setRelated([]);
         setRecommend([]);
         setStreamUrl("");
+        activeStreamUrlRef.current = "";
         setIsReady(false);
 
         const movieRes = await fetch(`${API_URL}/movies/${id}`);
@@ -296,10 +309,12 @@ export default function MovieDetail() {
 
         try {
           const signedUrl = await fetchSignedStream();
+          activeStreamUrlRef.current = signedUrl;
           setStreamUrl(signedUrl);
         } catch (err) {
           console.error("stream error:", err);
           if (movieData.movie?.hlsUrl) {
+            activeStreamUrlRef.current = movieData.movie.hlsUrl;
             setStreamUrl(movieData.movie.hlsUrl);
           } else {
             setError("Không lấy được stream");
@@ -362,7 +377,10 @@ export default function MovieDetail() {
         typeof movie.isPublished === "boolean" ? movie.isPublished : true,
     });
 
-    const firstTimelineImage = normalizeImage(movie?.previewTimeline?.items?.[0]?.url, "");
+    const firstTimelineImage = normalizeImage(
+      movie?.previewTimeline?.items?.[0]?.url,
+      ""
+    );
     setPreviewImage(firstTimelineImage);
     setPreviewLoaded(false);
     preloadPreviewTimeline(movie?.previewTimeline?.items || []);
@@ -374,6 +392,12 @@ export default function MovieDetail() {
     const video = videoRef.current;
     if (!video) return;
 
+    if (activeStreamUrlRef.current === streamUrl && hlsRef.current && !video.paused) {
+      return;
+    }
+
+    activeStreamUrlRef.current = streamUrl;
+
     let cancelled = false;
 
     if (hlsRef.current) {
@@ -382,10 +406,6 @@ export default function MovieDetail() {
     }
 
     setIsReady(false);
-    setIsPlaying(false);
-    setBufferedTime(0);
-    setDuration(0);
-    lastContinueSaveRef.current = 0;
 
     const preserveTime = lastKnownTimeRef.current || currentTime || 0;
 
@@ -398,7 +418,11 @@ export default function MovieDetail() {
     };
 
     const tryRestoreTime = () => {
-      if (preserveTime > 0 && Number.isFinite(video.duration) && preserveTime < video.duration - 3) {
+      if (
+        preserveTime > 0 &&
+        Number.isFinite(video.duration) &&
+        preserveTime < video.duration - 3
+      ) {
         video.currentTime = preserveTime;
         setCurrentTime(preserveTime);
         return;
@@ -435,6 +459,10 @@ export default function MovieDetail() {
     };
 
     const onCanPlay = () => {
+      markReady();
+    };
+
+    const onCanPlayThrough = () => {
       markReady();
     };
 
@@ -497,10 +525,15 @@ export default function MovieDetail() {
       if (cancelled) return;
 
       if (/m3u8($|\?)/i.test(streamUrl)) {
+        const current = video.currentTime || lastKnownTimeRef.current || 0;
         const refreshed = await refreshSignedStream();
+
         if (!refreshed) {
           setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+          return;
         }
+
+        lastKnownTimeRef.current = current;
         return;
       }
 
@@ -509,6 +542,7 @@ export default function MovieDetail() {
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
     video.addEventListener("canplay", onCanPlay);
+    video.addEventListener("canplaythrough", onCanPlayThrough);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("play", onPlay);
@@ -522,13 +556,21 @@ export default function MovieDetail() {
     if (isHls) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = streamUrl;
+        video.preload = "auto";
         video.load();
       } else if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: false,
-          backBufferLength: 90,
-          maxBufferLength: 30,
+          backBufferLength: 120,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          fragLoadingRetryDelay: 1000,
+          manifestLoadingRetryDelay: 1000,
+          capLevelToPlayerSize: true,
+          abrEwmaDefaultEstimate: 5000000,
         });
 
         hlsRef.current = hls;
@@ -547,24 +589,32 @@ export default function MovieDetail() {
 
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR: {
+              const current = video.currentTime || lastKnownTimeRef.current || 0;
               const refreshed = await refreshSignedStream();
+
               if (!refreshed && !cancelled) {
                 setError("Không phát được stream HLS.");
+                return;
               }
+
+              lastKnownTimeRef.current = current;
               break;
             }
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
               break;
-            default:
-              if (!cancelled) {
-                const refreshed = await refreshSignedStream();
-                if (!refreshed) {
-                  setError("Không phát được stream HLS.");
-                }
+            default: {
+              const current = video.currentTime || lastKnownTimeRef.current || 0;
+              const refreshed = await refreshSignedStream();
+
+              if (!refreshed && !cancelled) {
+                setError("Không phát được stream HLS.");
               }
+
+              lastKnownTimeRef.current = current;
               hls.destroy();
               break;
+            }
           }
         });
       } else {
@@ -572,6 +622,7 @@ export default function MovieDetail() {
       }
     } else {
       video.src = streamUrl;
+      video.preload = "auto";
       video.load();
     }
 
@@ -584,10 +635,6 @@ export default function MovieDetail() {
       }
 
       try {
-        video.pause();
-      } catch {}
-
-      try {
         saveCurrentProgress();
       } catch (err) {
         console.error("save continue watching cleanup error:", err);
@@ -595,6 +642,7 @@ export default function MovieDetail() {
 
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("canplay", onCanPlay);
+      video.removeEventListener("canplaythrough", onCanPlayThrough);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("play", onPlay);
@@ -608,7 +656,7 @@ export default function MovieDetail() {
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, movie, id, currentTime, refreshSignedStream]);
+  }, [streamUrl, movie, id, refreshSignedStream]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -639,8 +687,11 @@ export default function MovieDetail() {
 
     if (forcePlaying || isPlaying) {
       hideTimerRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 2200);
+        const video = videoRef.current;
+        if (video && !video.paused) {
+          setShowControls(false);
+        }
+      }, 2000);
     }
   };
 
@@ -1092,7 +1143,12 @@ export default function MovieDetail() {
         <img
           src={backdropSrc || FALLBACK_BACKDROP}
           alt={movie.title}
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+          }}
           onError={(e) => {
             const fallback =
               normalizeImage(movie?.poster, "") || FALLBACK_BACKDROP;
@@ -1183,7 +1239,9 @@ export default function MovieDetail() {
                   >
                     {previewVisible && !!previewImage && (
                       <div
-                        className={`nf-progress-preview show ${previewLoaded ? "is-loaded" : ""}`}
+                        className={`nf-progress-preview show ${
+                          previewLoaded ? "is-loaded" : ""
+                        }`}
                         style={{ left: `${previewLeft}px` }}
                       >
                         <div className="nf-preview-inner">
@@ -1191,7 +1249,12 @@ export default function MovieDetail() {
                             src={previewImage}
                             alt=""
                             draggable="false"
-                            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              objectPosition: "center",
+                            }}
                             onLoad={() => setPreviewLoaded(true)}
                             onError={() => {
                               setPreviewLoaded(false);
@@ -1408,7 +1471,12 @@ export default function MovieDetail() {
                             normalizeImage(item.poster, FALLBACK_POSTER)
                           }
                           alt={item.title}
-                          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            objectPosition: "center",
+                          }}
                           onError={(e) => {
                             e.currentTarget.src = FALLBACK_POSTER;
                           }}
@@ -1448,7 +1516,12 @@ export default function MovieDetail() {
                           normalizeImage(item.poster, FALLBACK_POSTER)
                         }
                         alt={item.title}
-                        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          objectPosition: "center",
+                        }}
                         onError={(e) => {
                           e.currentTarget.src = FALLBACK_POSTER;
                         }}

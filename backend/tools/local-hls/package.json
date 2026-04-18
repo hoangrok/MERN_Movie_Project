@@ -1,0 +1,16 @@
+{
+  "name": "clipdam18-local-hls-upload",
+  "version": "1.0.0",
+  "private": true,
+  "main": "local-hls-upload.js",
+  "scripts": {
+    "start": "node local-hls-upload.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
+    "axios": "^1.8.2",
+    "dotenv": "^16.4.7",
+    "fluent-ffmpeg": "^2.1.3",
+    "sharp": "^0.33.5"
+  }
+}

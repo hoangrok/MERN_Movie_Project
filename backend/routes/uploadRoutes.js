@@ -3,13 +3,11 @@ const router = express.Router();
 const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
-const sharp = require("sharp");
 const mongoose = require("mongoose");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
-const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
 const { addJob, getQueueSnapshot } = require("../utils/videoJobQueue");
 
 // ==========================
@@ -61,245 +59,6 @@ const ffprobeAsync = (videoPath) =>
     });
   });
 
-const takeScreenshot = (videoPath, outputPath, timestampSec, size) =>
-  new Promise((resolve, reject) => {
-    ensureDir(path.dirname(outputPath));
-
-    ffmpeg(videoPath)
-      .seekInput(Math.max(0, timestampSec))
-      .frames(1)
-      .outputOptions(["-q:v 2"])
-      .size(size)
-      .output(outputPath)
-      .on("end", resolve)
-      .on("error", reject)
-      .run();
-  });
-
-const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
-
-const uniqueNumbers = (arr) => {
-  const seen = new Set();
-  return arr.filter((n) => {
-    const key = Number(n).toFixed(2);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
-
-const getCandidateTimestamps = (duration) => {
-  if (!Number.isFinite(duration) || duration <= 0) {
-    return [3, 6, 10];
-  }
-
-  const startSafe = Math.min(12, duration * 0.08);
-  const endSafe = Math.max(duration - 12, duration * 0.88);
-
-  const points = [
-    duration * 0.1,
-    duration * 0.18,
-    duration * 0.28,
-    duration * 0.38,
-    duration * 0.5,
-    duration * 0.62,
-    duration * 0.72,
-    duration * 0.82,
-  ]
-    .map((t) => clamp(t, startSafe, endSafe))
-    .filter((t) => t > 1 && t < duration - 1);
-
-  return uniqueNumbers(points);
-};
-
-const scoreImageBuffer = async (buffer) => {
-  const image = sharp(buffer);
-  const meta = await image.metadata();
-
-  if (!meta.width || !meta.height) {
-    return { score: -999999 };
-  }
-
-  const { data, info } = await image
-    .resize(320, 180, { fit: "cover" })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const channels = info.channels;
-  const pixelCount = info.width * info.height;
-
-  let sumLuma = 0;
-  let sumSqLuma = 0;
-  let colorSpread = 0;
-  let darkPixels = 0;
-  let brightPixels = 0;
-  let centerScore = 0;
-  let edgeEnergy = 0;
-
-  const getIndex = (x, y) => (y * info.width + x) * channels;
-
-  for (let y = 0; y < info.height; y++) {
-    for (let x = 0; x < info.width; x++) {
-      const i = getIndex(x, y);
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-
-      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      sumLuma += luma;
-      sumSqLuma += luma * luma;
-
-      const maxC = Math.max(r, g, b);
-      const minC = Math.min(r, g, b);
-      colorSpread += maxC - minC;
-
-      if (luma < 28) darkPixels++;
-      if (luma > 235) brightPixels++;
-
-      const nx = (x / info.width - 0.5) * 2;
-      const ny = (y / info.height - 0.5) * 2;
-      const dist = Math.sqrt(nx * nx + ny * ny);
-      const centerWeight = Math.max(0, 1 - dist);
-      centerScore += luma * centerWeight;
-    }
-  }
-
-  for (let y = 0; y < info.height - 1; y++) {
-    for (let x = 0; x < info.width - 1; x++) {
-      const i = getIndex(x, y);
-      const ir = getIndex(x + 1, y);
-      const id = getIndex(x, y + 1);
-
-      const l1 =
-        0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-      const l2 =
-        0.2126 * data[ir] + 0.7152 * data[ir + 1] + 0.0722 * data[ir + 2];
-      const l3 =
-        0.2126 * data[id] + 0.7152 * data[id + 1] + 0.0722 * data[id + 2];
-
-      edgeEnergy += Math.abs(l1 - l2) + Math.abs(l1 - l3);
-    }
-  }
-
-  const mean = sumLuma / pixelCount;
-  const variance = sumSqLuma / pixelCount - mean * mean;
-  const stdDev = Math.sqrt(Math.max(variance, 0));
-  const saturationMean = colorSpread / pixelCount;
-  const darkRatio = darkPixels / pixelCount;
-  const brightRatio = brightPixels / pixelCount;
-  const centerMean = centerScore / pixelCount;
-  const edgeMean = edgeEnergy / pixelCount;
-
-  let score = 0;
-  score += stdDev * 1.8;
-  score += saturationMean * 0.9;
-  score += edgeMean * 2.2;
-  score += centerMean * 0.18;
-
-  if (mean < 45) score -= 120;
-  else if (mean < 70) score -= 45;
-  else if (mean > 220) score -= 80;
-
-  if (darkRatio > 0.65) score -= 140;
-  else if (darkRatio > 0.45) score -= 50;
-
-  if (brightRatio > 0.55) score -= 80;
-
-  return { score };
-};
-
-const buildPosterAndBackdrop = async (sourcePath, posterOut, backdropOut) => {
-  const source = sharp(sourcePath);
-  const meta = await source.metadata();
-
-  if (!meta.width || !meta.height) {
-    throw new Error("Không đọc được kích thước ảnh nguồn");
-  }
-
-  await source
-    .clone()
-    .resize(400, 600, {
-      fit: "cover",
-      position: "attention",
-    })
-    .jpeg({ quality: 88, mozjpeg: true })
-    .toFile(posterOut);
-
-  await source
-    .clone()
-    .resize(1280, 720, {
-      fit: "cover",
-      position: "attention",
-    })
-    .jpeg({ quality: 88, mozjpeg: true })
-    .toFile(backdropOut);
-};
-
-const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
-  const probe = await ffprobeAsync(videoPath);
-  const duration = Number(probe?.format?.duration || 0);
-
-  const candidatesDir = path.join(tmpDir, `${movieId}-candidates`);
-  const thumbsDir = path.join(tmpDir, `${movieId}-thumbs`);
-
-  ensureDir(candidatesDir);
-  ensureDir(thumbsDir);
-
-  const timestamps = getCandidateTimestamps(duration);
-  if (!timestamps.length) {
-    throw new Error("Không lấy được mốc thời gian để tạo thumbnail");
-  }
-
-  const scored = [];
-
-  for (let i = 0; i < timestamps.length; i++) {
-    const t = timestamps[i];
-    const candidatePath = path.join(candidatesDir, `candidate-${i + 1}.jpg`);
-
-    try {
-      await takeScreenshot(videoPath, candidatePath, t, "1280x720");
-      const buffer = fs.readFileSync(candidatePath);
-      const result = await scoreImageBuffer(buffer);
-
-      scored.push({
-        path: candidatePath,
-        timestamp: t,
-        score: result.score,
-      });
-    } catch (err) {
-      console.error(`thumbnail candidate error at ${t}s:`, err.message);
-    }
-  }
-
-  if (!scored.length) {
-    throw new Error("Không tạo được candidate thumbnail nào");
-  }
-
-  scored.sort((a, b) => b.score - a.score);
-  const best = scored[0];
-
-  const posterPath = path.join(thumbsDir, "poster.jpg");
-  const backdropPath = path.join(thumbsDir, "backdrop.jpg");
-
-  await buildPosterAndBackdrop(best.path, posterPath, backdropPath);
-
-  for (const item of scored) {
-    if (fs.existsSync(item.path)) fs.unlinkSync(item.path);
-  }
-
-  if (fs.existsSync(candidatesDir)) {
-    fs.rmSync(candidatesDir, { recursive: true, force: true });
-  }
-
-  return {
-    posterPath,
-    backdropPath,
-    pickedAt: best.timestamp,
-    score: best.score,
-  };
-};
-
 const cleanup = (...paths) => {
   for (const target of paths) {
     if (!target) continue;
@@ -321,10 +80,29 @@ const withTimeout = (promise, ms, label) =>
     ),
   ]);
 
+const canUseCopyMode = async (videoPath) => {
+  try {
+    const probe = await ffprobeAsync(videoPath);
+    const streams = probe?.streams || [];
+
+    const videoStream = streams.find((s) => s.codec_type === "video");
+    const audioStream = streams.find((s) => s.codec_type === "audio");
+
+    const videoCodec = String(videoStream?.codec_name || "").toLowerCase();
+    const audioCodec = String(audioStream?.codec_name || "").toLowerCase();
+
+    const okVideo = ["h264"].includes(videoCodec);
+    const okAudio = !audioStream || ["aac", "mp3"].includes(audioCodec);
+
+    return okVideo && okAudio;
+  } catch (err) {
+    console.error("canUseCopyMode ffprobe error:", err.message);
+    return false;
+  }
+};
+
 async function processVideoInBackground({ movieId, tempVideo }) {
   let outputDir = null;
-  let thumbsDir = null;
-  let timelineDir = null;
 
   try {
     console.log("========== VIDEO BACKGROUND START ==========");
@@ -337,142 +115,90 @@ async function processVideoInBackground({ movieId, tempVideo }) {
     movie.processingError = "";
     await movie.save();
 
-    const sourceVideoForProcessing = tempVideo;
     const tmpDir = path.join(__dirname, "../tmp");
     ensureDir(tmpDir);
 
     outputDir = path.join(tmpDir, `${movieId}-hls`);
-    const variantDir = path.join(outputDir, "v0");
-
     ensureDir(outputDir);
-    ensureDir(variantDir);
 
-    console.log("3️⃣ Bắt đầu convert HLS");
+    const canCopy = await canUseCopyMode(tempVideo);
+    console.log("copy mode:", canCopy);
 
-    await withTimeout(
-      new Promise((resolve, reject) => {
-        ffmpeg(sourceVideoForProcessing)
-          .videoCodec("libx264")
-          .audioCodec("aac")
-          .outputOptions([
-            "-preset ultrafast",
-            "-crf 30",
-            "-tune zerolatency",
-            "-threads 1",
-            "-hls_time 10",
-            "-hls_playlist_type vod",
-            "-hls_list_size 0",
-            "-vf scale=854:-2",
-            `-hls_segment_filename ${path.join(variantDir, "seg_%03d.ts")}`,
-          ])
-          .output(path.join(variantDir, "index.m3u8"))
-          .on("start", (cmd) => {
-            console.log("FFMPEG HLS CMD:", cmd);
-          })
-          .on("end", resolve)
-          .on("error", reject)
-          .run();
-      }),
-      1000 * 60 * 20,
-      "HLS convert"
-    );
+    const masterPath = path.join(outputDir, "master.m3u8");
+
+    if (canCopy) {
+      console.log("3️⃣ Bắt đầu convert HLS COPY MODE");
+
+      await withTimeout(
+        new Promise((resolve, reject) => {
+          ffmpeg(tempVideo)
+            .outputOptions([
+              "-c copy",
+              "-start_number 0",
+              "-hls_time 6",
+              "-hls_list_size 0",
+              "-hls_playlist_type vod",
+              `-hls_segment_filename ${path.join(outputDir, "seg_%03d.ts")}`,
+              "-f hls",
+            ])
+            .output(masterPath)
+            .on("start", (cmd) => {
+              console.log("FFMPEG HLS COPY CMD:", cmd);
+            })
+            .on("end", resolve)
+            .on("error", reject)
+            .run();
+        }),
+        1000 * 60 * 8,
+        "HLS copy convert"
+      );
+    } else {
+      console.log("3️⃣ Bắt đầu convert HLS SAFE MODE");
+
+      await withTimeout(
+        new Promise((resolve, reject) => {
+          ffmpeg(tempVideo)
+            .videoCodec("libx264")
+            .audioCodec("aac")
+            .outputOptions([
+              "-preset ultrafast",
+              "-crf 30",
+              "-threads 1",
+              "-hls_time 6",
+              "-hls_list_size 0",
+              "-hls_playlist_type vod",
+              "-vf scale=854:-2",
+              `-hls_segment_filename ${path.join(outputDir, "seg_%03d.ts")}`,
+              "-f hls",
+            ])
+            .output(masterPath)
+            .on("start", (cmd) => {
+              console.log("FFMPEG HLS SAFE CMD:", cmd);
+            })
+            .on("end", resolve)
+            .on("error", reject)
+            .run();
+        }),
+        1000 * 60 * 15,
+        "HLS safe convert"
+      );
+    }
 
     console.log("4️⃣ Convert xong");
 
-    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-    let pickedInfo = null;
-
-    if (!movie.poster || !movie.backdrop) {
-      console.log("4.1️⃣ Generating smart thumbnails...");
-      const thumbResult = await withTimeout(
-        generateSmartThumbnails(sourceVideoForProcessing, tmpDir, movieId),
-        1000 * 60 * 5,
-        "Thumbnail generation"
-      );
-
-      pickedInfo = thumbResult;
-      thumbsDir = path.dirname(thumbResult.posterPath);
-
-      if (!movie.poster && fs.existsSync(thumbResult.posterPath)) {
-        const posterKey = `videos/${movieId}/poster.jpg`;
-        await uploadFileToR2(
-          posterKey,
-          fs.readFileSync(thumbResult.posterPath),
-          "image/jpeg"
-        );
-        movie.poster = `${publicBase}/${posterKey}`;
-      }
-
-      if (!movie.backdrop && fs.existsSync(thumbResult.backdropPath)) {
-        const backdropKey = `videos/${movieId}/backdrop.jpg`;
-        await uploadFileToR2(
-          backdropKey,
-          fs.readFileSync(thumbResult.backdropPath),
-          "image/jpeg"
-        );
-        movie.backdrop = `${publicBase}/${backdropKey}`;
-      }
+    const files = fs.readdirSync(outputDir);
+    if (!files.includes("master.m3u8")) {
+      throw new Error("master.m3u8 not generated");
     }
-
-    console.log("4.2️⃣ Generating preview timeline...");
-    timelineDir = path.join(tmpDir, `${movieId}-timeline`);
-    ensureDir(timelineDir);
-
-    const timelineResult = await withTimeout(
-      generatePreviewTimeline(sourceVideoForProcessing, timelineDir, {
-        interval: 10,
-        prefix: "preview",
-      }),
-      1000 * 60 * 5,
-      "Preview timeline generation"
-    );
-
-    const timelineItems = [];
-
-    for (const item of timelineResult.items || []) {
-      const fileExists = !!item?.path && fs.existsSync(item.path);
-      if (!fileExists) continue;
-
-      const buffer = fs.readFileSync(item.path);
-      if (!buffer || buffer.length < 1000) continue;
-
-      const key = `videos/${movieId}/timeline/${item.fileName}`;
-      await uploadFileToR2(key, buffer, "image/jpeg");
-
-      timelineItems.push({
-        second: item.second,
-        url: `${publicBase}/${key}`,
-      });
-    }
-
-    movie.previewTimeline = {
-      duration: timelineResult?.duration || 0,
-      interval: timelineResult?.interval || 10,
-      items: timelineItems,
-    };
-
-    const masterContent = `#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480
-v0/index.m3u8
-`;
-
-    fs.writeFileSync(path.join(outputDir, "master.m3u8"), masterContent);
 
     console.log("5️⃣ Upload R2 bắt đầu");
 
-    const masterPath = path.join(outputDir, "master.m3u8");
-    await uploadFileToR2(
-      `videos/${movieId}/hls/master.m3u8`,
-      fs.readFileSync(masterPath),
-      getContentType("master.m3u8")
-    );
+    for (const f of files) {
+      const filePath = path.join(outputDir, f);
+      if (!fs.statSync(filePath).isFile()) continue;
 
-    const variantFiles = fs.readdirSync(variantDir);
-    for (const f of variantFiles) {
-      const filePath = path.join(variantDir, f);
       await uploadFileToR2(
-        `videos/${movieId}/hls/v0/${f}`,
+        `videos/${movieId}/hls/${f}`,
         fs.readFileSync(filePath),
         getContentType(f)
       );
@@ -487,8 +213,6 @@ v0/index.m3u8
 
     movie.status = "ready";
     movie.processingError = "";
-    if (pickedInfo?.pickedAt) movie.thumbnailPickedAt = pickedInfo.pickedAt;
-
     await movie.save();
 
     console.log("========== VIDEO BACKGROUND DONE ==========");
@@ -506,7 +230,7 @@ v0/index.m3u8
       console.error("Save failed status error:", saveErr);
     }
   } finally {
-    cleanup(tempVideo, outputDir, thumbsDir, timelineDir);
+    cleanup(tempVideo, outputDir);
   }
 }
 
