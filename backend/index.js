@@ -1,6 +1,8 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
+console.log("BOOT VERSION: background-video-queue-v1");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const fileUpload = require("express-fileupload");
@@ -24,7 +26,6 @@ const allowedOrigins = [
   "https://api.clipdam18.com",
 ].filter(Boolean);
 
-// CORS cứng để dễ debug upload/video
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
@@ -44,7 +45,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
@@ -63,19 +63,16 @@ app.use(
   })
 );
 
-// Request log
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// Routes
 app.use("/api/movies", movieRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/debug", debugRoutes);
 
-// Health check
 app.get("/", (req, res) => res.send("API is running"));
 
 app.get("/health", (req, res) => {
@@ -87,7 +84,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
 

@@ -10,6 +10,7 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
 const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
+const { addJob, getQueueSnapshot } = require("../utils/videoJobQueue");
 
 // ==========================
 // HELPER
@@ -116,7 +117,7 @@ const scoreImageBuffer = async (buffer) => {
   const meta = await image.metadata();
 
   if (!meta.width || !meta.height) {
-    return { score: -999999, reasons: ["invalid-meta"] };
+    return { score: -999999 };
   }
 
   const { data, info } = await image
@@ -191,7 +192,6 @@ const scoreImageBuffer = async (buffer) => {
   const edgeMean = edgeEnergy / pixelCount;
 
   let score = 0;
-
   score += stdDev * 1.8;
   score += saturationMean * 0.9;
   score += edgeMean * 2.2;
@@ -359,115 +359,29 @@ const cleanup = (...paths) => {
   }
 };
 
-// Preflight chắc chắn cho upload
-router.options("/video/:movieId", (req, res) => {
-  return res.sendStatus(204);
-});
-
-router.options("/image", (req, res) => {
-  return res.sendStatus(204);
-});
-
-// ==========================
-// UPLOAD IMAGE
-// ==========================
-
-router.post("/image", async (req, res) => {
-  try {
-    const file = req.files?.image;
-
-    if (!file) {
-      return res.status(400).json({
-        success: false,
-        message: "No image uploaded",
-      });
-    }
-
-    const originalName = file.name || "image.jpg";
-    const ext = path.extname(originalName).toLowerCase();
-    const baseName = path.parse(originalName).name;
-    const safeName = cleanFileBaseName(baseName);
-
-    const fileName = `${Date.now()}-${safeName || "image"}${ext}`;
-    const key = `images/${fileName}`;
-
-    await uploadFileToR2(key, file.data, getContentType(fileName));
-
-    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-    const url = `${publicBase}/${key}`;
-
-    return res.json({
-      success: true,
-      url,
-    });
-  } catch (err) {
-    console.error("upload image error:", err);
-    return res.status(500).json({
-      success: false,
-      message: err.message,
-    });
-  }
-});
-
-// ==========================
-// UPLOAD VIDEO
-// ==========================
-
-router.post("/video/:movieId", async (req, res) => {
-  let tempVideo = null;
+async function processVideoInBackground({ movieId, tempVideo, originalName }) {
   let watermarkedVideo = null;
   let outputDir = null;
   let thumbsDir = null;
   let timelineDir = null;
 
   try {
-    const { movieId } = req.params;
-    const file = req.files?.video;
-
-    console.log("========== VIDEO UPLOAD START ==========");
+    console.log("========== VIDEO BACKGROUND START ==========");
     console.log("movieId:", movieId);
-    console.log("origin:", req.headers.origin || "no-origin");
-    console.log("content-length:", req.headers["content-length"] || "unknown");
-
-    if (!mongoose.Types.ObjectId.isValid(movieId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid movie id",
-      });
-    }
 
     const movie = await Movie.findById(movieId);
-    if (!movie) {
-      return res.status(404).json({
-        success: false,
-        message: "Movie not found",
-      });
-    }
+    if (!movie) throw new Error("Movie not found");
 
-    if (!file) {
-      return res.status(400).json({
-        success: false,
-        message: "No video uploaded",
-      });
-    }
+    movie.status = "processing";
+    movie.processingError = "";
+    await movie.save();
 
-    console.log("1️⃣ Nhận file:", file.name, file.size);
-
-    const originalName = file.name || "video.mp4";
-    const ext = path.extname(originalName).toLowerCase() || ".mp4";
-    const baseName = path.parse(originalName).name;
-    const safeBaseName = cleanFileBaseName(baseName);
-
+    let sourceVideoForProcessing = tempVideo;
     const tmpDir = path.join(__dirname, "../tmp");
     ensureDir(tmpDir);
 
-    const safeLocalName = `${Date.now()}-${safeBaseName || "video"}${ext}`;
-    tempVideo = path.join(tmpDir, safeLocalName);
-
-    await file.mv(tempVideo);
-    console.log("2️⃣ Save temp video xong:", tempVideo);
-
-    let sourceVideoForProcessing = tempVideo;
+    const baseName = path.parse(originalName || "video.mp4").name;
+    const safeBaseName = cleanFileBaseName(baseName);
 
     const watermarkPath = getWatermarkPath();
     if (watermarkPath) {
@@ -530,6 +444,7 @@ router.post("/video/:movieId", async (req, res) => {
         tmpDir,
         movieId
       );
+
       pickedInfo = thumbResult;
       thumbsDir = path.dirname(thumbResult.posterPath);
 
@@ -571,7 +486,6 @@ router.post("/video/:movieId", async (req, res) => {
 
     for (const item of timelineResult.items || []) {
       const fileExists = !!item?.path && fs.existsSync(item.path);
-
       if (!fileExists) continue;
 
       const buffer = fs.readFileSync(item.path);
@@ -627,28 +541,205 @@ v0/index.m3u8
       : `/videos/${movieId}/hls/master.m3u8`;
 
     movie.status = "ready";
+    movie.processingError = "";
+    if (pickedInfo?.pickedAt) movie.thumbnailPickedAt = pickedInfo.pickedAt;
+
     await movie.save();
 
-    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
+    console.log("========== VIDEO BACKGROUND DONE ==========");
+  } catch (err) {
+    console.error("❌ BACKGROUND VIDEO ERROR:", err);
 
-    console.log("========== VIDEO UPLOAD DONE ==========");
+    try {
+      const movie = await Movie.findById(movieId);
+      if (movie) {
+        movie.status = "failed";
+        movie.processingError = err.message || "Video processing failed";
+        await movie.save();
+      }
+    } catch (saveErr) {
+      console.error("Save failed status error:", saveErr);
+    }
+  } finally {
+    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
+  }
+}
+
+// ==========================
+// PRE-FLIGHT
+// ==========================
+
+router.options("/video/:movieId", (req, res) => res.sendStatus(204));
+router.options("/image", (req, res) => res.sendStatus(204));
+router.options("/status/:movieId", (req, res) => res.sendStatus(204));
+router.options("/queue", (req, res) => res.sendStatus(204));
+
+// ==========================
+// DEBUG QUEUE
+// ==========================
+
+router.get("/queue", (req, res) => {
+  return res.json({
+    success: true,
+    ...getQueueSnapshot(),
+  });
+});
+
+// ==========================
+// STATUS
+// ==========================
+
+router.get("/status/:movieId", async (req, res) => {
+  try {
+    const { movieId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(movieId).select(
+      "_id title status hlsUrl poster backdrop previewTimeline processingError"
+    );
+
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
 
     return res.json({
       success: true,
-      movieId,
-      hlsUrl: movie.hlsUrl,
-      poster: movie.poster || "",
-      backdrop: movie.backdrop || "",
-      previewTimeline: movie.previewTimeline || { items: [] },
-      thumbnailPickedAt: pickedInfo?.pickedAt || null,
-      thumbnailScore: pickedInfo?.score || null,
-      watermarkApplied: !!watermarkPath,
-      message:
-        "Video uploaded, watermarked, converted, smart thumbnails and preview timeline generated successfully",
+      movie,
     });
   } catch (err) {
-    console.error("upload video error:", err);
-    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// UPLOAD IMAGE
+// ==========================
+
+router.post("/image", async (req, res) => {
+  try {
+    const file = req.files?.image;
+
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image uploaded",
+      });
+    }
+
+    const originalName = file.name || "image.jpg";
+    const ext = path.extname(originalName).toLowerCase();
+    const baseName = path.parse(originalName).name;
+    const safeName = cleanFileBaseName(baseName);
+
+    const fileName = `${Date.now()}-${safeName || "image"}${ext}`;
+    const key = `images/${fileName}`;
+
+    await uploadFileToR2(key, file.data, getContentType(fileName));
+
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+    const url = `${publicBase}/${key}`;
+
+    return res.json({
+      success: true,
+      url,
+    });
+  } catch (err) {
+    console.error("upload image error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+});
+
+// ==========================
+// UPLOAD VIDEO BACKGROUND
+// ==========================
+
+router.post("/video/:movieId", async (req, res) => {
+  let tempVideo = null;
+
+  try {
+    const { movieId } = req.params;
+    const file = req.files?.video;
+
+    console.log("========== VIDEO UPLOAD REQUEST ==========");
+    console.log("movieId:", movieId);
+    console.log("origin:", req.headers.origin || "no-origin");
+    console.log("content-length:", req.headers["content-length"] || "unknown");
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: "No video uploaded",
+      });
+    }
+
+    const originalName = file.name || "video.mp4";
+    const ext = path.extname(originalName).toLowerCase() || ".mp4";
+    const baseName = path.parse(originalName).name;
+    const safeBaseName = cleanFileBaseName(baseName);
+
+    const tmpDir = path.join(__dirname, "../tmp");
+    ensureDir(tmpDir);
+
+    const safeLocalName = `${Date.now()}-${safeBaseName || "video"}${ext}`;
+    tempVideo = path.join(tmpDir, safeLocalName);
+
+    console.log("1️⃣ Nhận file:", file.name, file.size);
+    await file.mv(tempVideo);
+    console.log("2️⃣ Save temp video xong:", tempVideo);
+
+    movie.status = "queued";
+    movie.processingError = "";
+    await movie.save();
+
+    addJob(async () => {
+      await processVideoInBackground({
+        movieId,
+        tempVideo,
+        originalName,
+      });
+    });
+
+    return res.json({
+      success: true,
+      queued: true,
+      movieId,
+      status: "queued",
+      message: "Video đã upload xong và được đưa vào hàng chờ xử lý nền",
+    });
+  } catch (err) {
+    console.error("upload video enqueue error:", err);
+
+    cleanup(tempVideo);
 
     return res.status(500).json({
       success: false,

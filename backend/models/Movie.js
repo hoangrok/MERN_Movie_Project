@@ -24,7 +24,20 @@ const movieSchema = new mongoose.Schema(
     country: { type: String, default: "" },
     subtitles: [{ type: String }],
 
-    // 🔥 preview timeline theo từng mốc thời gian
+    status: {
+      type: String,
+      enum: ["draft", "queued", "processing", "ready", "failed"],
+      default: "draft",
+    },
+    processingError: {
+      type: String,
+      default: "",
+    },
+    thumbnailPickedAt: {
+      type: Number,
+      default: null,
+    },
+
     previewTimeline: {
       duration: { type: Number, default: 0 },
       interval: { type: Number, default: 10 },

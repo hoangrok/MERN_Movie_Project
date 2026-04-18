@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { API_URL } from "../utils/api";
@@ -8,7 +8,10 @@ export default function AdminNewMovie() {
   const authState = useSelector((state) => state.auth);
 
   const authToken =
-    authState?.token || authState?.user?.token || authState?.user?.accessToken || "";
+    authState?.token ||
+    authState?.user?.token ||
+    authState?.user?.accessToken ||
+    "";
 
   const [form, setForm] = useState({
     title: "",
@@ -29,6 +32,9 @@ export default function AdminNewMovie() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [uploadPercent, setUploadPercent] = useState(0);
+  const [movieId, setMovieId] = useState("");
+  const [jobStatus, setJobStatus] = useState("");
+  const pollRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -57,7 +63,6 @@ export default function AdminNewMovie() {
 
   const wakeServer = async () => {
     const healthUrl = `${getBaseOrigin()}/health`;
-    setMessage("Đang đánh thức server...");
     try {
       const res = await fetch(healthUrl, { method: "GET" });
       await res.text();
@@ -90,7 +95,7 @@ export default function AdminNewMovie() {
     return data.url;
   };
 
-  const uploadVideoWithProgress = (movieId, file) => {
+  const uploadVideoWithProgress = (targetMovieId, file) => {
     return new Promise((resolve, reject) => {
       if (!file) return resolve(null);
 
@@ -98,7 +103,7 @@ export default function AdminNewMovie() {
       const fd = new FormData();
       fd.append("video", file);
 
-      xhr.open("POST", `${API_URL}/upload/video/${movieId}`, true);
+      xhr.open("POST", `${API_URL}/upload/video/${targetMovieId}`, true);
 
       if (authToken) {
         xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
@@ -129,7 +134,7 @@ export default function AdminNewMovie() {
       xhr.onerror = () => {
         reject(
           new Error(
-            "Không thể kết nối API upload video. Kiểm tra CORS / server sleep / backend log."
+            "Không thể kết nối API upload video. Kiểm tra domain / backend / CORS."
           )
         );
       };
@@ -138,10 +143,74 @@ export default function AdminNewMovie() {
         reject(new Error("Upload video bị timeout"));
       };
 
-      xhr.timeout = 1000 * 60 * 20; // 20 phút
+      xhr.timeout = 1000 * 60 * 20;
       xhr.send(fd);
     });
   };
+
+  const checkMovieStatus = async (targetMovieId) => {
+    const res = await fetch(`${API_URL}/upload/status/${targetMovieId}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    const data = await parseJsonSafe(res);
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Không lấy được trạng thái xử lý video");
+    }
+
+    return data.movie;
+  };
+
+  const startPolling = (targetMovieId) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const movie = await checkMovieStatus(targetMovieId);
+        const currentStatus = movie?.status || "";
+
+        setJobStatus(currentStatus);
+
+        if (currentStatus === "queued") {
+          setMessage("Video đang ở hàng chờ xử lý...");
+          return;
+        }
+
+        if (currentStatus === "processing") {
+          setMessage("Video đang được convert HLS ở background...");
+          return;
+        }
+
+        if (currentStatus === "ready") {
+          setMessage("Video đã xử lý xong");
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+
+          setTimeout(() => {
+            navigate(`/movie/${targetMovieId}`);
+          }, 800);
+          return;
+        }
+
+        if (currentStatus === "failed") {
+          setMessage(movie?.processingError || "Xử lý video thất bại");
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } catch (err) {
+        console.error("Polling status error:", err);
+      }
+    }, 5000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -154,6 +223,8 @@ export default function AdminNewMovie() {
     setLoading(true);
     setMessage("");
     setUploadPercent(0);
+    setMovieId("");
+    setJobStatus("");
 
     try {
       await wakeServer();
@@ -203,23 +274,31 @@ export default function AdminNewMovie() {
         throw new Error(createData.message || "Tạo movie thất bại");
       }
 
-      const movieId = createData.movie?._id;
-      if (!movieId) {
+      const newMovieId = createData.movie?._id;
+      if (!newMovieId) {
         throw new Error("Không lấy được movieId");
       }
 
+      setMovieId(newMovieId);
+
       if (videoFile) {
-        setMessage("Chuẩn bị upload video...");
         await wakeServer();
         setMessage("Đang upload video...");
-        await uploadVideoWithProgress(movieId, videoFile);
+        const uploadData = await uploadVideoWithProgress(newMovieId, videoFile);
+
+        if (!uploadData?.success) {
+          throw new Error("Không đưa được video vào background queue");
+        }
+
+        setJobStatus("queued");
+        setMessage("Upload video xong, đang chờ xử lý nền...");
+        startPolling(newMovieId);
+      } else {
+        setMessage("Tạo movie thành công");
+        setTimeout(() => {
+          navigate(`/movie/${newMovieId}`);
+        }, 700);
       }
-
-      setMessage("Tạo movie thành công");
-
-      setTimeout(() => {
-        navigate(`/movie/${movieId}`);
-      }, 700);
     } catch (err) {
       console.error("AdminNewMovie error:", err);
       setMessage(err.message || "Có lỗi xảy ra");
@@ -250,12 +329,28 @@ export default function AdminNewMovie() {
         <h1 style={{ marginBottom: 20 }}>Admin - Tạo Movie</h1>
 
         {message && (
-          <p style={{ marginBottom: 16, color: "#f5c542", fontWeight: 600 }}>
+          <p style={{ marginBottom: 12, color: "#f5c542", fontWeight: 700 }}>
             {message}
           </p>
         )}
 
-        {!!uploadPercent && uploadPercent < 100 && (
+        {!!movieId && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "10px 12px",
+              background: "#121826",
+              border: "1px solid #26314d",
+              borderRadius: 8,
+              fontSize: 14,
+            }}
+          >
+            <div>Movie ID: {movieId}</div>
+            <div>Status: {jobStatus || "created"}</div>
+          </div>
+        )}
+
+        {!!uploadPercent && uploadPercent <= 100 && (
           <div
             style={{
               width: "100%",
