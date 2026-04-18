@@ -1,0 +1,13 @@
+{
+  "name": "clipdam18-auto-upload-tool",
+  "version": "1.0.0",
+  "private": true,
+  "main": "auto-upload-watermark.js",
+  "scripts": {
+    "start": "node auto-upload-watermark.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.2",
+    "form-data": "^4.0.1"
+  }
+}

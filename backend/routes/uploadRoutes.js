@@ -300,52 +300,6 @@ const generateSmartThumbnails = async (videoPath, tmpDir, movieId) => {
   };
 };
 
-const getWatermarkPath = () => {
-  const envPath = process.env.VIDEO_WATERMARK_PATH;
-  const candidates = [
-    envPath,
-    path.join(__dirname, "../assets/watermark.png"),
-    path.join(__dirname, "../public/watermark.png"),
-    path.join(__dirname, "../watermark.png"),
-  ].filter(Boolean);
-
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return p;
-  }
-
-  return null;
-};
-
-const addWatermarkToVideo = async (inputPath, outputPath, watermarkPath) => {
-  const probe = await ffprobeAsync(inputPath);
-  const videoStream = (probe.streams || []).find((s) => s.codec_type === "video");
-  const width = Number(videoStream?.width || 1280);
-  const targetLogoWidth = Math.max(90, Math.round(width * 0.12));
-
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .input(watermarkPath)
-      .complexFilter([
-        `[1:v]scale=${targetLogoWidth}:-1,format=rgba,colorchannelmixer=aa=0.55[wm]`,
-        `[0:v][wm]overlay=main_w-overlay_w-20:main_h-overlay_h-20`,
-      ])
-      .outputOptions([
-        "-c:v libx264",
-        "-preset veryfast",
-        "-crf 23",
-        "-c:a aac",
-        "-movflags +faststart",
-      ])
-      .output(outputPath)
-      .on("start", (cmd) => {
-        console.log("Watermark ffmpeg command:", cmd);
-      })
-      .on("end", resolve)
-      .on("error", reject)
-      .run();
-  });
-};
-
 const cleanup = (...paths) => {
   for (const target of paths) {
     if (!target) continue;
@@ -359,8 +313,15 @@ const cleanup = (...paths) => {
   }
 };
 
-async function processVideoInBackground({ movieId, tempVideo, originalName }) {
-  let watermarkedVideo = null;
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    ),
+  ]);
+
+async function processVideoInBackground({ movieId, tempVideo }) {
   let outputDir = null;
   let thumbsDir = null;
   let timelineDir = null;
@@ -376,27 +337,9 @@ async function processVideoInBackground({ movieId, tempVideo, originalName }) {
     movie.processingError = "";
     await movie.save();
 
-    let sourceVideoForProcessing = tempVideo;
+    const sourceVideoForProcessing = tempVideo;
     const tmpDir = path.join(__dirname, "../tmp");
     ensureDir(tmpDir);
-
-    const baseName = path.parse(originalName || "video.mp4").name;
-    const safeBaseName = cleanFileBaseName(baseName);
-
-    const watermarkPath = getWatermarkPath();
-    if (watermarkPath) {
-      watermarkedVideo = path.join(
-        tmpDir,
-        `${Date.now()}-${safeBaseName || "video"}-watermarked.mp4`
-      );
-
-      console.log("2.1️⃣ Bắt đầu add watermark:", watermarkPath);
-      await addWatermarkToVideo(tempVideo, watermarkedVideo, watermarkPath);
-      sourceVideoForProcessing = watermarkedVideo;
-      console.log("2.2️⃣ Add watermark xong");
-    } else {
-      console.warn("⚠️ Không tìm thấy watermark, bỏ qua watermark");
-    }
 
     outputDir = path.join(tmpDir, `${movieId}-hls`);
     const variantDir = path.join(outputDir, "v0");
@@ -406,31 +349,33 @@ async function processVideoInBackground({ movieId, tempVideo, originalName }) {
 
     console.log("3️⃣ Bắt đầu convert HLS");
 
-    await new Promise((resolve, reject) => {
-      ffmpeg(sourceVideoForProcessing)
-        .videoCodec("libx264")
-        .audioCodec("aac")
-        .outputOptions([
-          "-preset veryfast",
-          "-profile:v main",
-          "-crf 23",
-          "-sc_threshold 0",
-          "-g 48",
-          "-keyint_min 48",
-          "-hls_time 6",
-          "-hls_playlist_type vod",
-          "-hls_list_size 0",
-          "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          `-hls_segment_filename ${path.join(variantDir, "seg_%03d.ts")}`,
-        ])
-        .output(path.join(variantDir, "index.m3u8"))
-        .on("start", (cmd) => {
-          console.log("FFMPEG HLS CMD:", cmd);
-        })
-        .on("end", resolve)
-        .on("error", reject)
-        .run();
-    });
+    await withTimeout(
+      new Promise((resolve, reject) => {
+        ffmpeg(sourceVideoForProcessing)
+          .videoCodec("libx264")
+          .audioCodec("aac")
+          .outputOptions([
+            "-preset ultrafast",
+            "-crf 30",
+            "-tune zerolatency",
+            "-threads 1",
+            "-hls_time 10",
+            "-hls_playlist_type vod",
+            "-hls_list_size 0",
+            "-vf scale=854:-2",
+            `-hls_segment_filename ${path.join(variantDir, "seg_%03d.ts")}`,
+          ])
+          .output(path.join(variantDir, "index.m3u8"))
+          .on("start", (cmd) => {
+            console.log("FFMPEG HLS CMD:", cmd);
+          })
+          .on("end", resolve)
+          .on("error", reject)
+          .run();
+      }),
+      1000 * 60 * 20,
+      "HLS convert"
+    );
 
     console.log("4️⃣ Convert xong");
 
@@ -439,10 +384,10 @@ async function processVideoInBackground({ movieId, tempVideo, originalName }) {
 
     if (!movie.poster || !movie.backdrop) {
       console.log("4.1️⃣ Generating smart thumbnails...");
-      const thumbResult = await generateSmartThumbnails(
-        sourceVideoForProcessing,
-        tmpDir,
-        movieId
+      const thumbResult = await withTimeout(
+        generateSmartThumbnails(sourceVideoForProcessing, tmpDir, movieId),
+        1000 * 60 * 5,
+        "Thumbnail generation"
       );
 
       pickedInfo = thumbResult;
@@ -473,13 +418,13 @@ async function processVideoInBackground({ movieId, tempVideo, originalName }) {
     timelineDir = path.join(tmpDir, `${movieId}-timeline`);
     ensureDir(timelineDir);
 
-    const timelineResult = await generatePreviewTimeline(
-      sourceVideoForProcessing,
-      timelineDir,
-      {
+    const timelineResult = await withTimeout(
+      generatePreviewTimeline(sourceVideoForProcessing, timelineDir, {
         interval: 10,
         prefix: "preview",
-      }
+      }),
+      1000 * 60 * 5,
+      "Preview timeline generation"
     );
 
     const timelineItems = [];
@@ -508,7 +453,7 @@ async function processVideoInBackground({ movieId, tempVideo, originalName }) {
 
     const masterContent = `#EXTM3U
 #EXT-X-VERSION:3
-#EXT-X-STREAM-INF:BANDWIDTH=2800000
+#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=854x480
 v0/index.m3u8
 `;
 
@@ -561,7 +506,7 @@ v0/index.m3u8
       console.error("Save failed status error:", saveErr);
     }
   } finally {
-    cleanup(tempVideo, watermarkedVideo, outputDir, thumbsDir, timelineDir);
+    cleanup(tempVideo, outputDir, thumbsDir, timelineDir);
   }
 }
 
@@ -725,7 +670,6 @@ router.post("/video/:movieId", async (req, res) => {
       await processVideoInBackground({
         movieId,
         tempVideo,
-        originalName,
       });
     });
 
