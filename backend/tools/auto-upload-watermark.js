@@ -9,7 +9,7 @@ const FormData = require("form-data");
 
 const CONFIG = {
   apiBase: "https://api.clipdam18.com/api",
-  token: "69c230cfd03df0546a5d2a3d", // <-- dán token admin vào đây
+  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YzIzMGNmZDAzZGYwNTQ2YTVkMmEzZCIsImlhdCI6MTc3NDUzOTc2NiwiZXhwIjoxNzc3MTMxNzY2fQ.XQ08rvnJbcKKbhng_IBURmKeJlfOF5Rlph8fpvnB0S8", // <-- dán token admin vào đây
   watermarkPath: path.join(__dirname, "watermark.png"),
   outputDir: path.join(__dirname, "output"),
   ffmpegPath: "ffmpeg",
