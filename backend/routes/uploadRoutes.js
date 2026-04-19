@@ -9,6 +9,8 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
 const { addJob, getQueueSnapshot } = require("../utils/videoJobQueue");
+const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
+const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
 
 // ==========================
 // HELPER
@@ -103,6 +105,7 @@ const canUseCopyMode = async (videoPath) => {
 
 async function processVideoInBackground({ movieId, tempVideo }) {
   let outputDir = null;
+  let previewDir = null;
 
   try {
     console.log("========== VIDEO BACKGROUND START ==========");
@@ -206,10 +209,69 @@ async function processVideoInBackground({ movieId, tempVideo }) {
 
     console.log("6️⃣ Upload R2 xong");
 
+    // =========================
+    // SMART MEDIA GENERATION
+    // =========================
+    console.log("7️⃣ Generate preview + poster + backdrop");
+
+    let previewResult = null;
+    let backdropResult = null;
+
+    try {
+      previewDir = path.join(tmpDir, `${movieId}-preview`);
+      ensureDir(previewDir);
+
+      previewResult = await generatePreviewTimeline(tempVideo, previewDir, {
+        movieId,
+        previewCount: 8,
+        candidateCount: 18,
+      });
+
+      console.log(
+        "✅ Preview generated:",
+        previewResult?.items?.length || 0,
+        "items"
+      );
+    } catch (err) {
+      console.warn("⚠️ Preview generation failed:", err.message);
+    }
+
+    try {
+      backdropResult = await generateVideoBackdrop(tempVideo, movieId, {
+        candidateCount: 12,
+        width: 1920,
+        height: 1080,
+      });
+      console.log("✅ Backdrop generated");
+    } catch (err) {
+      console.warn("⚠️ Backdrop generation failed:", err.message);
+    }
+
+    // =========================
+    // SAVE DATA TO MOVIE
+    // =========================
     const streamBase = (process.env.STREAM_BASE_URL || "").replace(/\/+$/, "");
     movie.hlsUrl = streamBase
       ? `${streamBase}/videos/${movieId}/hls/master.m3u8`
       : `/videos/${movieId}/hls/master.m3u8`;
+
+    if (previewResult?.items?.length) {
+      movie.previewTimeline = {
+        duration: previewResult.duration || 0,
+        interval: previewResult.interval || 0,
+        items: previewResult.items || [],
+      };
+
+      movie.thumbnailPickedAt = previewResult.bestFrame?.second || null;
+    }
+
+    if (!movie.poster && previewResult?.posterUrl) {
+      movie.poster = previewResult.posterUrl;
+    }
+
+    if (backdropResult?.backdropUrl) {
+      movie.backdrop = backdropResult.backdropUrl;
+    }
 
     movie.status = "ready";
     movie.processingError = "";
@@ -230,7 +292,7 @@ async function processVideoInBackground({ movieId, tempVideo }) {
       console.error("Save failed status error:", saveErr);
     }
   } finally {
-    cleanup(tempVideo, outputDir);
+    cleanup(tempVideo, outputDir, previewDir);
   }
 }
 
@@ -270,7 +332,7 @@ router.get("/status/:movieId", async (req, res) => {
     }
 
     const movie = await Movie.findById(movieId).select(
-      "_id title status hlsUrl poster backdrop previewTimeline processingError"
+      "_id title status hlsUrl poster backdrop previewTimeline processingError thumbnailPickedAt"
     );
 
     if (!movie) {

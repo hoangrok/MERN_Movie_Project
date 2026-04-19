@@ -23,6 +23,191 @@ const FALLBACK_POSTER =
   "https://dummyimage.com/1280x720/111827/ffffff&text=ClipDam18";
 const PREF_KEY = "dam18_preferred_genres";
 
+function normalizeImage(url) {
+  return typeof url === "string" && url.trim() ? url.trim() : "";
+}
+
+function dedupeImages(list = []) {
+  const seen = new Set();
+  return list.filter((item) => {
+    const key = normalizeImage(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getTimelineFrames(movie, count = 3) {
+  const items = Array.isArray(movie?.previewTimeline?.items)
+    ? movie.previewTimeline.items
+    : [];
+
+  const urls = dedupeImages(
+    items.map((item) => normalizeImage(item?.url)).filter(Boolean)
+  );
+
+  if (!urls.length) return [];
+
+  if (urls.length <= count) return urls.slice(0, count);
+
+  const ratios =
+    count === 4 ? [0.12, 0.38, 0.66, 0.88] : [0.15, 0.48, 0.8];
+
+  return dedupeImages(
+    ratios.map((ratio) => {
+      const index = Math.min(urls.length - 1, Math.floor((urls.length - 1) * ratio));
+      return urls[index];
+    })
+  ).slice(0, count);
+}
+
+function getMovieSmartFrames(movie, count = 3) {
+  const timelineFrames = getTimelineFrames(movie, count);
+  const backdrop = normalizeImage(movie?.backdrop);
+  const poster = normalizeImage(movie?.poster);
+
+  const result = dedupeImages([
+    ...timelineFrames,
+    backdrop,
+    poster,
+    FALLBACK_POSTER,
+  ]);
+
+  if (!result.length) return [FALLBACK_POSTER];
+
+  if (result.length >= count) return result.slice(0, count);
+
+  while (result.length < count) {
+    result.push(result[result.length - 1] || FALLBACK_POSTER);
+  }
+
+  return result;
+}
+
+function getBestThumb(movie) {
+  return (
+    normalizeImage(movie?.backdrop) ||
+    getTimelineFrames(movie, 1)[0] ||
+    normalizeImage(movie?.poster) ||
+    FALLBACK_POSTER
+  );
+}
+
+function HeroBackdrop({ movie }) {
+  const frames = getMovieSmartFrames(movie, 3);
+
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          borderRadius: "inherit",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: -24,
+            display: "grid",
+            gridTemplateColumns: "1.1fr 0.9fr 1fr",
+            gap: 10,
+            filter: "blur(0px)",
+            transform: "scale(1.02)",
+          }}
+        >
+          {frames.map((src, index) => (
+            <div
+              key={`${src}-${index}`}
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: 24,
+                background: "#0b1220",
+              }}
+            >
+              <img
+                src={src || FALLBACK_POSTER}
+                alt=""
+                draggable="false"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: "center",
+                  transform: index === 1 ? "scale(1.06)" : "scale(1.1)",
+                  filter:
+                    index === 1
+                      ? "brightness(0.92) saturate(1.08)"
+                      : "brightness(0.82) saturate(0.95)",
+                }}
+                onError={(e) => {
+                  e.currentTarget.src = FALLBACK_POSTER;
+                }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `
+              linear-gradient(90deg,
+                rgba(4, 6, 12, 0.96) 0%,
+                rgba(4, 6, 12, 0.9) 16%,
+                rgba(4, 6, 12, 0.68) 34%,
+                rgba(4, 6, 12, 0.36) 55%,
+                rgba(4, 6, 12, 0.58) 76%,
+                rgba(4, 6, 12, 0.94) 100%
+              )
+            `,
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `
+              radial-gradient(circle at 78% 12%, rgba(255, 40, 80, 0.18), transparent 24%),
+              radial-gradient(circle at 12% 14%, rgba(0, 120, 255, 0.16), transparent 20%),
+              linear-gradient(180deg, rgba(7, 10, 18, 0.08) 0%, rgba(7, 10, 18, 0.55) 100%)
+            `,
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            maskImage: "linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%)",
+            opacity: 0.32,
+          }}
+        />
+      </div>
+
+      <div
+        className="heroFeature__backdropZoom"
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${frames[1] || frames[0] || FALLBACK_POSTER})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          filter: "blur(32px) saturate(1.15)",
+          opacity: 0.22,
+        }}
+      />
+    </>
+  );
+}
+
 export default function Home() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -330,30 +515,18 @@ export default function Home() {
 function HeroFeature({ movie, recommendationGenres = [] }) {
   if (!movie?._id) return null;
 
-  const backdrop = movie.backdrop || movie.poster || FALLBACK_POSTER;
-
   return (
     <section
       className="heroFeature"
       style={{
-        backgroundImage: `
-          linear-gradient(
-            90deg,
-            rgba(4, 6, 12, 0.96) 0%,
-            rgba(4, 6, 12, 0.86) 20%,
-            rgba(4, 6, 12, 0.62) 45%,
-            rgba(4, 6, 12, 0.30) 70%,
-            rgba(4, 6, 12, 0.90) 100%
-          ),
-          url(${backdrop})
-        `,
-        backgroundSize: "cover",
-        backgroundPosition: "center 28%",
+        position: "relative",
+        overflow: "hidden",
+        isolation: "isolate",
       }}
     >
-      <div className="heroFeature__backdropZoom" aria-hidden="true" />
+      <HeroBackdrop movie={movie} />
 
-      <div className="heroFeature__content">
+      <div className="heroFeature__content" style={{ position: "relative", zIndex: 2 }}>
         <span className="heroFeature__badge">
           <FaFire /> Nổi bật hôm nay
         </span>
@@ -421,12 +594,43 @@ function SectionHeadButton({ title, onClick }) {
 function PosterCard({ movie, badge = "" }) {
   if (!movie?._id) return null;
 
+  const cardImage = getBestThumb(movie);
+
   return (
     <Link to={`/movie/${movie._id}`} className="posterCard">
-      <div className="posterCard__imageWrap">
+      <div
+        className="posterCard__imageWrap"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "#0b1220",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${cardImage || FALLBACK_POSTER})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(18px) brightness(0.7)",
+            transform: "scale(1.15)",
+            opacity: 0.55,
+          }}
+        />
+
         <img
-          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+          src={cardImage || FALLBACK_POSTER}
           alt={movie.title || "movie"}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+          }}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
@@ -461,7 +665,7 @@ function ContinueCard({ movie, onRemove }) {
 
   if (!movie?._id) return null;
 
-  const thumb = movie.backdrop || movie.poster || FALLBACK_POSTER;
+  const thumb = getBestThumb(movie);
   const rawPreviewUrl =
     movie.previewUrl || movie.trailer || movie.trailerUrl || "";
 
@@ -539,12 +743,41 @@ function ContinueCard({ movie, onRemove }) {
 
       <div className="continueItem__rank">▶</div>
 
-      <div className="continueItem__thumb">
+      <div
+        className="continueItem__thumb"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "#0b1220",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${thumb || FALLBACK_POSTER})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(16px) brightness(0.72)",
+            transform: "scale(1.18)",
+            opacity: 0.55,
+          }}
+        />
+
         <img
           className={canPlayPreview ? "is-hidden" : ""}
           src={thumb || FALLBACK_POSTER}
           alt=""
           draggable="false"
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+          }}
           onError={(e) => {
             if (e.currentTarget.src !== FALLBACK_POSTER) {
               e.currentTarget.src = FALLBACK_POSTER;
@@ -603,14 +836,45 @@ function ContinueCard({ movie, onRemove }) {
 function TopCard({ movie, index }) {
   if (!movie?._id) return null;
 
+  const thumb = getBestThumb(movie);
+
   return (
     <Link to={`/movie/${movie._id}`} className="topItem">
       <div className="topItem__rank">#{index + 1}</div>
 
-      <div className="topItem__thumb">
+      <div
+        className="topItem__thumb"
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          background: "#0b1220",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${thumb || FALLBACK_POSTER})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(14px) brightness(0.68)",
+            transform: "scale(1.2)",
+            opacity: 0.55,
+          }}
+        />
+
         <img
-          src={movie.poster || movie.backdrop || FALLBACK_POSTER}
+          src={thumb || FALLBACK_POSTER}
           alt={movie.title || "movie"}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+          }}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}

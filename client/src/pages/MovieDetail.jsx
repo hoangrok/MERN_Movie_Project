@@ -131,6 +131,7 @@ export default function MovieDetail() {
   const currentMovieRef = useRef(null);
   const streamUrlRef = useRef("");
   const isMountedRef = useRef(false);
+  const isSeekingRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -216,7 +217,7 @@ export default function MovieDetail() {
       const shouldHide =
         forcePlaying || (!!video && !video.paused && !video.ended);
 
-      if (!shouldHide) return;
+      if (!shouldHide || isSeekingRef.current || isBuffering) return;
 
       hideTimerRef.current = setTimeout(() => {
         const currentVideo = videoRef.current;
@@ -224,11 +225,12 @@ export default function MovieDetail() {
           currentVideo &&
           !currentVideo.paused &&
           !currentVideo.ended &&
+          !isSeekingRef.current &&
           !isBuffering
         ) {
           setShowControls(false);
         }
-      }, 2400);
+      }, 2200);
     },
     [clearHideTimer, isBuffering]
   );
@@ -303,7 +305,7 @@ export default function MovieDetail() {
       if (!video || !url) return false;
 
       const previousTime = preserveTime
-        ? lastKnownTimeRef.current || video.currentTime || currentTime || 0
+        ? lastKnownTimeRef.current || video.currentTime || 0
         : 0;
 
       const wasPlaying = autoplay || (!video.paused && !video.ended);
@@ -556,7 +558,7 @@ export default function MovieDetail() {
       video.load();
       return true;
     },
-    [clearHideTimer, currentTime, fetchSignedStream, id]
+    [clearHideTimer, fetchSignedStream, id]
   );
 
   const refreshSignedStream = useCallback(async () => {
@@ -728,8 +730,7 @@ export default function MovieDetail() {
   }, [movie]);
 
   useEffect(() => {
-    if (!streamUrl) return;
-    if (!videoRef.current) return;
+    if (!streamUrl || !videoRef.current) return;
 
     attachSourceToVideo(streamUrl, {
       preserveTime: true,
@@ -753,6 +754,7 @@ export default function MovieDetail() {
     };
 
     const syncCurrentTime = () => {
+      if (isSeekingRef.current) return;
       const nextTime = video.currentTime || 0;
       setCurrentTime(nextTime);
       lastKnownTimeRef.current = nextTime;
@@ -802,10 +804,7 @@ export default function MovieDetail() {
     };
 
     const onWaiting = () => {
-      const currentVideo = videoRef.current;
-      if (!currentVideo) return;
       setIsBuffering(true);
-      setIsPlaying(!currentVideo.paused && !currentVideo.ended);
       setShowControls(true);
       clearHideTimer();
     };
@@ -833,14 +832,18 @@ export default function MovieDetail() {
     };
 
     const onSeeking = () => {
-      syncCurrentTime();
+      isSeekingRef.current = true;
       setShowControls(true);
       clearHideTimer();
     };
 
     const onSeeked = () => {
-      syncCurrentTime();
+      isSeekingRef.current = false;
+      const nextTime = video.currentTime || 0;
+      setCurrentTime(nextTime);
+      lastKnownTimeRef.current = nextTime;
       syncBuffered();
+
       if (!video.paused) {
         kickAutoHide(true);
       }
@@ -990,9 +993,18 @@ export default function MovieDetail() {
     const nextDuration = duration || video.duration || 0;
     const value = Math.min(Math.max(0, Number(e.target.value)), nextDuration || 0);
 
-    video.currentTime = value;
+    isSeekingRef.current = true;
     setCurrentTime(value);
     lastKnownTimeRef.current = value;
+    video.currentTime = value;
+  };
+
+  const handleProgressCommit = () => {
+    isSeekingRef.current = false;
+    const video = videoRef.current;
+    if (video && !video.paused) {
+      kickAutoHide(true);
+    }
   };
 
   const getPreviewImageByTime = (timeInSeconds) => {
@@ -1456,7 +1468,7 @@ export default function MovieDetail() {
               onMouseLeave={() => {
                 hideProgressPreview();
                 const video = videoRef.current;
-                if (video && !video.paused && !isBuffering) {
+                if (video && !video.paused && !isBuffering && !isSeekingRef.current) {
                   setShowControls(false);
                 }
               }}
@@ -1558,11 +1570,23 @@ export default function MovieDetail() {
                       max={safeDuration || 0}
                       step="0.1"
                       value={safeCurrentTime}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onTouchStart={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        isSeekingRef.current = true;
+                        clearHideTimer();
+                        setShowControls(true);
+                      }}
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        isSeekingRef.current = true;
+                        clearHideTimer();
+                        setShowControls(true);
+                      }}
                       onClick={(e) => e.stopPropagation()}
                       onInput={handleProgressChange}
                       onChange={handleProgressChange}
+                      onMouseUp={handleProgressCommit}
+                      onTouchEnd={handleProgressCommit}
                     />
                   </div>
 

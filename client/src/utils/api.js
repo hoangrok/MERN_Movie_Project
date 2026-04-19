@@ -1,7 +1,13 @@
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://api.clipdam18.com/api";
+// Base API (Vite env)
+export const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  "https://api.clipdam18.com/api";
 
-async function apiFetch(path, options = {}) {
+// Alias để tương thích code cũ (movie-slice đang dùng)
+export const API_URL = API_BASE;
+
+// ===== Generic fetch helper =====
+export async function apiFetch(path, options = {}) {
   const isGet = !options.method || options.method.toUpperCase() === "GET";
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -10,12 +16,7 @@ async function apiFetch(path, options = {}) {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
-    next: isGet
-      ? {
-          revalidate: 60,
-        }
-      : undefined,
-    cache: isGet ? "force-cache" : "no-store",
+    cache: isGet ? "default" : "no-store",
   });
 
   if (!res.ok) {
@@ -30,6 +31,7 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
+// ===== API functions =====
 export async function getMovies(params = "") {
   return apiFetch(`/movies${params ? `?${params}` : ""}`);
 }
@@ -71,3 +73,6 @@ export async function incrementView(id) {
     cache: "no-store",
   });
 }
+
+// default export (optional)
+export default API_BASE;

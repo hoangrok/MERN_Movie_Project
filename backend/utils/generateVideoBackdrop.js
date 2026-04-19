@@ -62,20 +62,24 @@ function getVideoDuration(filePath) {
   });
 }
 
-function safeSeekPoints(duration) {
+function buildCandidateTimestamps(duration, count = 12) {
   if (duration <= 6) {
     return [
-      Math.max(0.3, duration * 0.2),
-      Math.max(0.6, duration * 0.5),
-      Math.max(0.9, duration * 0.8),
+      Math.max(0.4, duration * 0.18),
+      Math.max(0.8, duration * 0.42),
+      Math.max(1.2, duration * 0.68),
     ];
   }
 
-  return [
-    Math.min(Math.max(1, duration * 0.15), Math.max(1, duration - 2.5)),
-    Math.min(Math.max(2, duration * 0.45), Math.max(2, duration - 1.8)),
-    Math.min(Math.max(3, duration * 0.75), Math.max(3, duration - 1.2)),
-  ];
+  const start = Math.max(1, duration * 0.1);
+  const end = Math.max(start + 0.3, duration - Math.max(1.2, duration * 0.08));
+  const step = (end - start) / Math.max(1, count - 1);
+
+  const values = [];
+  for (let i = 0; i < count; i++) {
+    values.push(Number((start + step * i).toFixed(2)));
+  }
+  return Array.from(new Set(values));
 }
 
 function captureFrame(inputPath, outputPath, timeInSeconds) {
@@ -120,18 +124,201 @@ async function cleanupFiles(files = [], dirs = []) {
   }
 }
 
-async function buildFrameBuffer(filePath, width, height) {
+async function analyzeFrame(filePath) {
+  const { data, info } = await sharp(filePath)
+    .resize(96, 54, { fit: "fill" })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const totalPixels = info.width * info.height;
+  let brightnessSum = 0;
+  let brightnessSqSum = 0;
+  let edgeScore = 0;
+  let saturationSum = 0;
+
+  for (let i = 0; i < data.length; i += 3) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const sat = max === 0 ? 0 : (max - min) / max;
+    saturationSum += sat;
+
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    brightnessSum += y;
+    brightnessSqSum += y * y;
+  }
+
+  for (let y = 0; y < info.height - 1; y++) {
+    for (let x = 0; x < info.width - 1; x++) {
+      const idx = (y * info.width + x) * 3;
+      const idxRight = (y * info.width + (x + 1)) * 3;
+      const idxBottom = ((y + 1) * info.width + x) * 3;
+
+      const l1 = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      const l2 =
+        0.299 * data[idxRight] +
+        0.587 * data[idxRight + 1] +
+        0.114 * data[idxRight + 2];
+      const l3 =
+        0.299 * data[idxBottom] +
+        0.587 * data[idxBottom + 1] +
+        0.114 * data[idxBottom + 2];
+
+      edgeScore += Math.abs(l1 - l2) + Math.abs(l1 - l3);
+    }
+  }
+
+  const avgBrightness = brightnessSum / totalPixels;
+  const variance = brightnessSqSum / totalPixels - avgBrightness * avgBrightness;
+  const contrast = Math.sqrt(Math.max(0, variance));
+  const avgSaturation = saturationSum / totalPixels;
+  const normalizedEdge = edgeScore / totalPixels;
+
+  let score = 0;
+
+  if (avgBrightness >= 45 && avgBrightness <= 205) score += 25;
+  else if (avgBrightness >= 28 && avgBrightness <= 225) score += 12;
+  else score -= 18;
+
+  if (contrast >= 22) score += 25;
+  else if (contrast >= 14) score += 14;
+  else score -= 15;
+
+  if (avgSaturation >= 0.14) score += 18;
+  else if (avgSaturation >= 0.08) score += 8;
+  else score -= 8;
+
+  if (normalizedEdge >= 18) score += 24;
+  else if (normalizedEdge >= 12) score += 14;
+  else if (normalizedEdge >= 8) score += 6;
+  else score -= 12;
+
+  if (avgBrightness < 20 || avgBrightness > 235) score -= 25;
+  if (contrast < 8) score -= 20;
+
+  return {
+    score,
+    avgBrightness,
+    contrast,
+    avgSaturation,
+    edgeScore: normalizedEdge,
+  };
+}
+
+async function buildTileBuffer(filePath, width, height) {
   return sharp(filePath)
     .resize(width, height, {
       fit: "cover",
       position: "centre",
-      withoutEnlargement: true,
+      withoutEnlargement: false,
     })
-    .jpeg({ quality: 85 })
+    .jpeg({ quality: 84, mozjpeg: true })
     .toBuffer();
 }
 
-async function generateVideoBackdrop(videoPath, movieId = "movie") {
+async function createBackdropFromFrames(framePaths, outWidth = 1920, outHeight = 1080) {
+  const gap = 18;
+  const leftWidth = Math.round(outWidth * 0.34);
+  const centerWidth = Math.round(outWidth * 0.32);
+  const rightWidth = outWidth - leftWidth - centerWidth - gap * 2;
+
+  const tiles = await Promise.all([
+    buildTileBuffer(framePaths[0], leftWidth, outHeight),
+    buildTileBuffer(framePaths[1], centerWidth, outHeight),
+    buildTileBuffer(framePaths[2], rightWidth, outHeight),
+  ]);
+
+  const collage = await sharp({
+    create: {
+      width: outWidth,
+      height: outHeight,
+      channels: 3,
+      background: { r: 6, g: 8, b: 12 },
+    },
+  })
+    .composite([
+      { input: tiles[0], left: 0, top: 0 },
+      { input: tiles[1], left: leftWidth + gap, top: 0 },
+      { input: tiles[2], left: leftWidth + centerWidth + gap * 2, top: 0 },
+    ])
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+
+  const blurred = await sharp(collage)
+    .resize(Math.round(outWidth * 1.08), Math.round(outHeight * 1.08), {
+      fit: "cover",
+    })
+    .blur(18)
+    .modulate({ brightness: 0.86, saturation: 1.08 })
+    .toBuffer();
+
+  const finalBuffer = await sharp(blurred)
+    .resize(outWidth, outHeight, { fit: "cover" })
+    .composite([
+      {
+        input: await sharp(collage)
+          .modulate({ brightness: 1.02, saturation: 1.06 })
+          .toBuffer(),
+        left: 0,
+        top: 0,
+        blend: "over",
+      },
+      {
+        input: await sharp({
+          create: {
+            width: outWidth,
+            height: outHeight,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          },
+        })
+          .composite([
+            {
+              input: Buffer.from(
+                `<svg width="${outWidth}" height="${outHeight}">
+                  <defs>
+                    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="rgba(4,6,12,0.88)" />
+                      <stop offset="22%" stop-color="rgba(4,6,12,0.58)" />
+                      <stop offset="52%" stop-color="rgba(4,6,12,0.18)" />
+                      <stop offset="100%" stop-color="rgba(4,6,12,0.80)" />
+                    </linearGradient>
+                    <radialGradient id="g2" cx="78%" cy="14%" r="26%">
+                      <stop offset="0%" stop-color="rgba(255,70,90,0.16)" />
+                      <stop offset="100%" stop-color="rgba(255,70,90,0)" />
+                    </radialGradient>
+                    <radialGradient id="g3" cx="12%" cy="16%" r="20%">
+                      <stop offset="0%" stop-color="rgba(0,110,255,0.14)" />
+                      <stop offset="100%" stop-color="rgba(0,110,255,0)" />
+                    </radialGradient>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#g1)" />
+                  <rect width="100%" height="100%" fill="url(#g2)" />
+                  <rect width="100%" height="100%" fill="url(#g3)" />
+                </svg>`
+              ),
+              top: 0,
+              left: 0,
+            },
+          ])
+          .png()
+          .toBuffer(),
+        top: 0,
+        left: 0,
+        blend: "over",
+      },
+    ])
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+
+  return finalBuffer;
+}
+
+async function generateVideoBackdrop(videoPath, movieId = "movie", options = {}) {
   if (!videoPath) {
     throw new Error("Missing videoPath");
   }
@@ -143,64 +330,96 @@ async function generateVideoBackdrop(videoPath, movieId = "movie") {
 
   ensureDir(jobDir);
 
-  const frame1 = path.join(jobDir, "frame-1.jpg");
-  const frame2 = path.join(jobDir, "frame-2.jpg");
-  const frame3 = path.join(jobDir, "frame-3.jpg");
+  const tempFiles = [];
 
   try {
     const duration = await getVideoDuration(videoPath);
-    const [t1, t2, t3] = safeSeekPoints(duration);
+    const timestamps = buildCandidateTimestamps(duration, Number(options.candidateCount) || 12);
 
-    await captureFrame(videoPath, frame1, t1);
-    await captureFrame(videoPath, frame2, t2);
-    await captureFrame(videoPath, frame3, t3);
+    const candidates = [];
 
-    const targetHeight = 720;
-    const singleWidth = 1280;
-    const gap = 16;
+    for (let i = 0; i < timestamps.length; i++) {
+      const second = timestamps[i];
+      const framePath = path.join(jobDir, `frame-${i + 1}.jpg`);
+      tempFiles.push(framePath);
 
-    const [img1, img2, img3] = await Promise.all([
-      buildFrameBuffer(frame1, singleWidth, targetHeight),
-      buildFrameBuffer(frame2, singleWidth, targetHeight),
-      buildFrameBuffer(frame3, singleWidth, targetHeight),
-    ]);
+      try {
+        await captureFrame(videoPath, framePath, second);
 
-    const collageWidth = singleWidth * 3 + gap * 2;
-    const collageHeight = targetHeight;
+        if (!fs.existsSync(framePath)) continue;
 
-    const collageBuffer = await sharp({
-      create: {
-        width: collageWidth,
-        height: collageHeight,
-        channels: 3,
-        background: { r: 8, g: 8, b: 12 },
-      },
-    })
-      .composite([
-        { input: img1, left: 0, top: 0 },
-        { input: img2, left: singleWidth + gap, top: 0 },
-        { input: img3, left: singleWidth * 2 + gap * 2, top: 0 },
-      ])
-      .jpeg({ quality: 86 })
-      .toBuffer();
+        const stat = fs.statSync(framePath);
+        if (!stat.size || stat.size < 1200) continue;
 
-    const r2Key = `backdrops/${safeMovieId}/${Date.now()}-${randomId(6)}.jpg`;
-    const backdropUrl = await uploadBufferToR2(
-      collageBuffer,
-      r2Key,
-      "image/jpeg"
+        const metrics = await analyzeFrame(framePath);
+        candidates.push({
+          second,
+          path: framePath,
+          ...metrics,
+        });
+      } catch (err) {
+        console.warn(`capture frame failed at ${second}s:`, err.message);
+      }
+    }
+
+    if (candidates.length < 3) {
+      throw new Error("Not enough good frames to build backdrop");
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    const picked = [];
+    const sortedByTime = [...candidates].sort((a, b) => a.second - b.second);
+    const minGap = Math.max(3, duration / 6);
+
+    for (const frame of sortedByTime) {
+      if (picked.length >= 3) break;
+
+      const isFarEnough = picked.every(
+        (item) => Math.abs(item.second - frame.second) >= minGap
+      );
+
+      if (isFarEnough) picked.push(frame);
+    }
+
+    if (picked.length < 3) {
+      for (const frame of candidates) {
+        if (picked.length >= 3) break;
+        if (!picked.find((x) => x.path === frame.path)) {
+          picked.push(frame);
+        }
+      }
+    }
+
+    picked.sort((a, b) => a.second - b.second);
+
+    const finalBuffer = await createBackdropFromFrames(
+      picked.slice(0, 3).map((x) => x.path),
+      Number(options.width) || 1920,
+      Number(options.height) || 1080
     );
 
-    await cleanupFiles([frame1, frame2, frame3], [jobDir]);
+    const r2Key = `backdrops/${safeMovieId}/${Date.now()}-${randomId(6)}.jpg`;
+    const backdropUrl = await uploadBufferToR2(finalBuffer, r2Key, "image/jpeg");
+
+    await cleanupFiles(tempFiles, [jobDir]);
 
     return {
       backdropUrl,
       r2Key,
-      duration,
-      capturedAt: [t1, t2, t3],
+      duration: Number(duration.toFixed(2)),
+      capturedAt: picked.slice(0, 3).map((x) => x.second),
+      bestFrames: picked.slice(0, 3).map((x) => ({
+        second: x.second,
+        score: Number(x.score.toFixed(2)),
+        avgBrightness: Number(x.avgBrightness.toFixed(2)),
+        contrast: Number(x.contrast.toFixed(2)),
+        avgSaturation: Number(x.avgSaturation.toFixed(4)),
+        edgeScore: Number(x.edgeScore.toFixed(2)),
+      })),
     };
   } catch (error) {
-    await cleanupFiles([frame1, frame2, frame3], [jobDir]);
+    await cleanupFiles(tempFiles, [jobDir]);
     throw error;
   }
 }
