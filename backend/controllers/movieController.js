@@ -33,7 +33,6 @@ const LIST_PROJECTION = [
   "duration",
   "trailerUrl",
   "type",
-  "isPublished",
   "featured",
   "newPopular",
   "views",
@@ -57,7 +56,6 @@ const DETAIL_PROJECTION = [
   "hlsUrl",
   "trailerUrl",
   "type",
-  "isPublished",
   "featured",
   "newPopular",
   "views",
@@ -74,8 +72,15 @@ const DETAIL_PROJECTION = [
   "updatedAt",
 ].join(" ");
 
-const setApiCache = (res, value) => {
+const setPublicCache = (
+  res,
+  value = "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
+) => {
   res.set("Cache-Control", value);
+};
+
+const setNoStore = (res) => {
+  res.set("Cache-Control", "private, no-store");
 };
 
 // ==========================
@@ -83,7 +88,7 @@ const setApiCache = (res, value) => {
 // ==========================
 const getMovies = async (req, res) => {
   try {
-    setApiCache(
+    setPublicCache(
       res,
       "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
     );
@@ -150,10 +155,7 @@ const getMovies = async (req, res) => {
 // ==========================
 const getLatestMovies = async (req, res) => {
   try {
-    setApiCache(
-      res,
-      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
-    );
+    setPublicCache(res);
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -182,10 +184,7 @@ const getLatestMovies = async (req, res) => {
 // ==========================
 const getTopViewedMovies = async (req, res) => {
   try {
-    setApiCache(
-      res,
-      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
-    );
+    setPublicCache(res);
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -210,11 +209,11 @@ const getTopViewedMovies = async (req, res) => {
 };
 
 // ==========================
-// GET GENRES FROM DB
+// GET GENRES
 // ==========================
 const getGenres = async (req, res) => {
   try {
-    setApiCache(
+    setPublicCache(
       res,
       "public, max-age=300, s-maxage=600, stale-while-revalidate=1200"
     );
@@ -222,12 +221,12 @@ const getGenres = async (req, res) => {
     const movies = await Movie.find({ isPublished: true }).select("genre").lean();
     const genreSet = new Set();
 
-    movies.forEach((movie) => {
-      (movie.genre || []).forEach((g) => {
+    for (const movie of movies) {
+      for (const g of movie.genre || []) {
         const value = String(g || "").trim();
         if (value) genreSet.add(value);
-      });
-    });
+      }
+    }
 
     return res.json({
       success: true,
@@ -247,20 +246,19 @@ const getGenres = async (req, res) => {
 // ==========================
 const getMovieById = async (req, res) => {
   try {
-    setApiCache(
+    setPublicCache(
       res,
       "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
     );
 
     const { id } = req.params;
 
-    const conditions = [{ slug: id, isPublished: true }];
-
+    const orConditions = [{ slug: id, isPublished: true }];
     if (mongoose.Types.ObjectId.isValid(id)) {
-      conditions.push({ _id: id, isPublished: true });
+      orConditions.push({ _id: id, isPublished: true });
     }
 
-    const movie = await Movie.findOne({ $or: conditions })
+    const movie = await Movie.findOne({ $or: orConditions })
       .select(DETAIL_PROJECTION)
       .lean();
 
@@ -305,17 +303,11 @@ const createMovie = async (req, res) => {
     }
 
     if (typeof payload.genre === "string") {
-      payload.genre = payload.genre
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
+      payload.genre = payload.genre.split(",").map((x) => x.trim()).filter(Boolean);
     }
 
     if (typeof payload.cast === "string") {
-      payload.cast = payload.cast
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
+      payload.cast = payload.cast.split(",").map((x) => x.trim()).filter(Boolean);
     }
 
     if (typeof payload.subtitles === "string") {
@@ -384,7 +376,7 @@ const createMovie = async (req, res) => {
 };
 
 // ==========================
-// UPDATE MOVIE (ADMIN)
+// UPDATE MOVIE
 // ==========================
 const updateMovie = async (req, res) => {
   try {
@@ -412,17 +404,11 @@ const updateMovie = async (req, res) => {
     }
 
     if (typeof payload.genre === "string") {
-      payload.genre = payload.genre
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
+      payload.genre = payload.genre.split(",").map((x) => x.trim()).filter(Boolean);
     }
 
     if (typeof payload.cast === "string") {
-      payload.cast = payload.cast
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
+      payload.cast = payload.cast.split(",").map((x) => x.trim()).filter(Boolean);
     }
 
     if (typeof payload.subtitles === "string") {
@@ -462,7 +448,7 @@ const updateMovie = async (req, res) => {
 };
 
 // ==========================
-// DELETE MOVIE (ADMIN)
+// DELETE MOVIE
 // ==========================
 const deleteMovie = async (req, res) => {
   try {
@@ -504,7 +490,7 @@ const deleteMovie = async (req, res) => {
 // ==========================
 const getStreamUrl = async (req, res) => {
   try {
-    setApiCache(res, "private, no-store");
+    setNoStore(res);
 
     const { id } = req.params;
 
@@ -515,7 +501,7 @@ const getStreamUrl = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id).select("_id hlsUrl");
+    const movie = await Movie.findById(id).select("_id");
 
     if (!movie) {
       return res.status(404).json({
@@ -569,7 +555,7 @@ const getStreamUrl = async (req, res) => {
 // ==========================
 const getRelatedMovies = async (req, res) => {
   try {
-    setApiCache(
+    setPublicCache(
       res,
       "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
     );
@@ -600,7 +586,7 @@ const getRelatedMovies = async (req, res) => {
       ...(firstGenre ? { genre: firstGenre } : {}),
     })
       .select(LIST_PROJECTION)
-      .sort({ createdAt: -1 })
+      .sort({ views: -1, createdAt: -1 })
       .limit(12)
       .lean();
 
@@ -622,7 +608,7 @@ const getRelatedMovies = async (req, res) => {
 // ==========================
 const incrementView = async (req, res) => {
   try {
-    setApiCache(res, "no-store");
+    setNoStore(res);
 
     const { id } = req.params;
 
@@ -633,21 +619,22 @@ const incrementView = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id);
+    const updated = await Movie.findByIdAndUpdate(
+      id,
+      { $inc: { views: 1 } },
+      { new: true }
+    ).select("views");
 
-    if (!movie) {
+    if (!updated) {
       return res.status(404).json({
         success: false,
         message: "Movie not found",
       });
     }
 
-    movie.views = (movie.views || 0) + 1;
-    await movie.save();
-
     return res.json({
       success: true,
-      views: movie.views,
+      views: updated.views,
     });
   } catch (err) {
     console.error("incrementView error:", err);
@@ -663,7 +650,7 @@ const incrementView = async (req, res) => {
 // ==========================
 const getTrending = async (req, res) => {
   try {
-    setApiCache(
+    setPublicCache(
       res,
       "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
     );
