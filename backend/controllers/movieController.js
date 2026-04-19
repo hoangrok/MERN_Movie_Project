@@ -3,7 +3,7 @@ const fs = require("fs");
 const fsp = require("fs/promises");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
-const Movie = require("../models/MovieModel");
+const Movie = require("../models/Movie");
 const { makeStreamUrl } = require("../utils/streamToken");
 const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
 

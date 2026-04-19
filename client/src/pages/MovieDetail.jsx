@@ -130,7 +130,6 @@ export default function MovieDetail() {
   const streamRefreshTimeRef = useRef(0);
   const currentMovieRef = useRef(null);
   const streamUrlRef = useRef("");
-  const streamErrorHandledRef = useRef(false);
   const isMountedRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
@@ -142,6 +141,7 @@ export default function MovieDetail() {
 
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -199,6 +199,39 @@ export default function MovieDetail() {
       isMountedRef.current = false;
     };
   }, []);
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+  }, []);
+
+  const kickAutoHide = useCallback(
+    (forcePlaying = false) => {
+      clearHideTimer();
+      setShowControls(true);
+
+      const video = videoRef.current;
+      const shouldHide =
+        forcePlaying || (!!video && !video.paused && !video.ended);
+
+      if (!shouldHide) return;
+
+      hideTimerRef.current = setTimeout(() => {
+        const currentVideo = videoRef.current;
+        if (
+          currentVideo &&
+          !currentVideo.paused &&
+          !currentVideo.ended &&
+          !isBuffering
+        ) {
+          setShowControls(false);
+        }
+      }, 2400);
+    },
+    [clearHideTimer, isBuffering]
+  );
 
   const fetchSignedStream = useCallback(async () => {
     const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
@@ -275,7 +308,6 @@ export default function MovieDetail() {
 
       const wasPlaying = autoplay || (!video.paused && !video.ended);
 
-      streamErrorHandledRef.current = false;
       activeStreamUrlRef.current = url;
       streamUrlRef.current = url;
 
@@ -284,8 +316,10 @@ export default function MovieDetail() {
         hlsRef.current = null;
       }
 
+      clearHideTimer();
       video.pause();
       video.removeAttribute("src");
+
       try {
         video.load();
       } catch (e) {
@@ -293,6 +327,8 @@ export default function MovieDetail() {
       }
 
       setIsReady(false);
+      setIsBuffering(true);
+      setIsPlaying(false);
       setError("");
       setBufferedTime(0);
 
@@ -345,6 +381,16 @@ export default function MovieDetail() {
         }
       };
 
+      const markReady = async () => {
+        if (!isMountedRef.current) return;
+        setDuration(video.duration || 0);
+        setVolume(video.volume ?? 1);
+        setIsMuted(video.muted);
+        setIsReady(true);
+        setIsBuffering(false);
+        await restorePlaybackState();
+      };
+
       const isHls = /\.m3u8($|\?)/i.test(url);
 
       if (isHls) {
@@ -354,12 +400,7 @@ export default function MovieDetail() {
 
           const onLoadedMetadata = async () => {
             video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            if (!isMountedRef.current) return;
-            setDuration(video.duration || 0);
-            setVolume(video.volume ?? 1);
-            setIsMuted(video.muted);
-            setIsReady(true);
-            await restorePlaybackState();
+            await markReady();
           };
 
           video.addEventListener("loadedmetadata", onLoadedMetadata, {
@@ -393,12 +434,7 @@ export default function MovieDetail() {
           hls.attachMedia(video);
 
           hls.on(Hls.Events.MANIFEST_PARSED, async () => {
-            if (!isMountedRef.current) return;
-            setDuration(video.duration || 0);
-            setVolume(video.volume ?? 1);
-            setIsMuted(video.muted);
-            setIsReady(true);
-            await restorePlaybackState();
+            await markReady();
           });
 
           hls.on(Hls.Events.ERROR, async (_, data) => {
@@ -409,6 +445,7 @@ export default function MovieDetail() {
                 data?.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
                 data?.details === Hls.ErrorDetails.BUFFER_SEEK_OVER_HOLE
               ) {
+                setIsBuffering(true);
                 try {
                   if (video.paused && !video.ended) {
                     await video.play();
@@ -503,6 +540,7 @@ export default function MovieDetail() {
         }
 
         setError("Trình duyệt không hỗ trợ HLS.");
+        setIsBuffering(false);
         return false;
       }
 
@@ -511,19 +549,14 @@ export default function MovieDetail() {
 
       const onLoadedMetadata = async () => {
         video.removeEventListener("loadedmetadata", onLoadedMetadata);
-        if (!isMountedRef.current) return;
-        setDuration(video.duration || 0);
-        setVolume(video.volume ?? 1);
-        setIsMuted(video.muted);
-        setIsReady(true);
-        await restorePlaybackState();
+        await markReady();
       };
 
       video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
       video.load();
       return true;
     },
-    [currentTime, fetchSignedStream, id]
+    [clearHideTimer, currentTime, fetchSignedStream, id]
   );
 
   const refreshSignedStream = useCallback(async () => {
@@ -568,6 +601,8 @@ export default function MovieDetail() {
         activeStreamUrlRef.current = "";
         lastKnownTimeRef.current = 0;
         setIsReady(false);
+        setIsPlaying(false);
+        setIsBuffering(true);
         setCurrentTime(0);
         setDuration(0);
         setBufferedTime(0);
@@ -638,11 +673,13 @@ export default function MovieDetail() {
             setStreamUrl(movieData.movie.hlsUrl);
           } else {
             setError("Không lấy được stream");
+            setIsBuffering(false);
           }
         }
       } catch (err) {
         console.error("MovieDetail loadData error:", err);
         setError("Lỗi tải dữ liệu movie");
+        setIsBuffering(false);
       } finally {
         setPageLoading(false);
       }
@@ -694,10 +731,6 @@ export default function MovieDetail() {
     if (!streamUrl) return;
     if (!videoRef.current) return;
 
-    if (activeStreamUrlRef.current === streamUrl && hlsRef.current) {
-      return;
-    }
-
     attachSourceToVideo(streamUrl, {
       preserveTime: true,
       autoplay: false,
@@ -719,57 +752,74 @@ export default function MovieDetail() {
       );
     };
 
-    const onLoadedMetadata = () => {
-      setDuration(video.duration || 0);
-      setVolume(video.volume ?? 1);
-      setIsMuted(video.muted);
-      setIsReady(true);
-    };
-
-    const onCanPlay = () => {
-      setDuration(video.duration || 0);
-      setVolume(video.volume ?? 1);
-      setIsMuted(video.muted);
-      setIsReady(true);
-    };
-
-    const onCanPlayThrough = () => {
-      setDuration(video.duration || 0);
-      setVolume(video.volume ?? 1);
-      setIsMuted(video.muted);
-      setIsReady(true);
-    };
-
-    const onWaiting = () => {
-       const video = videoRef.current;
-        if (!video) return;
-     setIsReady(false);
-     setIsPlaying(!video.paused && !video.ended);
-    };
-
-    const onPlaying = () => {
-  setIsReady(true);
-  setIsPlaying(true);
-  setShowControls(false);
-
-  if (hideTimerRef.current) {
-    clearTimeout(hideTimerRef.current);
-  }
-};
-
-    const onTimeUpdate = () => {
+    const syncCurrentTime = () => {
       const nextTime = video.currentTime || 0;
       setCurrentTime(nextTime);
       lastKnownTimeRef.current = nextTime;
+    };
 
+    const syncBuffered = () => {
       try {
         if (video.buffered && video.buffered.length > 0) {
           const lastBuffered = video.buffered.end(video.buffered.length - 1);
           setBufferedTime(lastBuffered);
+        } else {
+          setBufferedTime(0);
         }
       } catch {
         setBufferedTime(0);
       }
+    };
+
+    const markReady = () => {
+      setDuration(video.duration || 0);
+      setVolume(video.volume ?? 1);
+      setIsMuted(video.muted);
+      setIsReady(true);
+      setIsBuffering(false);
+    };
+
+    const onLoadedMetadata = () => {
+      markReady();
+      syncCurrentTime();
+      syncBuffered();
+    };
+
+    const onLoadedData = () => {
+      markReady();
+      syncCurrentTime();
+      syncBuffered();
+    };
+
+    const onCanPlay = () => {
+      markReady();
+      syncBuffered();
+    };
+
+    const onCanPlayThrough = () => {
+      markReady();
+      syncBuffered();
+    };
+
+    const onWaiting = () => {
+      const currentVideo = videoRef.current;
+      if (!currentVideo) return;
+      setIsBuffering(true);
+      setIsPlaying(!currentVideo.paused && !currentVideo.ended);
+      setShowControls(true);
+      clearHideTimer();
+    };
+
+    const onPlaying = () => {
+      setIsReady(true);
+      setIsBuffering(false);
+      setIsPlaying(true);
+      kickAutoHide(true);
+    };
+
+    const onTimeUpdate = () => {
+      syncCurrentTime();
+      syncBuffered();
 
       const now = Date.now();
       if (now - lastContinueSaveRef.current < 5000) return;
@@ -778,18 +828,39 @@ export default function MovieDetail() {
       saveCurrentProgress();
     };
 
+    const onProgress = () => {
+      syncBuffered();
+    };
+
+    const onSeeking = () => {
+      syncCurrentTime();
+      setShowControls(true);
+      clearHideTimer();
+    };
+
+    const onSeeked = () => {
+      syncCurrentTime();
+      syncBuffered();
+      if (!video.paused) {
+        kickAutoHide(true);
+      }
+    };
+
     const onDurationChange = () => {
       setDuration(video.duration || 0);
     };
 
     const onPlay = () => {
       setIsPlaying(true);
+      setIsBuffering(false);
       kickAutoHide(true);
     };
 
     const onPause = () => {
       setIsPlaying(false);
+      setIsBuffering(false);
       setShowControls(true);
+      clearHideTimer();
       saveCurrentProgress();
     };
 
@@ -801,7 +872,9 @@ export default function MovieDetail() {
     const onEnded = () => {
       removeContinueWatching(id);
       setIsPlaying(false);
+      setIsBuffering(false);
       setShowControls(true);
+      clearHideTimer();
     };
 
     const onError = async () => {
@@ -810,6 +883,7 @@ export default function MovieDetail() {
       const currentUrl = streamUrlRef.current;
       if (!/m3u8($|\?)/i.test(currentUrl)) {
         setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+        setIsBuffering(false);
         return;
       }
 
@@ -820,15 +894,20 @@ export default function MovieDetail() {
 
       if (!refreshed) {
         setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+        setIsBuffering(false);
       }
     };
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
+    video.addEventListener("loadeddata", onLoadedData);
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("canplaythrough", onCanPlayThrough);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("playing", onPlaying);
     video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("progress", onProgress);
+    video.addEventListener("seeking", onSeeking);
+    video.addEventListener("seeked", onSeeked);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -844,11 +923,15 @@ export default function MovieDetail() {
       }
 
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
+      video.removeEventListener("loadeddata", onLoadedData);
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("canplaythrough", onCanPlayThrough);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("progress", onProgress);
+      video.removeEventListener("seeking", onSeeking);
+      video.removeEventListener("seeked", onSeeked);
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -856,7 +939,7 @@ export default function MovieDetail() {
       video.removeEventListener("ended", onEnded);
       video.removeEventListener("error", onError);
     };
-  }, [id, refreshSignedStream]);
+  }, [clearHideTimer, id, kickAutoHide, refreshSignedStream]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -871,7 +954,7 @@ export default function MovieDetail() {
 
   useEffect(() => {
     return () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      clearHideTimer();
       if (skipTimerRef.current) clearTimeout(skipTimerRef.current);
       if (previewHideTimerRef.current) clearTimeout(previewHideTimerRef.current);
       if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
@@ -881,30 +964,13 @@ export default function MovieDetail() {
         hlsRef.current = null;
       }
     };
-  }, []);
-
-  const kickAutoHide = (forcePlaying = false) => {
-    setShowControls(true);
-
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-    }
-
-    if (forcePlaying || isPlaying) {
-      hideTimerRef.current = setTimeout(() => {
-        const video = videoRef.current;
-        if (video && !video.paused) {
-          setShowControls(false);
-        }
-      }, 2000);
-    }
-  };
+  }, [clearHideTimer]);
 
   const togglePlay = async () => {
     const video = videoRef.current;
-    if (!video || !isReady) return;
+    if (!video) return;
 
-    if (video.paused) {
+    if (video.paused || video.ended) {
       try {
         await video.play();
       } catch (err) {
@@ -921,7 +987,9 @@ export default function MovieDetail() {
     const video = videoRef.current;
     if (!video) return;
 
-    const value = Number(e.target.value);
+    const nextDuration = duration || video.duration || 0;
+    const value = Math.min(Math.max(0, Number(e.target.value)), nextDuration || 0);
+
     video.currentTime = value;
     setCurrentTime(value);
     lastKnownTimeRef.current = value;
@@ -981,10 +1049,8 @@ export default function MovieDetail() {
     }
 
     previewRafRef.current = requestAnimationFrame(() => {
-      if (nextPreview !== previewImage) {
-        setPreviewLoaded(false);
-        setPreviewImage(nextPreview);
-      }
+      setPreviewLoaded(false);
+      setPreviewImage(nextPreview);
     });
   };
 
@@ -1034,8 +1100,6 @@ export default function MovieDetail() {
   };
 
   const handleDoubleClickVideo = (e) => {
-    if (!isReady) return;
-
     const rect = e.currentTarget.getBoundingClientRect();
     const isLeft = e.clientX < rect.left + rect.width / 2;
 
@@ -1046,6 +1110,11 @@ export default function MovieDetail() {
       skip(10);
       showSkipFeedback(10);
     }
+  };
+
+  const handleOverlayClick = async (e) => {
+    if (e.target !== e.currentTarget) return;
+    await togglePlay();
   };
 
   const toggleMute = () => {
@@ -1274,7 +1343,6 @@ export default function MovieDetail() {
     const onKey = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea") return;
-      if (!isReady) return;
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -1306,11 +1374,13 @@ export default function MovieDetail() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [duration, isReady, isPlaying]);
+  }, [duration]);
 
-  const progressPercent = duration ? (currentTime / duration) * 100 : 0;
-  const bufferedPercent = duration
-    ? Math.min((bufferedTime / duration) * 100, 100)
+  const safeDuration = Number.isFinite(duration) ? duration : 0;
+  const safeCurrentTime = Math.min(currentTime || 0, safeDuration || 0);
+  const progressPercent = safeDuration ? (safeCurrentTime / safeDuration) * 100 : 0;
+  const bufferedPercent = safeDuration
+    ? Math.min((bufferedTime / safeDuration) * 100, 100)
     : 0;
 
   if (error && !movie) {
@@ -1382,10 +1452,13 @@ export default function MovieDetail() {
               ref={playerRef}
               className="nf-player"
               onMouseMove={() => kickAutoHide()}
-              onMouseEnter={() => setShowControls(true)}
+              onMouseEnter={() => kickAutoHide()}
               onMouseLeave={() => {
-                if (isPlaying) setShowControls(false);
                 hideProgressPreview();
+                const video = videoRef.current;
+                if (video && !video.paused && !isBuffering) {
+                  setShowControls(false);
+                }
               }}
             >
               <video
@@ -1394,8 +1467,6 @@ export default function MovieDetail() {
                 playsInline
                 preload="metadata"
                 poster={backdropSrc || posterImage || FALLBACK_BACKDROP}
-                onClick={togglePlay}
-                onDoubleClick={handleDoubleClickVideo}
               />
 
               {skipIndicator && (
@@ -1404,32 +1475,31 @@ export default function MovieDetail() {
                 </div>
               )}
 
-              {!isReady && (
+              {(isBuffering || !isReady) && (
                 <div className="nf-loader">
                   <div className="nf-loader__spinner" />
-                  <span>Đang tải video...</span>
+                  <span>{isReady ? "Đang buffer..." : "Đang tải video..."}</span>
                 </div>
               )}
 
               <div
                 className={`nf-overlay ${showControls ? "show" : ""}`}
-                onClick={() => {
-                  if (isReady) togglePlay();
-                }}
+                onClick={handleOverlayClick}
+                onDoubleClick={handleDoubleClickVideo}
               >
-                {isReady && !isPlaying && videoRef.current?.paused && (
-  <div className="nf-center">
-    <button
-      className="nf-bigplay"
-      onClick={(e) => {
-        e.stopPropagation();
-        togglePlay();
-      }}
-    >
-      ▶
-    </button>
-  </div>
-)}
+                {isReady && !isPlaying && !isBuffering && (
+                  <div className="nf-center">
+                    <button
+                      className="nf-bigplay"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePlay();
+                      }}
+                    >
+                      ▶
+                    </button>
+                  </div>
+                )}
 
                 <div className="nf-bottombar">
                   <div
@@ -1441,6 +1511,7 @@ export default function MovieDetail() {
                     onTouchStart={handleProgressPreview}
                     onTouchMove={handleProgressPreview}
                     onTouchEnd={hideProgressPreview}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {previewVisible && !!previewImage && (
                       <div
@@ -1484,15 +1555,18 @@ export default function MovieDetail() {
                       className="nf-progress"
                       type="range"
                       min="0"
-                      max={duration || 0}
+                      max={safeDuration || 0}
                       step="0.1"
-                      value={currentTime}
+                      value={safeCurrentTime}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
+                      onInput={handleProgressChange}
                       onChange={handleProgressChange}
                     />
                   </div>
 
-                  <div className="nf-controls">
+                  <div className="nf-controls" onClick={(e) => e.stopPropagation()}>
                     <div className="nf-controls__left">
                       <button
                         onClick={(e) => {
@@ -1539,12 +1613,15 @@ export default function MovieDetail() {
                         max="1"
                         step="0.01"
                         value={isMuted ? 0 : volume}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
+                        onInput={handleVolumeChange}
                         onChange={handleVolumeChange}
                       />
 
                       <span className="nf-time">
-                        {formatTime(currentTime)} / {formatTime(duration)}
+                        {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
                       </span>
                     </div>
 
