@@ -1,11 +1,13 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-console.log("BOOT VERSION: background-video-queue-v1");
+console.log("BOOT VERSION: background-video-queue-v2");
 
 const express = require("express");
 const mongoose = require("mongoose");
 const fileUpload = require("express-fileupload");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 const movieRoutes = require("./routes/movieRoutes");
@@ -15,6 +17,7 @@ const debugRoutes = require("./routes/DebugRoutes");
 const app = express();
 
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -26,6 +29,15 @@ const allowedOrigins = [
   "https://api.clipdam18.com",
 ].filter(Boolean);
 
+// Security headers
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+// CORS
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
@@ -45,6 +57,33 @@ app.use((req, res, next) => {
   next();
 });
 
+// Rate limit
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many requests, please try again later.",
+  },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many auth requests, please try again later.",
+  },
+});
+
+app.use("/api", apiLimiter);
+app.use("/api/users/login", authLimiter);
+app.use("/api/users/register", authLimiter);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
@@ -63,11 +102,13 @@ app.use(
   })
 );
 
+// Request log
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
+// Routes
 app.use("/api/movies", movieRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
@@ -76,6 +117,7 @@ app.use("/api/debug", debugRoutes);
 app.get("/", (req, res) => res.send("API is running"));
 
 app.get("/health", (req, res) => {
+  res.set("Cache-Control", "no-store");
   res.json({
     success: true,
     message: "OK",
@@ -84,6 +126,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Global error handler
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
 

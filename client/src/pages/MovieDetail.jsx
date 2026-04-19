@@ -128,6 +128,10 @@ export default function MovieDetail() {
   const refreshingStreamRef = useRef(false);
   const activeStreamUrlRef = useRef("");
   const streamRefreshTimeRef = useRef(0);
+  const currentMovieRef = useRef(null);
+  const streamUrlRef = useRef("");
+  const streamErrorHandledRef = useRef(false);
+  const isMountedRef = useRef(false);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -181,6 +185,21 @@ export default function MovieDetail() {
     isPublished: true,
   });
 
+  useEffect(() => {
+    currentMovieRef.current = movie;
+  }, [movie]);
+
+  useEffect(() => {
+    streamUrlRef.current = streamUrl;
+  }, [streamUrl]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const fetchSignedStream = useCallback(async () => {
     const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
       headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {},
@@ -195,32 +214,21 @@ export default function MovieDetail() {
     throw new Error(streamData?.message || "Không lấy được stream");
   }, [id, user?.token]);
 
-  const refreshSignedStream = useCallback(async () => {
-    if (refreshingStreamRef.current) return null;
+  const preloadPreviewTimeline = (items = []) => {
+    items.slice(0, 16).forEach((item) => {
+      const url = normalizeImage(item?.url, "");
+      if (!url || previewCacheRef.current.has(url)) return;
 
-    const now = Date.now();
-    if (now - streamRefreshTimeRef.current < 3000) {
-      return activeStreamUrlRef.current || null;
-    }
-
-    try {
-      refreshingStreamRef.current = true;
-      streamRefreshTimeRef.current = now;
-
-      const newUrl = await fetchSignedStream();
-      if (newUrl) {
-        activeStreamUrlRef.current = newUrl;
-        setStreamUrl((prev) => (prev === newUrl ? prev : newUrl));
-      }
-      return newUrl;
-    } catch (err) {
-      console.error("refreshSignedStream error:", err);
-      setError("Link phát đã hết hạn hoặc không thể làm mới stream.");
-      return null;
-    } finally {
-      refreshingStreamRef.current = false;
-    }
-  }, [fetchSignedStream]);
+      const img = new Image();
+      img.onload = () => {
+        previewCacheRef.current.set(url, true);
+      };
+      img.onerror = () => {
+        previewCacheRef.current.set(url, false);
+      };
+      img.src = url;
+    });
+  };
 
   const previewItems = useMemo(() => {
     const raw = Array.isArray(movie?.previewTimeline?.items)
@@ -256,6 +264,298 @@ export default function MovieDetail() {
     setBackdropSrc(backdropImage || FALLBACK_BACKDROP);
   }, [backdropImage]);
 
+  const attachSourceToVideo = useCallback(
+    async (url, { preserveTime = true, autoplay = false } = {}) => {
+      const video = videoRef.current;
+      if (!video || !url) return false;
+
+      const previousTime = preserveTime
+        ? lastKnownTimeRef.current || video.currentTime || currentTime || 0
+        : 0;
+
+      const wasPlaying = autoplay || (!video.paused && !video.ended);
+
+      streamErrorHandledRef.current = false;
+      activeStreamUrlRef.current = url;
+      streamUrlRef.current = url;
+
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+
+      video.pause();
+      video.removeAttribute("src");
+      try {
+        video.load();
+      } catch (e) {
+        console.error("video reset load error:", e);
+      }
+
+      setIsReady(false);
+      setError("");
+      setBufferedTime(0);
+
+      const restorePlaybackState = async () => {
+        if (!videoRef.current) return;
+
+        if (
+          previousTime > 0 &&
+          Number.isFinite(video.duration) &&
+          previousTime < video.duration - 3
+        ) {
+          try {
+            video.currentTime = previousTime;
+            setCurrentTime(previousTime);
+            lastKnownTimeRef.current = previousTime;
+          } catch (e) {
+            console.error("restore currentTime error:", e);
+          }
+        } else {
+          const list = getContinueWatching();
+          const currentMovie = list.find(
+            (item) => String(item._id) === String(id)
+          );
+
+          if (
+            currentMovie &&
+            Number.isFinite(currentMovie.currentTime) &&
+            currentMovie.currentTime > 0 &&
+            Number.isFinite(video.duration) &&
+            currentMovie.currentTime < video.duration - 5
+          ) {
+            try {
+              video.currentTime = currentMovie.currentTime;
+              setCurrentTime(currentMovie.currentTime);
+              lastKnownTimeRef.current = currentMovie.currentTime;
+            } catch (e) {
+              console.error("restore continue watching error:", e);
+            }
+          }
+        }
+
+        if (wasPlaying) {
+          try {
+            await video.play();
+          } catch (err) {
+            if (err?.name !== "AbortError") {
+              console.error("autoplay after attach error:", err);
+            }
+          }
+        }
+      };
+
+      const isHls = /\.m3u8($|\?)/i.test(url);
+
+      if (isHls) {
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = url;
+          video.preload = "auto";
+
+          const onLoadedMetadata = async () => {
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            if (!isMountedRef.current) return;
+            setDuration(video.duration || 0);
+            setVolume(video.volume ?? 1);
+            setIsMuted(video.muted);
+            setIsReady(true);
+            await restorePlaybackState();
+          };
+
+          video.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
+          video.load();
+          return true;
+        }
+
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 90,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            maxBufferSize: 30 * 1000 * 1000,
+            maxBufferHole: 1,
+            highBufferWatchdogPeriod: 2,
+            nudgeOffset: 0.1,
+            nudgeMaxRetry: 8,
+            fragLoadingRetryDelay: 1000,
+            manifestLoadingRetryDelay: 1000,
+            levelLoadingRetryDelay: 1000,
+            capLevelToPlayerSize: true,
+            abrEwmaDefaultEstimate: 5000000,
+          });
+
+          hlsRef.current = hls;
+          hls.loadSource(url);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+            if (!isMountedRef.current) return;
+            setDuration(video.duration || 0);
+            setVolume(video.volume ?? 1);
+            setIsMuted(video.muted);
+            setIsReady(true);
+            await restorePlaybackState();
+          });
+
+          hls.on(Hls.Events.ERROR, async (_, data) => {
+            console.error("HLS error:", data);
+
+            if (!data?.fatal) {
+              if (
+                data?.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
+                data?.details === Hls.ErrorDetails.BUFFER_SEEK_OVER_HOLE
+              ) {
+                try {
+                  if (video.paused && !video.ended) {
+                    await video.play();
+                  }
+                } catch (e) {
+                  console.error("resume after non-fatal stall error:", e);
+                }
+              }
+              return;
+            }
+
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              try {
+                hls.recoverMediaError();
+                setTimeout(async () => {
+                  try {
+                    if (
+                      videoRef.current &&
+                      videoRef.current.paused &&
+                      !videoRef.current.ended
+                    ) {
+                      await videoRef.current.play();
+                    }
+                  } catch (e) {
+                    console.error("resume after media recover error:", e);
+                  }
+                }, 120);
+                return;
+              } catch (e) {
+                console.error("recoverMediaError error:", e);
+              }
+            }
+
+            if (
+              data.type === Hls.ErrorTypes.NETWORK_ERROR ||
+              data?.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
+              data?.details === Hls.ErrorDetails.FRAG_LOAD_ERROR ||
+              data?.details === Hls.ErrorDetails.FRAG_LOAD_TIMEOUT
+            ) {
+              const current = video.currentTime || lastKnownTimeRef.current || 0;
+              lastKnownTimeRef.current = current;
+
+              try {
+                if (refreshingStreamRef.current) return;
+
+                const now = Date.now();
+                if (now - streamRefreshTimeRef.current < 3000) return;
+
+                refreshingStreamRef.current = true;
+                streamRefreshTimeRef.current = now;
+
+                const newUrl = await fetchSignedStream();
+
+                if (!newUrl) {
+                  setError("Không phát được stream HLS.");
+                  return;
+                }
+
+                if (newUrl !== activeStreamUrlRef.current) {
+                  setStreamUrl(newUrl);
+                  return;
+                }
+
+                try {
+                  hls.startLoad(-1);
+                  if (video.paused && !video.ended) {
+                    await video.play();
+                  }
+                } catch (e) {
+                  console.error("restart load error:", e);
+                }
+              } catch (err) {
+                console.error("refresh stream from HLS error:", err);
+                setError("Không phát được stream HLS.");
+              } finally {
+                refreshingStreamRef.current = false;
+              }
+
+              return;
+            }
+
+            try {
+              hls.destroy();
+            } catch (e) {
+              console.error("destroy hls error:", e);
+            }
+
+            setError("Không phát được stream HLS.");
+          });
+
+          return true;
+        }
+
+        setError("Trình duyệt không hỗ trợ HLS.");
+        return false;
+      }
+
+      video.src = url;
+      video.preload = "auto";
+
+      const onLoadedMetadata = async () => {
+        video.removeEventListener("loadedmetadata", onLoadedMetadata);
+        if (!isMountedRef.current) return;
+        setDuration(video.duration || 0);
+        setVolume(video.volume ?? 1);
+        setIsMuted(video.muted);
+        setIsReady(true);
+        await restorePlaybackState();
+      };
+
+      video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
+      video.load();
+      return true;
+    },
+    [currentTime, fetchSignedStream, id]
+  );
+
+  const refreshSignedStream = useCallback(async () => {
+    if (refreshingStreamRef.current) return null;
+
+    const now = Date.now();
+    if (now - streamRefreshTimeRef.current < 3000) {
+      return activeStreamUrlRef.current || null;
+    }
+
+    try {
+      refreshingStreamRef.current = true;
+      streamRefreshTimeRef.current = now;
+
+      const newUrl = await fetchSignedStream();
+      if (newUrl) {
+        if (newUrl !== activeStreamUrlRef.current) {
+          setStreamUrl(newUrl);
+        }
+        return newUrl;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("refreshSignedStream error:", err);
+      setError("Link phát đã hết hạn hoặc không thể làm mới stream.");
+      return null;
+    } finally {
+      refreshingStreamRef.current = false;
+    }
+  }, [fetchSignedStream]);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -266,7 +566,27 @@ export default function MovieDetail() {
         setRecommend([]);
         setStreamUrl("");
         activeStreamUrlRef.current = "";
+        lastKnownTimeRef.current = 0;
         setIsReady(false);
+        setCurrentTime(0);
+        setDuration(0);
+        setBufferedTime(0);
+
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
+          hlsRef.current = null;
+        }
+
+        const video = videoRef.current;
+        if (video) {
+          video.pause();
+          video.removeAttribute("src");
+          try {
+            video.load();
+          } catch (e) {
+            console.error("video clear load error:", e);
+          }
+        }
 
         const movieRes = await fetch(`${API_URL}/movies/${id}`);
         const movieData = await movieRes.json();
@@ -344,22 +664,6 @@ export default function MovieDetail() {
     setSaved(exists);
   }, [movie, user]);
 
-  const preloadPreviewTimeline = (items = []) => {
-    items.slice(0, 16).forEach((item) => {
-      const url = normalizeImage(item?.url, "");
-      if (!url || previewCacheRef.current.has(url)) return;
-
-      const img = new Image();
-      img.onload = () => {
-        previewCacheRef.current.set(url, true);
-      };
-      img.onerror = () => {
-        previewCacheRef.current.set(url, false);
-      };
-      img.src = url;
-    });
-  };
-
   useEffect(() => {
     if (!movie) return;
 
@@ -388,89 +692,75 @@ export default function MovieDetail() {
 
   useEffect(() => {
     if (!streamUrl) return;
+    if (!videoRef.current) return;
 
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (activeStreamUrlRef.current === streamUrl && hlsRef.current && !video.paused) {
+    if (activeStreamUrlRef.current === streamUrl && hlsRef.current) {
       return;
     }
 
-    activeStreamUrlRef.current = streamUrl;
+    attachSourceToVideo(streamUrl, {
+      preserveTime: true,
+      autoplay: false,
+    });
+  }, [streamUrl, attachSourceToVideo]);
 
-    let cancelled = false;
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
 
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    const saveCurrentProgress = () => {
+      const currentMovie = currentMovieRef.current;
+      if (!currentMovie?._id) return;
 
-    setIsReady(false);
+      saveContinueWatching(
+        currentMovie,
+        video.currentTime || 0,
+        video.duration || currentMovie.duration || 0
+      );
+    };
 
-    const preserveTime = lastKnownTimeRef.current || currentTime || 0;
-
-    const markReady = () => {
-      if (cancelled) return;
+    const onLoadedMetadata = () => {
       setDuration(video.duration || 0);
       setVolume(video.volume ?? 1);
       setIsMuted(video.muted);
       setIsReady(true);
     };
 
-    const tryRestoreTime = () => {
-      if (
-        preserveTime > 0 &&
-        Number.isFinite(video.duration) &&
-        preserveTime < video.duration - 3
-      ) {
-        video.currentTime = preserveTime;
-        setCurrentTime(preserveTime);
-        return;
-      }
-
-      const list = getContinueWatching();
-      const currentMovie = list.find((item) => String(item._id) === String(id));
-
-      if (
-        currentMovie &&
-        Number.isFinite(currentMovie.currentTime) &&
-        currentMovie.currentTime > 0 &&
-        Number.isFinite(video.duration) &&
-        currentMovie.currentTime < video.duration - 5
-      ) {
-        video.currentTime = currentMovie.currentTime;
-        setCurrentTime(currentMovie.currentTime);
-      }
-    };
-
-    const saveCurrentProgress = () => {
-      if (!movie?._id) return;
-
-      saveContinueWatching(
-        movie,
-        video.currentTime || 0,
-        video.duration || movie.duration || 0
-      );
-    };
-
-    const onLoadedMetadata = () => {
-      markReady();
-      tryRestoreTime();
-    };
-
     const onCanPlay = () => {
-      markReady();
+      setDuration(video.duration || 0);
+      setVolume(video.volume ?? 1);
+      setIsMuted(video.muted);
+      setIsReady(true);
     };
 
     const onCanPlayThrough = () => {
-      markReady();
+      setDuration(video.duration || 0);
+      setVolume(video.volume ?? 1);
+      setIsMuted(video.muted);
+      setIsReady(true);
     };
 
-    const onTimeUpdate = () => {
-      if (cancelled) return;
+    const onWaiting = () => {
+       const video = videoRef.current;
+        if (!video) return;
+     setIsReady(false);
+     setIsPlaying(!video.paused && !video.ended);
+    };
 
-      setCurrentTime(video.currentTime || 0);
-      lastKnownTimeRef.current = video.currentTime || 0;
+    const onPlaying = () => {
+  setIsReady(true);
+  setIsPlaying(true);
+  setShowControls(false);
+
+  if (hideTimerRef.current) {
+    clearTimeout(hideTimerRef.current);
+  }
+};
+
+    const onTimeUpdate = () => {
+      const nextTime = video.currentTime || 0;
+      setCurrentTime(nextTime);
+      lastKnownTimeRef.current = nextTime;
 
       try {
         if (video.buffered && video.buffered.length > 0) {
@@ -489,31 +779,26 @@ export default function MovieDetail() {
     };
 
     const onDurationChange = () => {
-      if (cancelled) return;
       setDuration(video.duration || 0);
     };
 
     const onPlay = () => {
-      if (cancelled) return;
       setIsPlaying(true);
       kickAutoHide(true);
     };
 
     const onPause = () => {
-      if (cancelled) return;
       setIsPlaying(false);
       setShowControls(true);
       saveCurrentProgress();
     };
 
     const onVolumeChange = () => {
-      if (cancelled) return;
       setVolume(video.volume);
       setIsMuted(video.muted || video.volume === 0);
     };
 
     const onEnded = () => {
-      if (cancelled) return;
       removeContinueWatching(id);
       setIsPlaying(false);
       setShowControls(true);
@@ -522,27 +807,27 @@ export default function MovieDetail() {
     const onError = async () => {
       console.error("video element error:", video.error);
 
-      if (cancelled) return;
-
-      if (/m3u8($|\?)/i.test(streamUrl)) {
-        const current = video.currentTime || lastKnownTimeRef.current || 0;
-        const refreshed = await refreshSignedStream();
-
-        if (!refreshed) {
-          setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
-          return;
-        }
-
-        lastKnownTimeRef.current = current;
+      const currentUrl = streamUrlRef.current;
+      if (!/m3u8($|\?)/i.test(currentUrl)) {
+        setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
         return;
       }
 
-      setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+      const current = video.currentTime || lastKnownTimeRef.current || 0;
+      lastKnownTimeRef.current = current;
+
+      const refreshed = await refreshSignedStream();
+
+      if (!refreshed) {
+        setError("Không phát được video. Kiểm tra link stream hoặc quyền truy cập.");
+      }
     };
 
     video.addEventListener("loadedmetadata", onLoadedMetadata);
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("canplaythrough", onCanPlayThrough);
+    video.addEventListener("waiting", onWaiting);
+    video.addEventListener("playing", onPlaying);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("play", onPlay);
@@ -551,89 +836,7 @@ export default function MovieDetail() {
     video.addEventListener("ended", onEnded);
     video.addEventListener("error", onError);
 
-    const isHls = /\.m3u8($|\?)/i.test(streamUrl);
-
-    if (isHls) {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = streamUrl;
-        video.preload = "auto";
-        video.load();
-      } else if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: false,
-          backBufferLength: 120,
-          maxBufferLength: 60,
-          maxMaxBufferLength: 120,
-          maxBufferSize: 60 * 1000 * 1000,
-          maxBufferHole: 0.5,
-          fragLoadingRetryDelay: 1000,
-          manifestLoadingRetryDelay: 1000,
-          capLevelToPlayerSize: true,
-          abrEwmaDefaultEstimate: 5000000,
-        });
-
-        hlsRef.current = hls;
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (cancelled) return;
-          markReady();
-        });
-
-        hls.on(Hls.Events.ERROR, async (_, data) => {
-          console.error("HLS error:", data);
-
-          if (!data?.fatal) return;
-
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR: {
-              const current = video.currentTime || lastKnownTimeRef.current || 0;
-              const refreshed = await refreshSignedStream();
-
-              if (!refreshed && !cancelled) {
-                setError("Không phát được stream HLS.");
-                return;
-              }
-
-              lastKnownTimeRef.current = current;
-              break;
-            }
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default: {
-              const current = video.currentTime || lastKnownTimeRef.current || 0;
-              const refreshed = await refreshSignedStream();
-
-              if (!refreshed && !cancelled) {
-                setError("Không phát được stream HLS.");
-              }
-
-              lastKnownTimeRef.current = current;
-              hls.destroy();
-              break;
-            }
-          }
-        });
-      } else {
-        setError("Trình duyệt không hỗ trợ HLS.");
-      }
-    } else {
-      video.src = streamUrl;
-      video.preload = "auto";
-      video.load();
-    }
-
     return () => {
-      cancelled = true;
-
-      if (previewRafRef.current) {
-        cancelAnimationFrame(previewRafRef.current);
-        previewRafRef.current = null;
-      }
-
       try {
         saveCurrentProgress();
       } catch (err) {
@@ -643,6 +846,8 @@ export default function MovieDetail() {
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("canplaythrough", onCanPlayThrough);
+      video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("playing", onPlaying);
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("play", onPlay);
@@ -650,13 +855,8 @@ export default function MovieDetail() {
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("ended", onEnded);
       video.removeEventListener("error", onError);
-
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
     };
-  }, [streamUrl, movie, id, refreshSignedStream]);
+  }, [id, refreshSignedStream]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -675,6 +875,11 @@ export default function MovieDetail() {
       if (skipTimerRef.current) clearTimeout(skipTimerRef.current);
       if (previewHideTimerRef.current) clearTimeout(previewHideTimerRef.current);
       if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
     };
   }, []);
 
@@ -1212,19 +1417,19 @@ export default function MovieDetail() {
                   if (isReady) togglePlay();
                 }}
               >
-                {isReady && !isPlaying && (
-                  <div className="nf-center">
-                    <button
-                      className="nf-bigplay"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        togglePlay();
-                      }}
-                    >
-                      ▶
-                    </button>
-                  </div>
-                )}
+                {isReady && !isPlaying && videoRef.current?.paused && (
+  <div className="nf-center">
+    <button
+      className="nf-bigplay"
+      onClick={(e) => {
+        e.stopPropagation();
+        togglePlay();
+      }}
+    >
+      ▶
+    </button>
+  </div>
+)}
 
                 <div className="nf-bottombar">
                   <div

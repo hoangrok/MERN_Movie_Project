@@ -1,21 +1,54 @@
 .navbar {
-  position: relative;
-  z-index: 60;
+  position: sticky;
+  top: 0;
+  z-index: 120;
   width: 100%;
-  padding: 18px 24px 0;
+  padding: 14px 20px 0;
   color: #fff;
   font-family: Inter, "SF Pro Display", "Segoe UI", Roboto, Arial, sans-serif;
+  transition:
+    padding 0.25s ease,
+    transform 0.25s ease;
+}
+
+.navbar.scrolled {
+  padding-top: 10px;
 }
 
 .navbar__desktop {
   width: 100%;
-  max-width: 1720px;
+  max-width: 1680px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
   min-width: 0;
+  padding: 12px 16px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(10, 12, 18, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.navbar.scrolled .navbar__desktop {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+    rgba(8, 10, 15, 0.82);
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .navbar__content {
@@ -38,17 +71,20 @@
 
 .navbar__logo-link h1 {
   margin: 0;
-  font-size: clamp(2rem, 2.4vw, 3rem);
+  font-size: clamp(1.9rem, 2.4vw, 2.8rem);
   line-height: 1;
-  font-weight: 900;
-  letter-spacing: -0.05em;
-  color: #fff;
+  font-weight: 1000;
+  letter-spacing: -0.06em;
+  background: linear-gradient(90deg, #ffffff 0%, #ffd1d1 35%, #ff3b30 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 10px 26px rgba(229, 9, 20, 0.14);
 }
 
 .navbar__content--links {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -60,15 +96,50 @@
 }
 
 .navbar__content--links a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
   text-decoration: none;
-  color: rgba(255, 255, 255, 0.84);
-  font-size: 0.96rem;
-  font-weight: 700;
-  transition: color 0.2s ease, opacity 0.2s ease;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.94rem;
+  font-weight: 800;
+  border-radius: 14px;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+  border: 1px solid transparent;
 }
 
-.navbar__content--links a:hover {
+.navbar__content--links a:hover,
+.navbar__content--links a.active {
   color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.navbar__content--links a::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 7px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e50914, #ff624f);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.22s ease;
+}
+
+.navbar__content--links a:hover::after,
+.navbar__content--links a.active::after {
+  transform: scaleX(1);
 }
 
 .navbar__genre-menu {
@@ -82,20 +153,26 @@
   gap: 8px;
   min-height: 42px;
   padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: #fff;
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .navbar__genre-trigger:hover,
 .navbar__genre-trigger.active {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
 }
 
 .navbar__genre-icon {
@@ -106,7 +183,6 @@
   transform: rotate(180deg);
 }
 
-/* FIX: dropdown nằm đúng ngay dưới nút Thể loại */
 .navbar__genre-mega {
   position: absolute;
   top: calc(100% + 12px);
@@ -115,20 +191,20 @@
   width: min(760px, calc(100vw - 48px));
   max-width: calc(100vw - 48px);
   padding: 18px;
-  border-radius: 22px;
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(
-    180deg,
-    rgba(17, 19, 26, 0.98),
-    rgba(10, 11, 17, 0.98)
-  );
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.42);
+  background:
+    linear-gradient(180deg, rgba(17, 19, 26, 0.98), rgba(10, 11, 17, 0.98));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transform: translateY(8px);
-  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease,
+    visibility 0.22s ease;
   overflow-x: hidden;
   box-sizing: border-box;
 }
@@ -150,7 +226,7 @@
 
 .navbar__genre-mega-header h3 {
   margin: 0 0 6px;
-  font-size: 1.32rem;
+  font-size: 1.3rem;
   line-height: 1.1;
   font-weight: 900;
   color: #fff;
@@ -175,6 +251,12 @@
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.navbar__genre-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.04);
 }
 
 .navbar__genre-selected {
@@ -196,6 +278,7 @@
   color: #fff;
   font-size: 0.84rem;
   font-weight: 700;
+  box-shadow: 0 10px 22px rgba(229, 9, 20, 0.12);
 }
 
 .navbar__genre-placeholder {
@@ -224,7 +307,11 @@
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
   min-width: 0;
   white-space: normal;
   word-break: break-word;
@@ -234,6 +321,7 @@
 .navbar__genre-card:hover {
   background: rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
 }
 
 .navbar__genre-card.active {
@@ -272,6 +360,14 @@
   border-radius: 12px;
   font-weight: 800;
   cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.navbar__genre-btn:hover {
+  transform: translateY(-1px);
 }
 
 .navbar__genre-btn--ghost {
@@ -280,8 +376,9 @@
 }
 
 .navbar__genre-btn--primary {
-  background: #e50914;
+  background: linear-gradient(90deg, #e50914, #ff3b30);
   color: #fff;
+  box-shadow: 0 12px 26px rgba(229, 9, 20, 0.24);
 }
 
 .navbar__footer {
@@ -308,10 +405,22 @@
   gap: 10px;
   min-height: 54px;
   padding: 0 16px;
-  border-radius: 16px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.navbar__footer--search:focus-within {
+  border-color: rgba(229, 9, 20, 0.26);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.2),
+    0 0 0 4px rgba(229, 9, 20, 0.06);
 }
 
 .navbar__footer--search svg {
@@ -343,6 +452,12 @@
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.navbar__search-clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.04);
 }
 
 .navbar__search-panel {
@@ -352,11 +467,8 @@
   width: 100%;
   border-radius: 22px;
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    rgba(16, 17, 24, 0.98),
-    rgba(9, 10, 14, 0.98)
-  );
+  background:
+    linear-gradient(180deg, rgba(16, 17, 24, 0.98), rgba(9, 10, 14, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(16px);
@@ -399,6 +511,15 @@
   font-size: 0.86rem;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.navbar__search-tag:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
 }
 
 .navbar__search-results {
@@ -431,12 +552,16 @@
   border-radius: 14px;
   text-decoration: none;
   color: inherit;
-  transition: background 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .navbar__search-item:hover {
   background: rgba(255, 255, 255, 0.06);
   transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
 }
 
 .navbar__search-thumb {
@@ -502,12 +627,24 @@
   min-height: 54px;
   padding: 0 18px;
   border-radius: 16px;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-weight: 800;
   cursor: pointer;
   flex-shrink: 0;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.navbar__footer--logout:hover,
+.navbar__footer--login:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
 }
 
 .navbar__footer--logout {
@@ -552,11 +689,22 @@
 
 @media (max-width: 768px) {
   .navbar {
-    padding: 16px 16px 0;
+    padding: 12px 12px 0;
+  }
+
+  .navbar__desktop {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .navbar__content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
 
   .navbar__content--links {
-    gap: 12px;
+    gap: 8px;
   }
 
   .navbar__content--links a {
@@ -603,12 +751,12 @@
   }
 
   .navbar__content--links {
-    gap: 10px;
+    gap: 8px;
   }
 
   .navbar__content--links a,
   .navbar__genre-trigger {
-    font-size: 0.86rem;
+    font-size: 0.85rem;
   }
 
   .navbar__genre-mega-grid {

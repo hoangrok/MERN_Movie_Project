@@ -17,11 +17,10 @@ import {
   removeContinueWatching,
   formatRemainingTime,
 } from "../utils/continueWatching";
-import { setSEO } from "../utils/seo";
 import "../assets/styles/Home.scss";
 
 const FALLBACK_POSTER =
-  "https://dummyimage.com/400x600/222/ffffff&text=Poster";
+  "https://dummyimage.com/1280x720/111827/ffffff&text=ClipDam18";
 const PREF_KEY = "dam18_preferred_genres";
 
 export default function Home() {
@@ -37,16 +36,6 @@ export default function Home() {
   const [continueWatching, setContinueWatching] = useState([]);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
-
-  useEffect(() => {
-    setSEO({
-      title: "ClipDam18 - Xem phim mới nhất 2026",
-      description:
-        "Kho phim mới cập nhật hàng ngày, trải nghiệm xem mượt như Netflix.",
-      url: window.location.href,
-      image: "https://clipdam18.com/og-image.jpg",
-    });
-  }, []);
 
   useEffect(() => {
     if (status === "idle") {
@@ -72,7 +61,7 @@ export default function Home() {
   }, [user?._id, user?.email]);
 
   useEffect(() => {
-    const onScroll = () => setIsScrolling(window.scrollY > 20);
+    const onScroll = () => setIsScrolling(window.scrollY > 16);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -160,7 +149,6 @@ export default function Home() {
 
   const savePreferredGenres = () => {
     if (selectedGenres.length === 0) return;
-
     localStorage.setItem(PREF_KEY, JSON.stringify(selectedGenres));
     setShowGenreModal(false);
   };
@@ -280,11 +268,7 @@ export default function Home() {
                   </>
                 ) : topMovies.length > 0 ? (
                   topMovies.map((movie, index) => (
-                    <TopCard
-                      key={movie._id || index}
-                      movie={movie}
-                      index={index}
-                    />
+                    <TopCard key={movie._id || index} movie={movie} index={index} />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có top xem" />
@@ -299,7 +283,7 @@ export default function Home() {
         <div className="genreModal">
           <div className="genreModal__box">
             <h2>Chọn thể loại bạn thích</h2>
-            <p>Để mình gợi ý phim đúng gu hơn cho bạn.</p>
+            <p>Để mình gợi ý đúng gu hơn cho bạn.</p>
 
             <div className="genreModal__grid">
               {allGenres.map((genre) => {
@@ -352,12 +336,26 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
     <section
       className="heroFeature"
       style={{
-        backgroundImage: `linear-gradient(90deg, rgba(5,7,12,.92) 0%, rgba(5,7,12,.78) 38%, rgba(5,7,12,.45) 62%, rgba(5,7,12,.74) 100%), url(${backdrop})`,
+        backgroundImage: `
+          linear-gradient(
+            90deg,
+            rgba(4, 6, 12, 0.96) 0%,
+            rgba(4, 6, 12, 0.86) 20%,
+            rgba(4, 6, 12, 0.62) 45%,
+            rgba(4, 6, 12, 0.30) 70%,
+            rgba(4, 6, 12, 0.90) 100%
+          ),
+          url(${backdrop})
+        `,
+        backgroundSize: "cover",
+        backgroundPosition: "center 28%",
       }}
     >
+      <div className="heroFeature__backdropZoom" aria-hidden="true" />
+
       <div className="heroFeature__content">
         <span className="heroFeature__badge">
-          <FaFire />
+          <FaFire /> Nổi bật hôm nay
         </span>
 
         <h1 title={movie.title}>{movie.title || "Untitled"}</h1>
@@ -372,7 +370,7 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
         <p>
           {movie.description?.trim()
             ? movie.description
-            : "Khám phá nội dung nổi bật được nhiều người xem quan tâm."}
+            : "Nội dung đang được cập nhật."}
         </p>
 
         <div className="heroFeature__genres">
@@ -390,7 +388,7 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
           </Link>
 
           <Link to="/top-viewed" className="heroFeature__btn">
-            <FaEye /> Top lượt xem
+            <FaEye /> Khám phá thêm
           </Link>
         </div>
       </div>

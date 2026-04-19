@@ -1,9 +1,14 @@
+const path = require("path");
+const fs = require("fs");
+const fsp = require("fs/promises");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
-const Movie = require("../models/Movie");
+const Movie = require("../models/MovieModel");
 const { makeStreamUrl } = require("../utils/streamToken");
+const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
 
 // ==========================
-// HELPER: CREATE SLUG
+// HELPERS
 // ==========================
 const createSlug = (text = "") => {
   return text
@@ -17,11 +22,72 @@ const createSlug = (text = "") => {
     .replace(/-+/g, "-");
 };
 
+const LIST_PROJECTION = [
+  "title",
+  "slug",
+  "poster",
+  "backdrop",
+  "genre",
+  "year",
+  "rating",
+  "duration",
+  "trailerUrl",
+  "type",
+  "isPublished",
+  "featured",
+  "newPopular",
+  "views",
+  "language",
+  "country",
+  "previewTimeline",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+
+const DETAIL_PROJECTION = [
+  "title",
+  "slug",
+  "description",
+  "poster",
+  "backdrop",
+  "genre",
+  "year",
+  "rating",
+  "duration",
+  "hlsUrl",
+  "trailerUrl",
+  "type",
+  "isPublished",
+  "featured",
+  "newPopular",
+  "views",
+  "cast",
+  "director",
+  "language",
+  "country",
+  "subtitles",
+  "status",
+  "processingError",
+  "thumbnailPickedAt",
+  "previewTimeline",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+
+const setApiCache = (res, value) => {
+  res.set("Cache-Control", value);
+};
+
 // ==========================
 // GET MOVIES
 // ==========================
 const getMovies = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
+    );
+
     const { q, genre, limit = 24, page = 1 } = req.query;
 
     const filter = { isPublished: true };
@@ -47,11 +113,16 @@ const getMovies = async (req, res) => {
     }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 24, 1), 100);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 24, 1), 48);
     const skip = (pageNum - 1) * limitNum;
 
     const [items, total] = await Promise.all([
-      Movie.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+      Movie.find(filter)
+        .select(LIST_PROJECTION)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
       Movie.countDocuments(filter),
     ]);
 
@@ -79,12 +150,19 @@ const getMovies = async (req, res) => {
 // ==========================
 const getLatestMovies = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
+    );
+
     const { limit = 30 } = req.query;
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 100);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
 
     const items = await Movie.find({ isPublished: true })
+      .select(LIST_PROJECTION)
       .sort({ updatedAt: -1, createdAt: -1 })
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean();
 
     return res.json({
       success: true,
@@ -104,12 +182,19 @@ const getLatestMovies = async (req, res) => {
 // ==========================
 const getTopViewedMovies = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
+    );
+
     const { limit = 30 } = req.query;
-    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 100);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
 
     const items = await Movie.find({ isPublished: true })
+      .select(LIST_PROJECTION)
       .sort({ views: -1, updatedAt: -1, createdAt: -1 })
-      .limit(limitNum);
+      .limit(limitNum)
+      .lean();
 
     return res.json({
       success: true,
@@ -129,7 +214,12 @@ const getTopViewedMovies = async (req, res) => {
 // ==========================
 const getGenres = async (req, res) => {
   try {
-    const movies = await Movie.find({ isPublished: true }).select("genre");
+    setApiCache(
+      res,
+      "public, max-age=300, s-maxage=600, stale-while-revalidate=1200"
+    );
+
+    const movies = await Movie.find({ isPublished: true }).select("genre").lean();
     const genreSet = new Set();
 
     movies.forEach((movie) => {
@@ -153,20 +243,26 @@ const getGenres = async (req, res) => {
 };
 
 // ==========================
-// GET MOVIE BY ID
+// GET MOVIE BY ID OR SLUG
 // ==========================
 const getMovieById = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
+    );
+
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid movie id",
-      });
+    const conditions = [{ slug: id, isPublished: true }];
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      conditions.push({ _id: id, isPublished: true });
     }
 
-    const movie = await Movie.findById(id);
+    const movie = await Movie.findOne({ $or: conditions })
+      .select(DETAIL_PROJECTION)
+      .lean();
 
     if (!movie) {
       return res.status(404).json({
@@ -192,6 +288,8 @@ const getMovieById = async (req, res) => {
 // CREATE MOVIE
 // ==========================
 const createMovie = async (req, res) => {
+  let tempVideoPath = "";
+
   try {
     const payload = { ...req.body };
 
@@ -213,12 +311,57 @@ const createMovie = async (req, res) => {
         .filter(Boolean);
     }
 
-    const existed = await Movie.findOne({ slug: payload.slug });
+    if (typeof payload.cast === "string") {
+      payload.cast = payload.cast
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof payload.subtitles === "string") {
+      payload.subtitles = payload.subtitles
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
+    const existed = await Movie.findOne({ slug: payload.slug }).lean();
     if (existed) {
       payload.slug = `${payload.slug}-${Date.now()}`;
     }
 
+    const videoFile = req.files?.video;
+
+    if (videoFile) {
+      const tempDir = path.join(process.cwd(), "tmp", "uploads");
+
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const ext = path.extname(videoFile.name || ".mp4");
+      const fileName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`;
+      tempVideoPath = path.join(tempDir, fileName);
+
+      await videoFile.mv(tempVideoPath);
+
+      try {
+        const generated = await generateVideoBackdrop(tempVideoPath, payload.slug);
+        if (generated?.backdropUrl) {
+          payload.backdrop = generated.backdropUrl;
+        }
+      } catch (backdropErr) {
+        console.error("generate backdrop failed:", backdropErr);
+      }
+    }
+
     const movie = await Movie.create(payload);
+
+    if (tempVideoPath) {
+      try {
+        await fsp.unlink(tempVideoPath);
+      } catch (_) {}
+    }
 
     return res.status(201).json({
       success: true,
@@ -226,6 +369,13 @@ const createMovie = async (req, res) => {
     });
   } catch (err) {
     console.error("createMovie error:", err);
+
+    if (tempVideoPath) {
+      try {
+        await fsp.unlink(tempVideoPath);
+      } catch (_) {}
+    }
+
     return res.status(500).json({
       success: false,
       message: err.message,
@@ -268,11 +418,25 @@ const updateMovie = async (req, res) => {
         .filter(Boolean);
     }
 
+    if (typeof payload.cast === "string") {
+      payload.cast = payload.cast
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
+    if (typeof payload.subtitles === "string") {
+      payload.subtitles = payload.subtitles
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
     if (payload.slug) {
       const existed = await Movie.findOne({
         slug: payload.slug,
         _id: { $ne: id },
-      });
+      }).lean();
 
       if (existed) {
         payload.slug = `${payload.slug}-${Date.now()}`;
@@ -340,6 +504,8 @@ const deleteMovie = async (req, res) => {
 // ==========================
 const getStreamUrl = async (req, res) => {
   try {
+    setApiCache(res, "private, no-store");
+
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -349,7 +515,7 @@ const getStreamUrl = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id);
+    const movie = await Movie.findById(id).select("_id hlsUrl");
 
     if (!movie) {
       return res.status(404).json({
@@ -403,6 +569,11 @@ const getStreamUrl = async (req, res) => {
 // ==========================
 const getRelatedMovies = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
+    );
+
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -412,7 +583,7 @@ const getRelatedMovies = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id);
+    const movie = await Movie.findById(id).select("genre");
 
     if (!movie) {
       return res.status(404).json({
@@ -428,8 +599,10 @@ const getRelatedMovies = async (req, res) => {
       isPublished: true,
       ...(firstGenre ? { genre: firstGenre } : {}),
     })
+      .select(LIST_PROJECTION)
       .sort({ createdAt: -1 })
-      .limit(12);
+      .limit(12)
+      .lean();
 
     return res.json({
       success: true,
@@ -449,6 +622,8 @@ const getRelatedMovies = async (req, res) => {
 // ==========================
 const incrementView = async (req, res) => {
   try {
+    setApiCache(res, "no-store");
+
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -488,9 +663,16 @@ const incrementView = async (req, res) => {
 // ==========================
 const getTrending = async (req, res) => {
   try {
+    setApiCache(
+      res,
+      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
+    );
+
     const movies = await Movie.find({ isPublished: true })
+      .select(LIST_PROJECTION)
       .sort({ views: -1, createdAt: -1 })
-      .limit(10);
+      .limit(10)
+      .lean();
 
     return res.json({
       success: true,

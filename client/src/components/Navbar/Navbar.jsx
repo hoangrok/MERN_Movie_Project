@@ -18,10 +18,9 @@ const FALLBACK_POSTER =
 
 const Navbar = ({ isScrolled }) => {
   const links = [
-    { name: "Trang Chủ", path: "/" },
     { name: "Mới cập nhật", path: "/latest" },
     { name: "Top lượt xem", path: "/top-viewed" },
-    { name: "Thư Viện", path: "/my-list" },
+    { name: "Thư viện", path: "/my-list" },
   ];
 
   const dispatch = useDispatch();
@@ -35,7 +34,6 @@ const Navbar = ({ isScrolled }) => {
   const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
   const { user } = useSelector((state) => state.auth);
 
-  const [isMenuActive, setIsMenuActive] = useState(false);
   const [searchedInput, setSearchedInput] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
   const [showSearchResult, setShowSearchResult] = useState(false);
@@ -139,7 +137,8 @@ const Navbar = ({ isScrolled }) => {
       .slice(0, 6);
   }, [searchedInput, movies]);
 
-  const resultsToShow = searchedMovies.length > 0 ? searchedMovies : quickSuggestions;
+  const resultsToShow =
+    searchedMovies.length > 0 ? searchedMovies : quickSuggestions;
 
   const logOutHandler = () => {
     dispatch(logoutReducer());
@@ -202,14 +201,10 @@ const Navbar = ({ isScrolled }) => {
     navigate(`/genres?genres=${encodeURIComponent(nextGenres.join(","))}`);
   };
 
+  const isActivePath = (path) => location.pathname === path;
+
   return (
-    <nav
-      className={`${isScrolled ? "scrolled" : ""} navbar ${
-        isMenuActive ? "active" : ""
-      }`}
-      onMouseEnter={() => setIsMenuActive(true)}
-      onMouseLeave={() => setIsMenuActive(false)}
-    >
+    <nav className={`navbar ${isScrolled ? "scrolled" : ""}`}>
       <div className="navbar__desktop">
         <div className="navbar__content">
           <div className="navbar__content--logo">
@@ -221,7 +216,12 @@ const Navbar = ({ isScrolled }) => {
           <ul className="navbar__content--links">
             {links.map((link, index) => (
               <li key={index}>
-                <Link to={link.path}>{link.name}</Link>
+                <Link
+                  to={link.path}
+                  className={isActivePath(link.path) ? "active" : ""}
+                >
+                  {link.name}
+                </Link>
               </li>
             ))}
 
@@ -251,8 +251,8 @@ const Navbar = ({ isScrolled }) => {
               >
                 <div className="navbar__genre-mega-header">
                   <div>
-                    <h3>Chọn thể loại</h3>
-                    <p>Lọc nội dung theo sở thích của bạn</p>
+                    <h3>Khám phá theo thể loại</h3>
+                    <p>Lọc nội dung nhanh theo gu của bạn</p>
                   </div>
 
                   <button
@@ -331,7 +331,7 @@ const Navbar = ({ isScrolled }) => {
 
               <input
                 type="text"
-                placeholder="Tìm phim, thể loại, mô tả,..."
+                placeholder="Tìm phim, thể loại, mô tả..."
                 value={searchedInput}
                 onChange={searchMovieHandler}
                 onFocus={() => {
@@ -402,7 +402,7 @@ const Navbar = ({ isScrolled }) => {
                             <h4>{movie.title}</h4>
                             <span>
                               {movie.year || "N/A"} •{" "}
-                              {(movie.genre || []).slice(0, 1).join("") || "Thu Dam"}
+                              {(movie.genre || []).slice(0, 1).join("") || "Video"}
                             </span>
                             <p>{movie.description || "Không có mô tả"}</p>
                           </div>
@@ -423,6 +423,7 @@ const Navbar = ({ isScrolled }) => {
             <button
               className="navbar__footer--logout"
               onClick={logOutHandler}
+              title="Đăng xuất"
             >
               <FaPowerOff />
             </button>
