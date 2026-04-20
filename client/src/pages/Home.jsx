@@ -47,7 +47,6 @@ function getTimelineFrames(movie, count = 3) {
   );
 
   if (!urls.length) return [];
-
   if (urls.length <= count) return urls.slice(0, count);
 
   const ratios =
@@ -55,33 +54,13 @@ function getTimelineFrames(movie, count = 3) {
 
   return dedupeImages(
     ratios.map((ratio) => {
-      const index = Math.min(urls.length - 1, Math.floor((urls.length - 1) * ratio));
+      const index = Math.min(
+        urls.length - 1,
+        Math.floor((urls.length - 1) * ratio)
+      );
       return urls[index];
     })
   ).slice(0, count);
-}
-
-function getMovieSmartFrames(movie, count = 3) {
-  const timelineFrames = getTimelineFrames(movie, count);
-  const backdrop = normalizeImage(movie?.backdrop);
-  const poster = normalizeImage(movie?.poster);
-
-  const result = dedupeImages([
-    ...timelineFrames,
-    backdrop,
-    poster,
-    FALLBACK_POSTER,
-  ]);
-
-  if (!result.length) return [FALLBACK_POSTER];
-
-  if (result.length >= count) return result.slice(0, count);
-
-  while (result.length < count) {
-    result.push(result[result.length - 1] || FALLBACK_POSTER);
-  }
-
-  return result;
 }
 
 function getBestThumb(movie) {
@@ -93,8 +72,64 @@ function getBestThumb(movie) {
   );
 }
 
+function formatViews(views) {
+  if (!views) return "0 lượt xem";
+  if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M lượt xem`;
+  if (views >= 1000) return `${(views / 1000).toFixed(1)}K lượt xem`;
+  return `${views} lượt xem`;
+}
+
 function HeroBackdrop({ movie }) {
-  const frames = getMovieSmartFrames(movie, 3);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [canPlayVideo, setCanPlayVideo] = useState(false);
+  const videoRef = useRef(null);
+
+  const heroImage =
+    normalizeImage(movie?.backdrop) ||
+    normalizeImage(movie?.poster) ||
+    getTimelineFrames(movie, 1)[0] ||
+    FALLBACK_POSTER;
+
+  const rawHeroVideo =
+    movie?.heroVideo ||
+    movie?.trailerUrl ||
+    movie?.previewUrl ||
+    movie?.trailer ||
+    "";
+
+  const isDirectVideoFile =
+    typeof rawHeroVideo === "string" &&
+    /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(rawHeroVideo.trim());
+
+  const heroVideo = isDirectVideoFile ? rawHeroVideo.trim() : "";
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !heroVideo) return;
+
+    setCanPlayVideo(false);
+
+    const onCanPlay = () => setCanPlayVideo(true);
+    const onLoadedData = () => setCanPlayVideo(true);
+    const onError = () => setCanPlayVideo(false);
+
+    el.addEventListener("canplay", onCanPlay);
+    el.addEventListener("loadeddata", onLoadedData);
+    el.addEventListener("error", onError);
+
+    const playPromise = el.play();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {
+        setCanPlayVideo(false);
+      });
+    }
+
+    return () => {
+      el.removeEventListener("canplay", onCanPlay);
+      el.removeEventListener("loadeddata", onLoadedData);
+      el.removeEventListener("error", onError);
+    };
+  }, [heroVideo]);
 
   return (
     <>
@@ -106,64 +141,74 @@ function HeroBackdrop({ movie }) {
           overflow: "hidden",
           borderRadius: "inherit",
           pointerEvents: "none",
+          background: "#05070d",
         }}
       >
-        <div
+        {heroVideo ? (
+          <video
+            ref={videoRef}
+            muted
+            autoPlay
+            loop
+            playsInline
+            preload="metadata"
+            poster={heroImage}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center center",
+              opacity: canPlayVideo ? 1 : 0,
+              transition: "opacity 0.45s ease",
+              zIndex: 1,
+              filter: "contrast(1.04) saturate(1.06) brightness(0.96)",
+            }}
+          >
+            <source src={heroVideo} />
+          </video>
+        ) : null}
+
+        <img
+          src={heroImage}
+          alt=""
+          draggable="false"
+          loading="eager"
+          decoding="async"
+          onLoad={() => setImageLoaded(true)}
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_POSTER;
+          }}
           style={{
             position: "absolute",
-            inset: -24,
-            display: "grid",
-            gridTemplateColumns: "1.1fr 0.9fr 1fr",
-            gap: 10,
-            filter: "blur(0px)",
-            transform: "scale(1.02)",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center center",
+            opacity: imageLoaded ? 1 : 0,
+            transition: "opacity 0.45s ease",
+            zIndex: 0,
+            filter: "contrast(1.05) saturate(1.05) brightness(0.93)",
+            backfaceVisibility: "hidden",
+            transform: "translateZ(0)",
           }}
-        >
-          {frames.map((src, index) => (
-            <div
-              key={`${src}-${index}`}
-              style={{
-                position: "relative",
-                overflow: "hidden",
-                borderRadius: 24,
-                background: "#0b1220",
-              }}
-            >
-              <img
-                src={src || FALLBACK_POSTER}
-                alt=""
-                draggable="false"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  objectPosition: "center",
-                  transform: index === 1 ? "scale(1.06)" : "scale(1.1)",
-                  filter:
-                    index === 1
-                      ? "brightness(0.92) saturate(1.08)"
-                      : "brightness(0.82) saturate(0.95)",
-                }}
-                onError={(e) => {
-                  e.currentTarget.src = FALLBACK_POSTER;
-                }}
-              />
-            </div>
-          ))}
-        </div>
+        />
 
         <div
           style={{
             position: "absolute",
             inset: 0,
+            zIndex: 2,
             background: `
-              linear-gradient(90deg,
-                rgba(4, 6, 12, 0.96) 0%,
-                rgba(4, 6, 12, 0.9) 16%,
-                rgba(4, 6, 12, 0.68) 34%,
-                rgba(4, 6, 12, 0.36) 55%,
-                rgba(4, 6, 12, 0.58) 76%,
-                rgba(4, 6, 12, 0.94) 100%
+              linear-gradient(
+                90deg,
+                rgba(4, 6, 10, 0.94) 0%,
+                rgba(4, 6, 10, 0.82) 22%,
+                rgba(4, 6, 10, 0.46) 42%,
+                rgba(4, 6, 10, 0.14) 62%,
+                rgba(4, 6, 10, 0.3) 100%
               )
             `,
           }}
@@ -173,10 +218,16 @@ function HeroBackdrop({ movie }) {
           style={{
             position: "absolute",
             inset: 0,
+            zIndex: 2,
             background: `
-              radial-gradient(circle at 78% 12%, rgba(255, 40, 80, 0.18), transparent 24%),
-              radial-gradient(circle at 12% 14%, rgba(0, 120, 255, 0.16), transparent 20%),
-              linear-gradient(180deg, rgba(7, 10, 18, 0.08) 0%, rgba(7, 10, 18, 0.55) 100%)
+              linear-gradient(
+                180deg,
+                rgba(0, 0, 0, 0.26) 0%,
+                rgba(0, 0, 0, 0.06) 18%,
+                rgba(0, 0, 0, 0) 32%,
+                rgba(5, 7, 12, 0.12) 60%,
+                rgba(5, 7, 12, 0.76) 100%
+              )
             `,
           }}
         />
@@ -185,25 +236,15 @@ function HeroBackdrop({ movie }) {
           style={{
             position: "absolute",
             inset: 0,
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            maskImage: "linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%)",
-            opacity: 0.32,
+            zIndex: 2,
+            background: `
+              radial-gradient(circle at 78% 12%, rgba(255, 50, 90, 0.08), transparent 24%),
+              radial-gradient(circle at 12% 14%, rgba(0, 120, 255, 0.07), transparent 18%),
+              radial-gradient(circle at center, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.22) 100%)
+            `,
           }}
         />
       </div>
-
-      <div
-        className="heroFeature__backdropZoom"
-        aria-hidden="true"
-        style={{
-          backgroundImage: `url(${frames[1] || frames[0] || FALLBACK_POSTER})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          filter: "blur(32px) saturate(1.15)",
-          opacity: 0.22,
-        }}
-      />
     </>
   );
 }
@@ -259,6 +300,7 @@ export default function Home() {
         if (value) set.add(value);
       });
     });
+
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b))
       .slice(0, 18);
@@ -453,7 +495,11 @@ export default function Home() {
                   </>
                 ) : topMovies.length > 0 ? (
                   topMovies.map((movie, index) => (
-                    <TopCard key={movie._id || index} movie={movie} index={index} />
+                    <TopCard
+                      key={movie._id || index}
+                      movie={movie}
+                      index={index}
+                    />
                   ))
                 ) : (
                   <EmptyBox text="Chưa có top xem" />
@@ -515,6 +561,11 @@ export default function Home() {
 function HeroFeature({ movie, recommendationGenres = [] }) {
   if (!movie?._id) return null;
 
+  const metaGenres =
+    Array.isArray(movie?.genre) && movie.genre.length
+      ? movie.genre
+      : recommendationGenres;
+
   return (
     <section
       className="heroFeature"
@@ -526,7 +577,10 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
     >
       <HeroBackdrop movie={movie} />
 
-      <div className="heroFeature__content" style={{ position: "relative", zIndex: 2 }}>
+      <div
+        className="heroFeature__content"
+        style={{ position: "relative", zIndex: 2 }}
+      >
         <span className="heroFeature__badge">
           <FaFire /> Nổi bật hôm nay
         </span>
@@ -536,7 +590,7 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
         <div className="heroFeature__meta">
           {movie.year ? <span>{movie.year}</span> : null}
           {movie.rating ? <span>⭐ {movie.rating}</span> : null}
-          <span>{movie.views || 0} lượt xem</span>
+          <span>{formatViews(movie.views || 0)}</span>
           <span>HD</span>
         </div>
 
@@ -547,7 +601,7 @@ function HeroFeature({ movie, recommendationGenres = [] }) {
         </p>
 
         <div className="heroFeature__genres">
-          {(movie.genre || recommendationGenres || []).slice(0, 4).map((genre) => (
+          {metaGenres.slice(0, 4).map((genre) => (
             <span key={genre}>{genre}</span>
           ))}
         </div>
@@ -709,8 +763,7 @@ function ContinueCard({ movie, onRemove }) {
         }
 
         setCanPlayPreview(true);
-      } catch (err) {
-        console.log("continue preview autoplay blocked:", err);
+      } catch {
         setCanPlayPreview(false);
       }
     }, 450);
@@ -724,7 +777,9 @@ function ContinueCard({ movie, onRemove }) {
   return (
     <Link
       to={`/movie/${movie._id}`}
-      className={`continueItem continueItem--row ${isHovered ? "is-hovered" : ""}`}
+      className={`continueItem continueItem--row ${
+        isHovered ? "is-hovered" : ""
+      }`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -788,7 +843,9 @@ function ContinueCard({ movie, onRemove }) {
         {previewUrl && !previewFailed ? (
           <video
             ref={videoRef}
-            className={`continueItem__video ${canPlayPreview ? "is-visible" : ""}`}
+            className={`continueItem__video ${
+              canPlayPreview ? "is-visible" : ""
+            }`}
             src={previewUrl}
             muted
             playsInline
@@ -824,9 +881,12 @@ function ContinueCard({ movie, onRemove }) {
       <div className="continueItem__meta continueItem__meta--row">
         <h3 title={movie.title}>{movie.title}</h3>
         <p>
-          {progressValue
-            ? `${Math.round(progressValue)}% • ${formatRemainingTime(movie)}`
-            : "Đang xem"}
+          {progressValue > 0
+            ? `${Math.round(progressValue)}% • ${formatRemainingTime(
+                movie.duration,
+                movie.currentTime
+              )}`
+            : "Tiếp tục xem"}
         </p>
       </div>
     </Link>
@@ -850,31 +910,9 @@ function TopCard({ movie, index }) {
           background: "#0b1220",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url(${thumb || FALLBACK_POSTER})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(14px) brightness(0.68)",
-            transform: "scale(1.2)",
-            opacity: 0.55,
-          }}
-        />
-
         <img
           src={thumb || FALLBACK_POSTER}
           alt={movie.title || "movie"}
-          style={{
-            position: "relative",
-            zIndex: 1,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-          }}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
@@ -882,7 +920,7 @@ function TopCard({ movie, index }) {
       </div>
 
       <div className="topItem__meta">
-        <h3 title={movie.title}>{movie.title}</h3>
+        <h3 title={movie.title}>{movie.title || "Untitled"}</h3>
         <p>{movie.views || 0} lượt xem</p>
       </div>
     </Link>
@@ -898,8 +936,8 @@ function PosterSkeleton() {
     <div className="posterCard posterCard--skeleton">
       <div className="posterCard__imageWrap skeleton shimmer" />
       <div className="posterCard__info">
-        <div className="skeleton shimmer skeleton-title" />
-        <div className="skeleton shimmer skeleton-text" />
+        <div className="skeleton skeleton-title shimmer" />
+        <div className="skeleton skeleton-text shimmer" />
       </div>
     </div>
   );
@@ -908,11 +946,11 @@ function PosterSkeleton() {
 function SideSkeleton({ compact = false }) {
   return (
     <div className={`sideSkeleton ${compact ? "is-compact" : ""}`}>
-      <div className="skeleton shimmer sideSkeleton__rank" />
-      <div className="skeleton shimmer sideSkeleton__thumb" />
+      <div className="sideSkeleton__rank skeleton shimmer" />
+      <div className="sideSkeleton__thumb skeleton shimmer" />
       <div className="sideSkeleton__content">
-        <div className="skeleton shimmer skeleton-title" />
-        <div className="skeleton shimmer skeleton-text" />
+        <div className="skeleton skeleton-title shimmer" />
+        <div className="skeleton skeleton-text shimmer" />
       </div>
     </div>
   );
