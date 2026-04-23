@@ -1,0 +1,55 @@
+- generic [ref=e3]:
+  - img [ref=e5]
+  - navigation [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - link "Dam18" [ref=e12] [cursor=pointer]:
+          - /url: /
+          - heading "Dam18" [level=1] [ref=e13]
+        - list [ref=e14]:
+          - listitem [ref=e15]:
+            - link "Mới cập nhật" [ref=e16] [cursor=pointer]:
+              - /url: /latest
+          - listitem [ref=e17]:
+            - link "Top lượt xem" [ref=e18] [cursor=pointer]:
+              - /url: /top-viewed
+          - listitem [ref=e19]:
+            - link "Thư viện" [ref=e20] [cursor=pointer]:
+              - /url: /my-list
+          - listitem [ref=e21]:
+            - button "Thể loại" [ref=e22] [cursor=pointer]:
+              - text: Thể loại
+              - img [ref=e23]
+      - generic [ref=e25]:
+        - generic [ref=e27]:
+          - img [ref=e28]
+          - textbox "Tìm phim, thể loại, mô tả..." [ref=e30]
+        - button "Đăng nhập" [ref=e31] [cursor=pointer]
+  - main [ref=e32]:
+    - generic [ref=e33]:
+      - complementary [ref=e34]:
+        - generic [ref=e36]:
+          - heading "Xem tiếp" [level=2] [ref=e37]
+          - link "Xem thêm" [ref=e38] [cursor=pointer]:
+            - /url: /continue-watching
+            - text: Xem thêm
+            - img [ref=e39]
+      - generic [ref=e60]:
+        - generic [ref=e62]:
+          - heading "Gợi ý cho bạn" [level=2] [ref=e63]
+          - button "Xem thêm" [ref=e64] [cursor=pointer]:
+            - text: Xem thêm
+            - img [ref=e65]
+        - generic [ref=e69]:
+          - heading "Mới cập nhật" [level=2] [ref=e70]
+          - link "Xem thêm" [ref=e71] [cursor=pointer]:
+            - /url: /latest
+            - text: Xem thêm
+            - img [ref=e72]
+      - complementary [ref=e75]:
+        - generic [ref=e77]:
+          - heading "Top xem" [level=2] [ref=e78]
+          - link "Xem thêm" [ref=e79] [cursor=pointer]:
+            - /url: /top-viewed
+            - text: Xem thêm
+            - img [ref=e80]

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__playwright__browser_navigate",
+      "Bash(npm run *)",
+      "Bash(xargs cat *)",
+      "Bash(npm ls *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(python -)",
+      "Bash(npm --prefix \"c:/Users/hoang/OneDrive/Desktop/MERN_Movie_Project/client\" run build)",
+      "Bash(npm --prefix \"c:/Users/hoang/OneDrive/Desktop/MERN_Movie_Project/client\" run dev -- --host 0.0.0.0)",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_network_requests",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(PYTHONIOENCODING=utf-8 python -)"
+    ]
+  }
+}

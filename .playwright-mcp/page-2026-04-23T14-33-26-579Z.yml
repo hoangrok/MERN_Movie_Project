@@ -1,0 +1,27 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Dam18" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - heading "Dam18" [level=1] [ref=e9]
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - link "Mới cập nhật" [ref=e12] [cursor=pointer]:
+              - /url: /latest
+          - listitem [ref=e13]:
+            - link "Top lượt xem" [ref=e14] [cursor=pointer]:
+              - /url: /top-viewed
+          - listitem [ref=e15]:
+            - link "Thư viện" [ref=e16] [cursor=pointer]:
+              - /url: /my-list
+          - listitem [ref=e17]:
+            - button "Thể loại" [ref=e18] [cursor=pointer]:
+              - text: Thể loại
+              - img [ref=e19]
+      - generic [ref=e21]:
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - textbox "Tìm phim, thể loại, mô tả..." [ref=e26]
+        - button "Đăng nhập" [ref=e27] [cursor=pointer]
+  - generic [ref=e29]: Movie not found

@@ -1,0 +1,104 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Dam18" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - heading "Dam18" [level=1] [ref=e9]
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - link "Mới cập nhật" [ref=e12] [cursor=pointer]:
+              - /url: /latest
+          - listitem [ref=e13]:
+            - link "Top lượt xem" [ref=e14] [cursor=pointer]:
+              - /url: /top-viewed
+          - listitem [ref=e15]:
+            - link "Thư viện" [ref=e16] [cursor=pointer]:
+              - /url: /my-list
+          - listitem [ref=e17]:
+            - button "Thể loại" [ref=e18] [cursor=pointer]:
+              - text: Thể loại
+              - img [ref=e19]
+      - generic [ref=e21]:
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - textbox "Tìm phim, thể loại, mô tả..." [ref=e26]
+        - button "Đăng nhập" [ref=e27] [cursor=pointer]
+  - main [ref=e28]:
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - img [ref=e32]
+        - text: Nổi bật hôm nay
+      - heading "Xin Chào lần cuối" [level=1] [ref=e34]
+      - generic [ref=e35]:
+        - generic [ref=e36]: "2024"
+        - generic [ref=e37]: ⭐ 8
+        - generic [ref=e38]: 0 lượt xem
+        - generic [ref=e39]: HD
+      - paragraph [ref=e40]: Nội dung đang được cập nhật.
+      - generic [ref=e42]: Thủ Dâm
+      - generic [ref=e43]:
+        - link "Xem ngay" [ref=e44] [cursor=pointer]:
+          - /url: /movie/69e4f963c6957a2a2122c81b
+          - img [ref=e45]
+          - text: Xem ngay
+        - link "Khám phá thêm" [ref=e47] [cursor=pointer]:
+          - /url: /top-viewed
+          - img [ref=e48]
+          - text: Khám phá thêm
+    - generic [ref=e50]:
+      - complementary [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - heading "Xem tiếp" [level=2] [ref=e54]
+            - link "Xem thêm" [ref=e55] [cursor=pointer]:
+              - /url: /continue-watching
+              - text: Xem thêm
+              - img [ref=e56]
+          - generic [ref=e59]: Chưa có video xem tiếp
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - heading "Gợi ý cho bạn" [level=2] [ref=e63]
+            - button "Xem thêm" [ref=e64] [cursor=pointer]:
+              - text: Xem thêm
+              - img [ref=e65]
+          - link "Xin Chào lần cuối Đề xuất Xin Chào lần cuối Thủ Dâm" [ref=e68] [cursor=pointer]:
+            - /url: /movie/69e4f963c6957a2a2122c81b
+            - generic [ref=e69]:
+              - img "Xin Chào lần cuối" [ref=e71]
+              - generic [ref=e72]: Đề xuất
+              - img [ref=e75]
+            - generic [ref=e77]:
+              - heading "Xin Chào lần cuối" [level=3] [ref=e78]
+              - paragraph [ref=e79]: Thủ Dâm
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - heading "Mới cập nhật" [level=2] [ref=e82]
+            - link "Xem thêm" [ref=e83] [cursor=pointer]:
+              - /url: /latest
+              - text: Xem thêm
+              - img [ref=e84]
+          - link "Xin Chào lần cuối Xin Chào lần cuối Thủ Dâm" [ref=e87] [cursor=pointer]:
+            - /url: /movie/69e4f963c6957a2a2122c81b
+            - generic [ref=e88]:
+              - img "Xin Chào lần cuối" [ref=e90]
+              - img [ref=e93]
+            - generic [ref=e95]:
+              - heading "Xin Chào lần cuối" [level=3] [ref=e96]
+              - paragraph [ref=e97]: Thủ Dâm
+      - complementary [ref=e98]:
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - heading "Top xem" [level=2] [ref=e101]
+            - link "Xem thêm" [ref=e102] [cursor=pointer]:
+              - /url: /top-viewed
+              - text: Xem thêm
+              - img [ref=e103]
+          - link "#1 Xin Chào lần cuối Xin Chào lần cuối 0 lượt xem" [ref=e106] [cursor=pointer]:
+            - /url: /movie/69e4f963c6957a2a2122c81b
+            - generic [ref=e107]: "#1"
+            - img "Xin Chào lần cuối" [ref=e109]
+            - generic [ref=e110]:
+              - heading "Xin Chào lần cuối" [level=3] [ref=e111]
+              - paragraph [ref=e112]: 0 lượt xem

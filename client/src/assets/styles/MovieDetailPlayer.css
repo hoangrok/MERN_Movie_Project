@@ -941,38 +941,40 @@
 /* Quality selector */
 .nf-quality-wrap {
   position: relative;
+  margin-left: 4px;
 }
 
 .nf-quality-btn {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 59, 59, 0.92) !important;
+  border: 1px solid rgba(255, 120, 120, 0.85) !important;
   color: #fff !important;
-  border-radius: 6px !important;
+  border-radius: 999px !important;
   padding: 0 10px !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  min-width: 46px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  min-width: 54px !important;
   width: auto !important;
-  height: 32px !important;
+  height: 24px !important;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(229, 9, 20, 0.24);
 }
 
 .nf-quality-btn:hover {
-  background: rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 79, 79, 0.98) !important;
   transform: none !important;
 }
 
 .nf-quality-menu {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(12, 14, 20, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  left: 0;
+  transform: none;
+  background: rgba(18, 20, 28, 0.98);
+  border: 1px solid rgba(255, 85, 85, 0.4);
   border-radius: 10px;
   overflow: hidden;
-  min-width: 80px;
+  min-width: 88px;
   z-index: 100;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
 }
@@ -980,15 +982,15 @@
 .nf-quality-option {
   display: block !important;
   width: 100% !important;
-  padding: 9px 18px !important;
+  padding: 8px 14px !important;
   background: none !important;
   border: none !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-  color: rgba(255, 255, 255, 0.82) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
   cursor: pointer;
-  text-align: center !important;
+  text-align: left !important;
   min-width: unset !important;
   height: auto !important;
   border-radius: 0 !important;
@@ -1000,12 +1002,13 @@
 }
 
 .nf-quality-option:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 59, 59, 0.16) !important;
   color: #fff !important;
   transform: none !important;
 }
 
 .nf-quality-option.active {
-  color: #ff5050 !important;
-  font-weight: 700 !important;
+  background: rgba(255, 59, 59, 0.22) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
 }

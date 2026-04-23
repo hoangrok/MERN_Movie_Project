@@ -1,0 +1,18 @@
+[    2130ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:21010
+[    2134ms] [LOG] API_URL: http://localhost:5000/api @ http://localhost:5173/src/store/Slice/movie-slice.js:6
+[    2211ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=8f7e7f11:4379
+[    2211ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=8f7e7f11:4379
+[    4551ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/api/movies/genres:0
+[    4551ms] [ERROR] loadGenres error: TypeError: Failed to fetch
+    at loadGenres (http://localhost:5173/src/components/Navbar/Navbar.jsx:60:27)
+    at http://localhost:5173/src/components/Navbar/Navbar.jsx:69:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:16438:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:17679:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:17652:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:17642:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:17632:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:18985:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:18942:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-GH7Z2EUS.js?v=8f7e7f11:18823:17 @ http://localhost:5173/src/components/Navbar/Navbar.jsx:65
+[    4557ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/api/movies?type=all:0
+[    4558ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/api/movies/trending:0

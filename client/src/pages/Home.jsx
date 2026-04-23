@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronRight,
@@ -65,8 +65,8 @@ function getTimelineFrames(movie, count = 3) {
 
 function getBestThumb(movie) {
   return (
-    getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.poster) ||
+    getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.backdrop) ||
     FALLBACK_POSTER
   );
@@ -80,172 +80,53 @@ function formatViews(views) {
 }
 
 function HeroBackdrop({ movie }) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [canPlayVideo, setCanPlayVideo] = useState(false);
-  const videoRef = useRef(null);
+  const [loadedImages, setLoadedImages] = useState({});
 
-  const heroImage =
-    normalizeImage(movie?.backdrop) ||
-    normalizeImage(movie?.poster) ||
-    getTimelineFrames(movie, 1)[0] ||
-    FALLBACK_POSTER;
+  const frames = getTimelineFrames(movie, 3);
+  const heroImages = [
+    normalizeImage(movie?.poster),
+    ...frames,
+    normalizeImage(movie?.backdrop),
+  ]
+    .filter(Boolean)
+    .filter((url, index, arr) => arr.indexOf(url) === index)
+    .slice(0, 3);
 
-  const rawHeroVideo =
-    movie?.heroVideo ||
-    movie?.trailerUrl ||
-    movie?.previewUrl ||
-    movie?.trailer ||
-    "";
-
-  const isDirectVideoFile =
-    typeof rawHeroVideo === "string" &&
-    /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(rawHeroVideo.trim());
-
-  const heroVideo = isDirectVideoFile ? rawHeroVideo.trim() : "";
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !heroVideo) return;
-
-    setCanPlayVideo(false);
-
-    const onCanPlay = () => setCanPlayVideo(true);
-    const onLoadedData = () => setCanPlayVideo(true);
-    const onError = () => setCanPlayVideo(false);
-
-    el.addEventListener("canplay", onCanPlay);
-    el.addEventListener("loadeddata", onLoadedData);
-    el.addEventListener("error", onError);
-
-    const playPromise = el.play();
-    if (playPromise?.catch) {
-      playPromise.catch(() => {
-        setCanPlayVideo(false);
-      });
-    }
-
-    return () => {
-      el.removeEventListener("canplay", onCanPlay);
-      el.removeEventListener("loadeddata", onLoadedData);
-      el.removeEventListener("error", onError);
-    };
-  }, [heroVideo]);
+  while (heroImages.length < 3) {
+    heroImages.push(heroImages[heroImages.length - 1] || FALLBACK_POSTER);
+  }
 
   return (
-    <>
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          inset: 0,
-          overflow: "hidden",
-          borderRadius: "inherit",
-          pointerEvents: "none",
-          background: "#05070d",
-        }}
-      >
-        {heroVideo ? (
-          <video
-            ref={videoRef}
-            muted
-            autoPlay
-            loop
-            playsInline
-            preload="metadata"
-            poster={heroImage}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center center",
-              opacity: canPlayVideo ? 1 : 0,
-              transition: "opacity 0.45s ease",
-              zIndex: 1,
-              filter: "contrast(1.04) saturate(1.06) brightness(0.96)",
-            }}
+    <div className="heroFeature__backdrop" aria-hidden="true">
+      <div className="heroFeature__backdropTrack">
+        {heroImages.map((src, index) => (
+          <div
+            key={`${src}-${index}`}
+            className={`heroFeature__backdropPane heroFeature__backdropPane--${index + 1}`}
           >
-            <source src={heroVideo} />
-          </video>
-        ) : null}
-
-        <img
-          src={heroImage}
-          alt=""
-          draggable="false"
-          loading="eager"
-          decoding="async"
-          onLoad={() => setImageLoaded(true)}
-          onError={(e) => {
-            e.currentTarget.src = FALLBACK_POSTER;
-          }}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center center",
-            opacity: imageLoaded ? 1 : 0,
-            transition: "opacity 0.45s ease",
-            zIndex: 0,
-            filter: "contrast(1.05) saturate(1.05) brightness(0.93)",
-            backfaceVisibility: "hidden",
-            transform: "translateZ(0)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            background: `
-              linear-gradient(
-                90deg,
-                rgba(4, 6, 10, 0.94) 0%,
-                rgba(4, 6, 10, 0.82) 22%,
-                rgba(4, 6, 10, 0.46) 42%,
-                rgba(4, 6, 10, 0.14) 62%,
-                rgba(4, 6, 10, 0.3) 100%
-              )
-            `,
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            background: `
-              linear-gradient(
-                180deg,
-                rgba(0, 0, 0, 0.26) 0%,
-                rgba(0, 0, 0, 0.06) 18%,
-                rgba(0, 0, 0, 0) 32%,
-                rgba(5, 7, 12, 0.12) 60%,
-                rgba(5, 7, 12, 0.76) 100%
-              )
-            `,
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 2,
-            background: `
-              radial-gradient(circle at 78% 12%, rgba(255, 50, 90, 0.08), transparent 24%),
-              radial-gradient(circle at 12% 14%, rgba(0, 120, 255, 0.07), transparent 18%),
-              radial-gradient(circle at center, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.22) 100%)
-            `,
-          }}
-        />
+            <img
+              src={src || FALLBACK_POSTER}
+              alt=""
+              draggable="false"
+              loading="eager"
+              decoding="async"
+              className={loadedImages[src] ? "is-loaded" : ""}
+              onLoad={() => {
+                setLoadedImages((prev) => ({ ...prev, [src]: true }));
+              }}
+              onError={(e) => {
+                e.currentTarget.src = FALLBACK_POSTER;
+                setLoadedImages((prev) => ({ ...prev, [src]: true }));
+              }}
+            />
+          </div>
+        ))}
       </div>
-    </>
+      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--left" />
+      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--bottom" />
+      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--top" />
+      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--glow" />
+    </div>
   );
 }
 

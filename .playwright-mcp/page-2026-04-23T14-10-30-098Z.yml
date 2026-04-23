@@ -1,0 +1,127 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Dam18" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - heading "Dam18" [level=1] [ref=e9]
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - link "Mới cập nhật" [ref=e12] [cursor=pointer]:
+              - /url: /latest
+          - listitem [ref=e13]:
+            - link "Top lượt xem" [ref=e14] [cursor=pointer]:
+              - /url: /top-viewed
+          - listitem [ref=e15]:
+            - link "Thư viện" [ref=e16] [cursor=pointer]:
+              - /url: /my-list
+          - listitem [ref=e17]:
+            - button "Thể loại" [ref=e18] [cursor=pointer]:
+              - text: Thể loại
+              - img [ref=e19]
+      - generic [ref=e21]:
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - textbox "Tìm phim, thể loại, mô tả..." [ref=e26]
+        - button "Đăng nhập" [ref=e27] [cursor=pointer]
+  - main [ref=e28]:
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - img [ref=e32]
+        - text: Nổi bật hôm nay
+      - heading "admin test" [level=1] [ref=e34]
+      - generic [ref=e35]:
+        - generic [ref=e36]: 0 lượt xem
+        - generic [ref=e37]: HD
+      - paragraph [ref=e38]: Nội dung đang được cập nhật.
+      - generic [ref=e40]: Thủ Dâm
+      - generic [ref=e41]:
+        - link "Xem ngay" [ref=e42] [cursor=pointer]:
+          - /url: /movie/69ea271251980e2730df54d2
+          - img [ref=e43]
+          - text: Xem ngay
+        - link "Khám phá thêm" [ref=e45] [cursor=pointer]:
+          - /url: /top-viewed
+          - img [ref=e46]
+          - text: Khám phá thêm
+    - generic [ref=e48]:
+      - complementary [ref=e49]:
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - heading "Xem tiếp" [level=2] [ref=e52]
+            - link "Xem thêm" [ref=e53] [cursor=pointer]:
+              - /url: /continue-watching
+              - text: Xem thêm
+              - img [ref=e54]
+          - link "▶ Xin Chào lần cuối 8% • Sắp xong" [ref=e57] [cursor=pointer]:
+            - /url: /movie/69e4f963c6957a2a2122c81b
+            - button "Xóa khỏi xem tiếp" [ref=e58]:
+              - img [ref=e59]
+            - generic [ref=e61]: ▶
+            - img [ref=e66]
+            - generic [ref=e70]:
+              - heading "Xin Chào lần cuối" [level=3] [ref=e71]
+              - paragraph [ref=e72]: 8% • Sắp xong
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - heading "Gợi ý cho bạn" [level=2] [ref=e76]
+            - button "Xem thêm" [ref=e77] [cursor=pointer]:
+              - text: Xem thêm
+              - img [ref=e78]
+          - link "Xin Chào lần cuối Đề xuất Xin Chào lần cuối Thủ Dâm" [ref=e81] [cursor=pointer]:
+            - /url: /movie/69e4f963c6957a2a2122c81b
+            - generic [ref=e82]:
+              - img "Xin Chào lần cuối" [ref=e84]
+              - generic [ref=e85]: Đề xuất
+              - img [ref=e88]
+            - generic [ref=e90]:
+              - heading "Xin Chào lần cuối" [level=3] [ref=e91]
+              - paragraph [ref=e92]: Thủ Dâm
+        - generic [ref=e93]:
+          - generic [ref=e94]:
+            - heading "Mới cập nhật" [level=2] [ref=e95]
+            - link "Xem thêm" [ref=e96] [cursor=pointer]:
+              - /url: /latest
+              - text: Xem thêm
+              - img [ref=e97]
+          - generic [ref=e99]:
+            - link "admin test admin test 0 lượt xem" [ref=e100] [cursor=pointer]:
+              - /url: /movie/69ea271251980e2730df54d2
+              - generic [ref=e101]:
+                - img "admin test" [ref=e103]
+                - img [ref=e106]
+              - generic [ref=e108]:
+                - heading "admin test" [level=3] [ref=e109]
+                - paragraph [ref=e110]: 0 lượt xem
+            - link "Xin Chào lần cuối Xin Chào lần cuối Thủ Dâm" [ref=e111] [cursor=pointer]:
+              - /url: /movie/69e4f963c6957a2a2122c81b
+              - generic [ref=e112]:
+                - img "Xin Chào lần cuối" [ref=e114]
+                - img [ref=e117]
+              - generic [ref=e119]:
+                - heading "Xin Chào lần cuối" [level=3] [ref=e120]
+                - paragraph [ref=e121]: Thủ Dâm
+      - complementary [ref=e122]:
+        - generic [ref=e123]:
+          - generic [ref=e124]:
+            - heading "Top xem" [level=2] [ref=e125]
+            - link "Xem thêm" [ref=e126] [cursor=pointer]:
+              - /url: /top-viewed
+              - text: Xem thêm
+              - img [ref=e127]
+          - generic [ref=e129]:
+            - link "#1 admin test admin test 0 lượt xem" [ref=e130] [cursor=pointer]:
+              - /url: /movie/69ea271251980e2730df54d2
+              - generic [ref=e131]: "#1"
+              - img "admin test" [ref=e133]
+              - generic [ref=e134]:
+                - heading "admin test" [level=3] [ref=e135]
+                - paragraph [ref=e136]: 0 lượt xem
+            - link "#2 Xin Chào lần cuối Xin Chào lần cuối 0 lượt xem" [ref=e137] [cursor=pointer]:
+              - /url: /movie/69e4f963c6957a2a2122c81b
+              - generic [ref=e138]: "#2"
+              - img "Xin Chào lần cuối" [ref=e140]
+              - generic [ref=e141]:
+                - heading "Xin Chào lần cuối" [level=3] [ref=e142]
+                - paragraph [ref=e143]: 0 lượt xem

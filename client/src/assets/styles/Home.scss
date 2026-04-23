@@ -67,13 +67,102 @@
   pointer-events: none;
 }
 
-.heroFeature__backdropZoom {
+.heroFeature__backdrop {
   position: absolute;
   inset: 0;
-  transform: none;
-  opacity: 0;
   z-index: 0;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.heroFeature__backdropTrack {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 0.95fr;
+  gap: 4px;
+  padding: 0;
+}
+
+.heroFeature__backdropPane {
+  position: relative;
+  overflow: hidden;
+  background: #0a0d14;
+}
+
+.heroFeature__backdropPane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(4, 6, 12, 0.2), rgba(4, 6, 12, 0.02));
+  pointer-events: none;
+}
+
+.heroFeature__backdropPane img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transform: scale(1.04);
+  filter: saturate(1.02) brightness(0.82);
+  transition: opacity 0.35s ease;
+}
+
+.heroFeature__backdropPane img.is-loaded {
+  opacity: 1;
+}
+
+.heroFeature__backdropPane--1 img,
+.heroFeature__backdropPane--3 img {
+  filter: saturate(0.96) brightness(0.52);
+}
+
+.heroFeature__backdropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.heroFeature__backdropOverlay--left {
+  background: linear-gradient(
+    90deg,
+    rgba(4, 6, 10, 0.94) 0%,
+    rgba(4, 6, 10, 0.82) 22%,
+    rgba(4, 6, 10, 0.46) 42%,
+    rgba(4, 6, 10, 0.14) 62%,
+    rgba(4, 6, 10, 0.3) 100%
+  );
+}
+
+.heroFeature__backdropOverlay--bottom {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.26) 0%,
+    rgba(0, 0, 0, 0.06) 18%,
+    rgba(0, 0, 0, 0) 32%,
+    rgba(5, 7, 12, 0.12) 60%,
+    rgba(5, 7, 12, 0.76) 100%
+  );
+}
+
+.heroFeature__backdropOverlay--top {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.42) 0%,
+    rgba(0, 0, 0, 0.08) 16%,
+    rgba(0, 0, 0, 0) 42%,
+    rgba(0, 0, 0, 0.08) 76%,
+    rgba(0, 0, 0, 0.46) 100%
+  );
+}
+
+.heroFeature__backdropOverlay--glow {
+  background:
+    radial-gradient(circle at 78% 12%, rgba(255, 50, 90, 0.08), transparent 24%),
+    radial-gradient(circle at 12% 14%, rgba(0, 120, 255, 0.07), transparent 18%),
+    radial-gradient(circle at center, rgba(0, 0, 0, 0) 54%, rgba(0, 0, 0, 0.22) 100%);
 }
 
 .heroFeature__content {

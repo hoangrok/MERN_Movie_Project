@@ -1,0 +1,99 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - link "Dam18" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - heading "Dam18" [level=1] [ref=e9]
+        - list [ref=e10]:
+          - listitem [ref=e11]:
+            - link "Mới cập nhật" [ref=e12] [cursor=pointer]:
+              - /url: /latest
+          - listitem [ref=e13]:
+            - link "Top lượt xem" [ref=e14] [cursor=pointer]:
+              - /url: /top-viewed
+          - listitem [ref=e15]:
+            - link "Thư viện" [ref=e16] [cursor=pointer]:
+              - /url: /my-list
+          - listitem [ref=e17]:
+            - button "Thể loại" [ref=e18] [cursor=pointer]:
+              - text: Thể loại
+              - img [ref=e19]
+      - generic [ref=e21]:
+        - generic [ref=e23]:
+          - img [ref=e24]
+          - textbox "Tìm phim, thể loại, mô tả..." [ref=e26]
+        - button "Đăng nhập" [ref=e27] [cursor=pointer]
+  - generic:
+    - img "admin test 2"
+  - generic [ref=e28]:
+    - generic [ref=e29]:
+      - link "Trang chủ" [ref=e30] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e31]: /
+      - generic [ref=e32]: Xem phim
+      - generic [ref=e33]: /
+      - strong [ref=e34]: admin test 2
+    - generic [ref=e35]:
+      - main [ref=e36]:
+        - generic [ref=e42]:
+          - button "▶" [ref=e102] [cursor=pointer]
+          - generic [ref=e43]:
+            - slider [ref=e45] [cursor=pointer]: "33.2"
+            - generic [ref=e46]:
+              - generic [ref=e47]:
+                - button "▶" [ref=e48] [cursor=pointer]
+                - button "« 5" [ref=e49] [cursor=pointer]
+                - button "5 »" [ref=e50] [cursor=pointer]
+                - button "🔊" [ref=e51] [cursor=pointer]
+                - slider [ref=e52]: "1"
+                - generic [ref=e53]: 0:33 / 2:04:30
+              - button "⛶" [ref=e55] [cursor=pointer]
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - heading "admin test 2" [level=1] [ref=e59]
+              - generic [ref=e61]: HD
+            - generic [ref=e62]:
+              - button "Phát" [ref=e63] [cursor=pointer]
+              - button "Lưu phim" [ref=e64] [cursor=pointer]
+              - button "Chia sẻ" [ref=e65] [cursor=pointer]
+          - generic [ref=e66]:
+            - img "admin test 2" [ref=e67]
+            - generic [ref=e69]: Chưa có mô tả.
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - heading "Có thể bạn sẽ thích" [level=2] [ref=e72]
+            - link "Xem thêm" [ref=e73] [cursor=pointer]:
+              - /url: /top-viewed
+          - generic [ref=e74]:
+            - link "admin test admin test N/A • ⭐ N/A" [ref=e75] [cursor=pointer]:
+              - /url: /movie/69ea271251980e2730df54d2
+              - img "admin test" [ref=e77]
+              - generic [ref=e78]:
+                - generic [ref=e79]: admin test
+                - generic [ref=e80]: N/A • ⭐ N/A
+            - link "Xin Chào lần cuối Xin Chào lần cuối 2024 • ⭐ 8" [ref=e81] [cursor=pointer]:
+              - /url: /movie/69e4f963c6957a2a2122c81b
+              - img "Xin Chào lần cuối" [ref=e83]
+              - generic [ref=e84]:
+                - generic [ref=e85]: Xin Chào lần cuối
+                - generic [ref=e86]: 2024 • ⭐ 8
+      - complementary [ref=e87]:
+        - generic [ref=e88]:
+          - heading "Video liên quan" [level=3] [ref=e90]
+          - generic [ref=e91]:
+            - link "admin test admin test N/A • N/A phút Phim liên quan" [ref=e92] [cursor=pointer]:
+              - /url: /movie/69ea271251980e2730df54d2
+              - img "admin test" [ref=e93]
+              - generic [ref=e94]:
+                - heading "admin test" [level=4] [ref=e95]
+                - paragraph [ref=e96]: N/A • N/A phút
+                - text: Phim liên quan
+            - link "Xin Chào lần cuối Xin Chào lần cuối 2024 • 4 phút Thủ Dâm" [ref=e97] [cursor=pointer]:
+              - /url: /movie/69e4f963c6957a2a2122c81b
+              - img "Xin Chào lần cuối" [ref=e98]
+              - generic [ref=e99]:
+                - heading "Xin Chào lần cuối" [level=4] [ref=e100]
+                - paragraph [ref=e101]: 2024 • 4 phút
+                - text: Thủ Dâm

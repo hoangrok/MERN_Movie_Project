@@ -1,0 +1,3 @@
+[     477ms] [LOG] API_URL: https://api.clipdam18.com/api @ https://www.clipdam18.com/assets/index.15ff8705.js:5
+[  408554ms] [ERROR] Access to fetch at 'https://media-worker.hoang-media.workers.dev/videos/69e4f963c6957a2a2122c81b/hls/master.m3u8' from origin 'https://www.clipdam18.com' has been blocked by CORS policy: The 'Access-Control-Allow-Origin' header has a value 'https://media-worker.hoang-media.workers.dev/' that is not equal to the supplied origin. Have the server send the header with a valid value. @ https://www.clipdam18.com/movie/69e4f963c6957a2a2122c81b:0
+[  408555ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://media-worker.hoang-media.workers.dev/videos/69e4f963c6957a2a2122c81b/hls/master.m3u8:0
