@@ -172,6 +172,9 @@ export default function MovieDetail() {
   const [previewImage, setPreviewImage] = useState("");
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [backdropSrc, setBackdropSrc] = useState(FALLBACK_BACKDROP);
+  const [hlsLevels, setHlsLevels] = useState([]);
+  const [currentQuality, setCurrentQuality] = useState(-1);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   const [editForm, setEditForm] = useState({
     title: "",
@@ -333,6 +336,9 @@ export default function MovieDetail() {
       setIsPlaying(false);
       setError("");
       setBufferedTime(0);
+      setHlsLevels([]);
+      setCurrentQuality(-1);
+      setShowQualityMenu(false);
 
       const restorePlaybackState = async () => {
         if (!videoRef.current) return;
@@ -436,6 +442,12 @@ export default function MovieDetail() {
           hls.attachMedia(video);
 
           hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+            const levels = hls.levels
+              .map((level, i) => ({ index: i, height: level.height }))
+              .filter((l) => l.height > 0)
+              .sort((a, b) => b.height - a.height);
+            setHlsLevels(levels);
+            setCurrentQuality(-1);
             await markReady();
           });
 
@@ -560,6 +572,14 @@ export default function MovieDetail() {
     },
     [clearHideTimer, fetchSignedStream, id]
   );
+
+  const handleQualityChange = useCallback((levelIndex) => {
+    if (hlsRef.current) {
+      hlsRef.current.currentLevel = levelIndex;
+    }
+    setCurrentQuality(levelIndex);
+    setShowQualityMenu(false);
+  }, []);
 
   const refreshSignedStream = useCallback(async () => {
     if (refreshingStreamRef.current) return null;
@@ -1388,6 +1408,11 @@ export default function MovieDetail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [duration]);
 
+  const qualityLabel =
+    currentQuality === -1
+      ? "Auto"
+      : `${hlsLevels.find((l) => l.index === currentQuality)?.height || ""}p`;
+
   const safeDuration = Number.isFinite(duration) ? duration : 0;
   const safeCurrentTime = Math.min(currentTime || 0, safeDuration || 0);
   const progressPercent = safeDuration ? (safeCurrentTime / safeDuration) * 100 : 0;
@@ -1647,6 +1672,39 @@ export default function MovieDetail() {
                       <span className="nf-time">
                         {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
                       </span>
+
+                      {hlsLevels.length > 0 && (
+                        <div className="nf-quality-wrap">
+                          {showQualityMenu && (
+                            <div className="nf-quality-menu">
+                              <button
+                                className={`nf-quality-option${currentQuality === -1 ? " active" : ""}`}
+                                onClick={() => handleQualityChange(-1)}
+                              >
+                                Auto
+                              </button>
+                              {hlsLevels.map((level) => (
+                                <button
+                                  key={level.index}
+                                  className={`nf-quality-option${currentQuality === level.index ? " active" : ""}`}
+                                  onClick={() => handleQualityChange(level.index)}
+                                >
+                                  {level.height}p
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            className="nf-quality-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowQualityMenu((prev) => !prev);
+                            }}
+                          >
+                            {qualityLabel}
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="nf-controls__right">
