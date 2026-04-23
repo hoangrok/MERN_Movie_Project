@@ -65,9 +65,9 @@ function getTimelineFrames(movie, count = 3) {
 
 function getBestThumb(movie) {
   return (
-    normalizeImage(movie?.backdrop) ||
     getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.poster) ||
+    normalizeImage(movie?.backdrop) ||
     FALLBACK_POSTER
   );
 }

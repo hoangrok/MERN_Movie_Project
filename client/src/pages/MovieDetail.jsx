@@ -443,10 +443,9 @@ export default function MovieDetail() {
 
           hls.on(Hls.Events.MANIFEST_PARSED, async () => {
             const levels = hls.levels
-              .map((level, i) => ({ index: i, height: level.height }))
-              .filter((l) => l.height > 0)
+              .map((level, i) => ({ index: i, height: level.height || 0 }))
               .sort((a, b) => b.height - a.height);
-            setHlsLevels(levels);
+            setHlsLevels(levels.length > 0 ? levels : [{ index: 0, height: 0 }]);
             setCurrentQuality(-1);
             await markReady();
           });
@@ -1408,9 +1407,12 @@ export default function MovieDetail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [duration]);
 
+  const multipleQualities = hlsLevels.filter((l) => l.height > 0).length > 1;
   const qualityLabel =
     currentQuality === -1
-      ? "Auto"
+      ? hlsLevels[0]?.height > 0
+        ? `${hlsLevels[0].height}p`
+        : "Auto"
       : `${hlsLevels.find((l) => l.index === currentQuality)?.height || ""}p`;
 
   const safeDuration = Number.isFinite(duration) ? duration : 0;
@@ -1675,7 +1677,7 @@ export default function MovieDetail() {
 
                       {hlsLevels.length > 0 && (
                         <div className="nf-quality-wrap">
-                          {showQualityMenu && (
+                          {showQualityMenu && multipleQualities && (
                             <div className="nf-quality-menu">
                               <button
                                 className={`nf-quality-option${currentQuality === -1 ? " active" : ""}`}
@@ -1683,7 +1685,7 @@ export default function MovieDetail() {
                               >
                                 Auto
                               </button>
-                              {hlsLevels.map((level) => (
+                              {hlsLevels.filter((l) => l.height > 0).map((level) => (
                                 <button
                                   key={level.index}
                                   className={`nf-quality-option${currentQuality === level.index ? " active" : ""}`}
@@ -1698,8 +1700,9 @@ export default function MovieDetail() {
                             className="nf-quality-btn"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowQualityMenu((prev) => !prev);
+                              if (multipleQualities) setShowQualityMenu((prev) => !prev);
                             }}
+                            style={{ cursor: multipleQualities ? "pointer" : "default" }}
                           >
                             {qualityLabel}
                           </button>

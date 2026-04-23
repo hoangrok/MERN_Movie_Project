@@ -166,7 +166,6 @@ async function processVideoInBackground({ movieId, tempVideo }) {
             .outputOptions([
               "-preset ultrafast",
               "-crf 30",
-              "-threads 1",
               "-hls_time 6",
               "-hls_list_size 0",
               "-hls_playlist_type vod",
@@ -196,14 +195,20 @@ async function processVideoInBackground({ movieId, tempVideo }) {
 
     console.log("5️⃣ Upload R2 bắt đầu");
 
-    for (const f of files) {
-      const filePath = path.join(outputDir, f);
-      if (!fs.statSync(filePath).isFile()) continue;
+    const uploadFiles = files.filter((f) =>
+      fs.statSync(path.join(outputDir, f)).isFile()
+    );
 
-      await uploadFileToR2(
-        `videos/${movieId}/hls/${f}`,
-        fs.readFileSync(filePath),
-        getContentType(f)
+    const BATCH = 6;
+    for (let i = 0; i < uploadFiles.length; i += BATCH) {
+      await Promise.all(
+        uploadFiles.slice(i, i + BATCH).map((f) =>
+          uploadFileToR2(
+            `videos/${movieId}/hls/${f}`,
+            fs.readFileSync(path.join(outputDir, f)),
+            getContentType(f)
+          )
+        )
       );
     }
 
@@ -217,35 +222,33 @@ async function processVideoInBackground({ movieId, tempVideo }) {
     let previewResult = null;
     let backdropResult = null;
 
-    try {
-      previewDir = path.join(tmpDir, `${movieId}-preview`);
-      ensureDir(previewDir);
+    previewDir = path.join(tmpDir, `${movieId}-preview`);
+    ensureDir(previewDir);
 
-      previewResult = await generatePreviewTimeline(tempVideo, previewDir, {
+    [previewResult, backdropResult] = await Promise.all([
+      generatePreviewTimeline(tempVideo, previewDir, {
         movieId,
         previewCount: 8,
         candidateCount: 18,
-      });
-
-      console.log(
-        "✅ Preview generated:",
-        previewResult?.items?.length || 0,
-        "items"
-      );
-    } catch (err) {
-      console.warn("⚠️ Preview generation failed:", err.message);
-    }
-
-    try {
-      backdropResult = await generateVideoBackdrop(tempVideo, movieId, {
+      }).then((r) => {
+        console.log("✅ Preview generated:", r?.items?.length || 0, "items");
+        return r;
+      }).catch((err) => {
+        console.warn("⚠️ Preview generation failed:", err.message);
+        return null;
+      }),
+      generateVideoBackdrop(tempVideo, movieId, {
         candidateCount: 12,
         width: 1920,
         height: 1080,
-      });
-      console.log("✅ Backdrop generated");
-    } catch (err) {
-      console.warn("⚠️ Backdrop generation failed:", err.message);
-    }
+      }).then((r) => {
+        console.log("✅ Backdrop generated");
+        return r;
+      }).catch((err) => {
+        console.warn("⚠️ Backdrop generation failed:", err.message);
+        return null;
+      }),
+    ]);
 
     // =========================
     // SAVE DATA TO MOVIE
