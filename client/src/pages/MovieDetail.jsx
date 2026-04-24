@@ -1505,7 +1505,7 @@ export default function MovieDetail() {
                 className="nf-video"
                 playsInline
                 preload="metadata"
-                poster={backdropSrc || posterImage || FALLBACK_BACKDROP}
+                poster={posterImage || backdropSrc || FALLBACK_POSTER}
               />
 
               {skipIndicator && (

@@ -49,8 +49,7 @@ function getTimelineFrames(movie, count = 3) {
   if (!urls.length) return [];
   if (urls.length <= count) return urls.slice(0, count);
 
-  const ratios =
-    count === 4 ? [0.12, 0.38, 0.66, 0.88] : [0.15, 0.48, 0.8];
+  const ratios = count === 4 ? [0.12, 0.38, 0.66, 0.88] : [0.15, 0.48, 0.8];
 
   return dedupeImages(
     ratios.map((ratio) => {
@@ -175,6 +174,7 @@ export default function Home() {
 
   const allGenres = useMemo(() => {
     const set = new Set();
+
     movies.forEach((movie) => {
       (movie.genre || []).forEach((g) => {
         const value = String(g || "").trim();
@@ -529,47 +529,40 @@ function SectionHeadButton({ title, onClick }) {
 function PosterCard({ movie, badge = "" }) {
   if (!movie?._id) return null;
 
-  const cardImage = getBestThumb(movie);
+  const primary = normalizeImage(movie?.poster) || FALLBACK_POSTER;
+  const secondary = normalizeImage(movie?.backdrop) || primary;
+
+  const cardImages = [primary, secondary, primary]
+    .filter(Boolean)
+    .slice(0, 3);
+
+  while (cardImages.length < 3) {
+    cardImages.push(cardImages[cardImages.length - 1] || FALLBACK_POSTER);
+  }
 
   return (
-    <Link to={`/movie/${movie._id}`} className="posterCard">
-      <div
-        className="posterCard__imageWrap"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background: "#0b1220",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url(${cardImage || FALLBACK_POSTER})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(18px) brightness(0.7)",
-            transform: "scale(1.15)",
-            opacity: 0.55,
-          }}
-        />
+    <Link to={`/movie/${movie._id}`} className="posterCard posterCard--cinematic">
+      <div className="posterCard__imageWrap posterCard__imageWrap--cinematic">
+        <div className="posterCard__strip">
+          {cardImages.map((src, index) => (
+            <div
+              key={`${src}-${index}`}
+              className={`posterCard__pane posterCard__pane--${index + 1}`}
+            >
+              <img
+                src={src || FALLBACK_POSTER}
+                alt={movie.title || "movie"}
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  e.currentTarget.src = FALLBACK_POSTER;
+                }}
+              />
+            </div>
+          ))}
+        </div>
 
-        <img
-          src={cardImage || FALLBACK_POSTER}
-          alt={movie.title || "movie"}
-          style={{
-            position: "relative",
-            zIndex: 1,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-          }}
-          onError={(e) => {
-            e.currentTarget.src = FALLBACK_POSTER;
-          }}
-        />
+        <div className="posterCard__cinematicShade" />
 
         {badge ? <span className="posterCard__badge">{badge}</span> : null}
 
@@ -658,81 +651,32 @@ function ContinueCard({ movie, onRemove }) {
   return (
     <Link
       to={`/movie/${movie._id}`}
-      className={`continueItem continueItem--row ${
-        isHovered ? "is-hovered" : ""
-      }`}
+      className="continueItem continueItem--row"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <button
-        type="button"
-        className="continueItem__remove"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onRemove?.(movie._id);
-        }}
-        title="Xóa khỏi xem tiếp"
-      >
-        <FaTimes />
-      </button>
+      <span className="continueItem__rank">▶</span>
 
-      <div className="continueItem__rank">▶</div>
-
-      <div
-        className="continueItem__thumb"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background: "#0b1220",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url(${thumb || FALLBACK_POSTER})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(16px) brightness(0.72)",
-            transform: "scale(1.18)",
-            opacity: 0.55,
-          }}
-        />
-
+      <div className="continueItem__thumb">
         <img
           className={canPlayPreview ? "is-hidden" : ""}
-          src={thumb || FALLBACK_POSTER}
-          alt=""
-          draggable="false"
-          style={{
-            position: "relative",
-            zIndex: 1,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-          }}
+          src={thumb}
+          alt={movie.title || "movie"}
           onError={(e) => {
-            if (e.currentTarget.src !== FALLBACK_POSTER) {
-              e.currentTarget.src = FALLBACK_POSTER;
-            }
+            e.currentTarget.src = FALLBACK_POSTER;
           }}
         />
 
         {previewUrl && !previewFailed ? (
           <video
             ref={videoRef}
-            className={`continueItem__video ${
-              canPlayPreview ? "is-visible" : ""
-            }`}
+            className={`continueItem__video ${canPlayPreview ? "is-visible" : ""}`}
             src={previewUrl}
             muted
             playsInline
             loop
             preload="none"
-            poster={thumb || FALLBACK_POSTER}
+            poster={thumb}
             onWaiting={() => setCanPlayPreview(false)}
             onCanPlay={() => {
               if (isHovered) setCanPlayPreview(true);
@@ -746,30 +690,35 @@ function ContinueCard({ movie, onRemove }) {
         ) : null}
 
         <div className="continueItem__overlay">
-          <span className="continueItem__play">
+          <div className="continueItem__play">
             <FaPlay />
-          </span>
+          </div>
         </div>
 
         <div className="continueItem__progress">
           <div
             className="continueItem__progressBar"
-            style={{ width: `${progressValue}%` }}
+            style={{ width: `${Math.max(0, Math.min(progressValue, 100))}%` }}
           />
         </div>
       </div>
 
-      <div className="continueItem__meta continueItem__meta--row">
-        <h3 title={movie.title}>{movie.title}</h3>
-        <p>
-          {progressValue > 0
-            ? `${Math.round(progressValue)}% • ${formatRemainingTime(
-                movie.duration,
-                movie.currentTime
-              )}`
-            : "Tiếp tục xem"}
-        </p>
+      <div className="continueItem__meta">
+        <h3 title={movie.title}>{movie.title || "Untitled"}</h3>
+        <p>{formatRemainingTime(movie)}</p>
       </div>
+
+      <button
+        type="button"
+        className="continueItem__remove"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRemove?.(movie._id);
+        }}
+      >
+        <FaTimes />
+      </button>
     </Link>
   );
 }
@@ -781,18 +730,11 @@ function TopCard({ movie, index }) {
 
   return (
     <Link to={`/movie/${movie._id}`} className="topItem">
-      <div className="topItem__rank">#{index + 1}</div>
+      <span className="topItem__rank">#{index + 1}</span>
 
-      <div
-        className="topItem__thumb"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background: "#0b1220",
-        }}
-      >
+      <div className="topItem__thumb">
         <img
-          src={thumb || FALLBACK_POSTER}
+          src={thumb}
           alt={movie.title || "movie"}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
@@ -802,7 +744,7 @@ function TopCard({ movie, index }) {
 
       <div className="topItem__meta">
         <h3 title={movie.title}>{movie.title || "Untitled"}</h3>
-        <p>{movie.views || 0} lượt xem</p>
+        <p>{formatViews(movie.views || 0)}</p>
       </div>
     </Link>
   );

@@ -12,7 +12,6 @@ const rateLimit = require("express-rate-limit");
 const uploadRoutes = require("./routes/uploadRoutes");
 const movieRoutes = require("./routes/movieRoutes");
 const userRoutes = require("./routes/UserRoutes");
-const debugRoutes = require("./routes/DebugRoutes");
 
 const app = express();
 
@@ -112,7 +111,6 @@ app.use((req, res, next) => {
 app.use("/api/movies", movieRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
-app.use("/api/debug", debugRoutes);
 
 app.get("/", (req, res) => res.send("API is running"));
 
@@ -122,7 +120,6 @@ app.get("/health", (req, res) => {
     success: true,
     message: "OK",
     env: process.env.NODE_ENV || "development",
-    allowedOrigins,
   });
 });
 

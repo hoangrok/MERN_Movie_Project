@@ -16,10 +16,10 @@ export default function TopViewedMovies() {
 
   useEffect(() => {
     setSEO({
-      title: "Top phim lượt xem cao | ClipDam18",
-      description: "Những phim hot nhất theo lượt xem.",
+      title: "Top lượt xem | Dam17+1",
+      description: "Những video được xem nhiều nhất trên Dam17+1.",
       url: window.location.href,
-      image: "https://clipdam18.com/og-image.jpg",
+      image: "https://www.clipdam18.com/og-image.jpg",
     });
   }, []);
 

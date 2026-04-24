@@ -31,12 +31,14 @@ function randomId(len = 16) {
 }
 
 function sanitizeKeyPart(value = "movie") {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9-_]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "") || "movie";
+  return (
+    String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "") || "movie"
+  );
 }
 
 function getPublicUrl(key) {
@@ -65,9 +67,9 @@ function getVideoDuration(filePath) {
 function buildCandidateTimestamps(duration, count = 12) {
   if (duration <= 6) {
     return [
-      Math.max(0.4, duration * 0.18),
-      Math.max(0.8, duration * 0.42),
-      Math.max(1.2, duration * 0.68),
+      Math.max(0.4, Number((duration * 0.18).toFixed(2))),
+      Math.max(0.8, Number((duration * 0.42).toFixed(2))),
+      Math.max(1.2, Number((duration * 0.68).toFixed(2))),
     ];
   }
 
@@ -79,6 +81,7 @@ function buildCandidateTimestamps(duration, count = 12) {
   for (let i = 0; i < count; i++) {
     values.push(Number((start + step * i).toFixed(2)));
   }
+
   return Array.from(new Set(values));
 }
 
@@ -132,6 +135,7 @@ async function analyzeFrame(filePath) {
     .toBuffer({ resolveWithObject: true });
 
   const totalPixels = info.width * info.height;
+
   let brightnessSum = 0;
   let brightnessSqSum = 0;
   let edgeScore = 0;
@@ -180,25 +184,25 @@ async function analyzeFrame(filePath) {
 
   let score = 0;
 
-  if (avgBrightness >= 45 && avgBrightness <= 205) score += 25;
-  else if (avgBrightness >= 28 && avgBrightness <= 225) score += 12;
-  else score -= 18;
+  if (avgBrightness >= 50 && avgBrightness <= 200) score += 28;
+  else if (avgBrightness >= 30 && avgBrightness <= 220) score += 14;
+  else score -= 22;
 
-  if (contrast >= 22) score += 25;
-  else if (contrast >= 14) score += 14;
-  else score -= 15;
+  if (contrast >= 22) score += 24;
+  else if (contrast >= 14) score += 12;
+  else score -= 18;
 
   if (avgSaturation >= 0.14) score += 18;
   else if (avgSaturation >= 0.08) score += 8;
   else score -= 8;
 
-  if (normalizedEdge >= 18) score += 24;
-  else if (normalizedEdge >= 12) score += 14;
-  else if (normalizedEdge >= 8) score += 6;
-  else score -= 12;
+  if (normalizedEdge >= 18) score += 22;
+  else if (normalizedEdge >= 12) score += 12;
+  else if (normalizedEdge >= 8) score += 4;
+  else score -= 14;
 
-  if (avgBrightness < 20 || avgBrightness > 235) score -= 25;
-  if (contrast < 8) score -= 20;
+  if (avgBrightness < 18 || avgBrightness > 235) score -= 28;
+  if (contrast < 8) score -= 18;
 
   return {
     score,
@@ -256,6 +260,30 @@ async function createBackdropFromFrames(framePaths, outWidth = 1920, outHeight =
     .modulate({ brightness: 0.86, saturation: 1.08 })
     .toBuffer();
 
+  const overlaySvg = Buffer.from(
+    `<svg width="${outWidth}" height="${outHeight}">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="rgba(4,6,12,0.88)" />
+          <stop offset="22%" stop-color="rgba(4,6,12,0.58)" />
+          <stop offset="52%" stop-color="rgba(4,6,12,0.18)" />
+          <stop offset="100%" stop-color="rgba(4,6,12,0.80)" />
+        </linearGradient>
+        <radialGradient id="g2" cx="78%" cy="14%" r="26%">
+          <stop offset="0%" stop-color="rgba(255,70,90,0.16)" />
+          <stop offset="100%" stop-color="rgba(255,70,90,0)" />
+        </radialGradient>
+        <radialGradient id="g3" cx="12%" cy="16%" r="20%">
+          <stop offset="0%" stop-color="rgba(0,110,255,0.14)" />
+          <stop offset="100%" stop-color="rgba(0,110,255,0)" />
+        </radialGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g1)" />
+      <rect width="100%" height="100%" fill="url(#g2)" />
+      <rect width="100%" height="100%" fill="url(#g3)" />
+    </svg>`
+  );
+
   const finalBuffer = await sharp(blurred)
     .resize(outWidth, outHeight, { fit: "cover" })
     .composite([
@@ -268,47 +296,9 @@ async function createBackdropFromFrames(framePaths, outWidth = 1920, outHeight =
         blend: "over",
       },
       {
-        input: await sharp({
-          create: {
-            width: outWidth,
-            height: outHeight,
-            channels: 4,
-            background: { r: 0, g: 0, b: 0, alpha: 0 },
-          },
-        })
-          .composite([
-            {
-              input: Buffer.from(
-                `<svg width="${outWidth}" height="${outHeight}">
-                  <defs>
-                    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stop-color="rgba(4,6,12,0.88)" />
-                      <stop offset="22%" stop-color="rgba(4,6,12,0.58)" />
-                      <stop offset="52%" stop-color="rgba(4,6,12,0.18)" />
-                      <stop offset="100%" stop-color="rgba(4,6,12,0.80)" />
-                    </linearGradient>
-                    <radialGradient id="g2" cx="78%" cy="14%" r="26%">
-                      <stop offset="0%" stop-color="rgba(255,70,90,0.16)" />
-                      <stop offset="100%" stop-color="rgba(255,70,90,0)" />
-                    </radialGradient>
-                    <radialGradient id="g3" cx="12%" cy="16%" r="20%">
-                      <stop offset="0%" stop-color="rgba(0,110,255,0.14)" />
-                      <stop offset="100%" stop-color="rgba(0,110,255,0)" />
-                    </radialGradient>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#g1)" />
-                  <rect width="100%" height="100%" fill="url(#g2)" />
-                  <rect width="100%" height="100%" fill="url(#g3)" />
-                </svg>`
-              ),
-              top: 0,
-              left: 0,
-            },
-          ])
-          .png()
-          .toBuffer(),
-        top: 0,
+        input: await sharp(overlaySvg).png().toBuffer(),
         left: 0,
+        top: 0,
         blend: "over",
       },
     ])
@@ -334,7 +324,10 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
 
   try {
     const duration = await getVideoDuration(videoPath);
-    const timestamps = buildCandidateTimestamps(duration, Number(options.candidateCount) || 12);
+    const timestamps = buildCandidateTimestamps(
+      duration,
+      Number(options.candidateCount) || 12
+    );
 
     const candidates = [];
 
@@ -379,7 +372,9 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
         (item) => Math.abs(item.second - frame.second) >= minGap
       );
 
-      if (isFarEnough) picked.push(frame);
+      if (isFarEnough) {
+        picked.push(frame);
+      }
     }
 
     if (picked.length < 3) {

@@ -43,7 +43,7 @@ const LIST_PROJECTION = [
   "updatedAt",
 ].join(" ");
 
-const DETAIL_PROJECTION = [
+const PUBLIC_DETAIL_PROJECTION = [
   "title",
   "slug",
   "description",
@@ -53,7 +53,6 @@ const DETAIL_PROJECTION = [
   "year",
   "rating",
   "duration",
-  "hlsUrl",
   "trailerUrl",
   "type",
   "featured",
@@ -64,12 +63,17 @@ const DETAIL_PROJECTION = [
   "language",
   "country",
   "subtitles",
-  "status",
-  "processingError",
   "thumbnailPickedAt",
   "previewTimeline",
   "createdAt",
   "updatedAt",
+].join(" ");
+
+const ADMIN_DETAIL_PROJECTION = [
+  PUBLIC_DETAIL_PROJECTION,
+  "hlsUrl",
+  "status",
+  "processingError",
 ].join(" ");
 
 const setPublicCache = (
@@ -81,6 +85,18 @@ const setPublicCache = (
 
 const setNoStore = (res) => {
   res.set("Cache-Control", "private, no-store");
+};
+
+const cleanString = (value = "") =>
+  typeof value === "string" ? value.trim() : "";
+
+const escapeRegex = (value = "") => {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+const normalizeImage = (value = "") => {
+  const next = cleanString(value);
+  return next || "";
 };
 
 // ==========================
@@ -110,10 +126,13 @@ const getMovies = async (req, res) => {
       }
     }
 
-    if (q) {
+    const query = cleanString(q).slice(0, 80);
+    if (query) {
+      const pattern = escapeRegex(query);
+
       filter.$or = [
-        { title: { $regex: q, $options: "i" } },
-        { description: { $regex: q, $options: "i" } },
+        { title: { $regex: pattern, $options: "i" } },
+        { description: { $regex: pattern, $options: "i" } },
       ];
     }
 
@@ -259,7 +278,7 @@ const getMovieById = async (req, res) => {
     }
 
     const movie = await Movie.findOne({ $or: orConditions })
-      .select(DETAIL_PROJECTION)
+      .select(req.user?.isAdmin ? ADMIN_DETAIL_PROJECTION : PUBLIC_DETAIL_PROJECTION)
       .lean();
 
     if (!movie) {
@@ -317,6 +336,9 @@ const createMovie = async (req, res) => {
         .filter(Boolean);
     }
 
+    payload.poster = normalizeImage(payload.poster);
+    payload.backdrop = normalizeImage(payload.backdrop);
+
     const existed = await Movie.findOne({ slug: payload.slug }).lean();
     if (existed) {
       payload.slug = `${payload.slug}-${Date.now()}`;
@@ -337,13 +359,19 @@ const createMovie = async (req, res) => {
 
       await videoFile.mv(tempVideoPath);
 
-      try {
-        const generated = await generateVideoBackdrop(tempVideoPath, payload.slug);
-        if (generated?.backdropUrl) {
-          payload.backdrop = generated.backdropUrl;
+      // Chỉ auto generate backdrop khi chưa có backdrop do admin/user nhập tay
+      if (!payload.backdrop) {
+        try {
+          const generated = await generateVideoBackdrop(tempVideoPath, payload.slug);
+          if (generated?.backdropUrl) {
+            payload.backdrop = generated.backdropUrl;
+            if (generated?.capturedAt?.[1] != null) {
+              payload.thumbnailPickedAt = generated.capturedAt[1];
+            }
+          }
+        } catch (backdropErr) {
+          console.error("generate backdrop failed:", backdropErr);
         }
-      } catch (backdropErr) {
-        console.error("generate backdrop failed:", backdropErr);
       }
     }
 
@@ -416,6 +444,14 @@ const updateMovie = async (req, res) => {
         .split(",")
         .map((x) => x.trim())
         .filter(Boolean);
+    }
+
+    if (payload.poster !== undefined) {
+      payload.poster = normalizeImage(payload.poster);
+    }
+
+    if (payload.backdrop !== undefined) {
+      payload.backdrop = normalizeImage(payload.backdrop);
     }
 
     if (payload.slug) {
@@ -501,7 +537,12 @@ const getStreamUrl = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id).select("_id");
+    const filter = { _id: id };
+    if (!req.user?.isAdmin) {
+      filter.isPublished = true;
+    }
+
+    const movie = await Movie.findOne(filter).select("_id");
 
     if (!movie) {
       return res.status(404).json({
@@ -569,7 +610,7 @@ const getRelatedMovies = async (req, res) => {
       });
     }
 
-    const movie = await Movie.findById(id).select("genre");
+    const movie = await Movie.findOne({ _id: id, isPublished: true }).select("genre");
 
     if (!movie) {
       return res.status(404).json({
@@ -619,8 +660,8 @@ const incrementView = async (req, res) => {
       });
     }
 
-    const updated = await Movie.findByIdAndUpdate(
-      id,
+    const updated = await Movie.findOneAndUpdate(
+      { _id: id, isPublished: true },
       { $inc: { views: 1 } },
       { new: true }
     ).select("views");

@@ -22,8 +22,20 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
 }
 
+.movieCard__bgBlur {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.65);
+  transform: scale(1.12);
+  opacity: 0.52;
+}
+
 .movieCard__image,
 .movieCard__video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -31,19 +43,13 @@
 }
 
 .movieCard__image {
+  z-index: 1;
   object-fit: cover;
   transition: transform 0.45s ease, opacity 0.22s ease;
 }
 
-.movieCard__image.is-backdrop-fallback {
-  object-fit: contain;
-  padding: 8px;
-  background: #111;
-}
-
 .movieCard__video {
-  position: absolute;
-  inset: 0;
+  z-index: 2;
   opacity: 0;
   pointer-events: none;
   background: #111;
@@ -59,13 +65,14 @@
   opacity: 0;
 }
 
-.movieCard:hover .movieCard__image:not(.is-backdrop-fallback) {
+.movieCard:hover .movieCard__image {
   transform: scale(1.06);
 }
 
 .movieCard__gradient {
   position: absolute;
   inset: 0;
+  z-index: 3;
   pointer-events: none;
   background: linear-gradient(
     to top,

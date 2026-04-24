@@ -11,6 +11,8 @@ const Movie = require("../models/Movie");
 const { addJob, getQueueSnapshot } = require("../utils/videoJobQueue");
 const generatePreviewTimeline = require("../utils/generatePreviewTimeline");
 const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
+const { protect } = require("../middleware/authMiddleware");
+const { adminOnly } = require("../middleware/adminMiddleware");
 
 // ==========================
 // HELPER
@@ -312,7 +314,7 @@ router.options("/queue", (req, res) => res.sendStatus(204));
 // DEBUG QUEUE
 // ==========================
 
-router.get("/queue", (req, res) => {
+router.get("/queue", protect, adminOnly, (req, res) => {
   return res.json({
     success: true,
     ...getQueueSnapshot(),
@@ -323,7 +325,7 @@ router.get("/queue", (req, res) => {
 // STATUS
 // ==========================
 
-router.get("/status/:movieId", async (req, res) => {
+router.get("/status/:movieId", protect, adminOnly, async (req, res) => {
   try {
     const { movieId } = req.params;
 
@@ -361,7 +363,7 @@ router.get("/status/:movieId", async (req, res) => {
 // UPLOAD IMAGE
 // ==========================
 
-router.post("/image", async (req, res) => {
+router.post("/image", protect, adminOnly, async (req, res) => {
   try {
     const file = req.files?.image;
 
@@ -402,7 +404,7 @@ router.post("/image", async (req, res) => {
 // UPLOAD VIDEO BACKGROUND
 // ==========================
 
-router.post("/video/:movieId", async (req, res) => {
+router.post("/video/:movieId", protect, adminOnly, async (req, res) => {
   let tempVideo = null;
 
   try {

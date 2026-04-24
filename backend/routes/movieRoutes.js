@@ -16,7 +16,7 @@ const {
   getTrending,
 } = require("../controllers/movieController");
 
-const { protect } = require("../middleware/authMiddleware");
+const { protect, optionalAuth } = require("../middleware/authMiddleware");
 const { adminOnly } = require("../middleware/adminMiddleware");
 
 // List / Search
@@ -34,7 +34,7 @@ router.put("/:id", protect, adminOnly, updateMovie);
 router.delete("/:id", protect, adminOnly, deleteMovie);
 
 // Signed stream url
-router.get("/:id/stream", getStreamUrl);
+router.get("/:id/stream", optionalAuth, getStreamUrl);
 
 // Related movies
 router.get("/:id/related", getRelatedMovies);
@@ -43,6 +43,6 @@ router.get("/:id/related", getRelatedMovies);
 router.post("/:id/view", incrementView);
 
 // Movie detail
-router.get("/:id", getMovieById);
+router.get("/:id", optionalAuth, getMovieById);
 
 module.exports = router;

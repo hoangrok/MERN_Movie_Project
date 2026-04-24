@@ -38,7 +38,7 @@
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  opacity: 0.24;
+  opacity: 0.14;
   pointer-events: none;
 }
 
@@ -47,8 +47,8 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: blur(10px) saturate(1.1);
-  transform: scale(1.08);
+  filter: blur(5px) saturate(1.03);
+  transform: scale(1.03);
 }
 
 .movie-detail-shell {
@@ -122,6 +122,10 @@
   background: #000;
   aspect-ratio: 16 / 9;
   margin-bottom: 22px;
+  border-radius: 24px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .nf-player:fullscreen {
@@ -136,9 +140,12 @@
   height: 100%;
   display: block;
   background: #000;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   cursor: pointer;
+  image-rendering: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .nf-loader {
@@ -176,9 +183,14 @@
   flex-direction: column;
   justify-content: space-between;
   opacity: 0;
-  transition: 0.25s ease;
+  transition: opacity 0.25s ease;
   background:
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.04) 28%, rgba(0, 0, 0, 0.62));
+    linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.34),
+      rgba(0, 0, 0, 0.02) 26%,
+      rgba(0, 0, 0, 0.56)
+    );
 }
 
 .nf-overlay.show {
