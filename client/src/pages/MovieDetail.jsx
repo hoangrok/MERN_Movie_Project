@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import Hls from "hls.js";
 import axios from "axios";
 import Navbar from "../components/Navbar/Navbar";
+import AdSlot from "../components/Ads/AdSlot";
 import "../assets/styles/MovieDetailPlayer.css";
 import {
   saveContinueWatching,
@@ -143,6 +144,7 @@ export default function MovieDetail() {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [posterHidden, setPosterHidden] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -297,6 +299,22 @@ export default function MovieDetail() {
       FALLBACK_POSTER
     );
   }, [movie]);
+
+  // Auto-select best thumbnail: backdrop (cinematic) > timeline 30% > poster
+  const cardThumbImage = useMemo(() => {
+    const backdrop = normalizeImage(movie?.backdrop, "");
+    if (backdrop) return backdrop;
+
+    if (previewItems.length >= 3) {
+      const frame = normalizeImage(
+        previewItems[Math.floor(previewItems.length * 0.3)]?.url,
+        ""
+      );
+      if (frame) return frame;
+    }
+
+    return normalizeImage(movie?.poster, "") || FALLBACK_POSTER;
+  }, [movie, previewItems]);
 
   useEffect(() => {
     setBackdropSrc(backdropImage || FALLBACK_BACKDROP);
@@ -624,6 +642,7 @@ export default function MovieDetail() {
         setIsReady(false);
         setIsPlaying(false);
         setIsBuffering(true);
+        setPosterHidden(false);
         setCurrentTime(0);
         setDuration(0);
         setBufferedTime(0);
@@ -644,10 +663,13 @@ export default function MovieDetail() {
           }
         }
 
-        const movieRes = await fetch(`${API_URL}/movies/${id}`);
+        const movieRes = await fetch(`${API_URL}/movies/${id}`, {
+          cache: "no-store",
+        });
         const movieData = await movieRes.json();
 
         if (!movieRes.ok || !movieData?.success || !movieData?.movie) {
+          removeContinueWatching(id);
           setError(movieData?.message || "Không tải được movie");
           setPageLoading(false);
           return;
@@ -656,7 +678,9 @@ export default function MovieDetail() {
         setMovie(movieData.movie);
 
         try {
-          const relatedRes = await fetch(`${API_URL}/movies/${id}/related`);
+          const relatedRes = await fetch(`${API_URL}/movies/${id}/related`, {
+            cache: "no-store",
+          });
           const relatedData = await relatedRes.json();
 
           if (relatedData?.success) {
@@ -670,7 +694,9 @@ export default function MovieDetail() {
         }
 
         try {
-          const allRes = await fetch(`${API_URL}/movies?limit=12&page=1`);
+          const allRes = await fetch(`${API_URL}/movies?limit=12&page=1`, {
+            cache: "no-store",
+          });
           const allData = await allRes.json();
 
           const items = allData?.items || allData?.movies || [];
@@ -833,6 +859,7 @@ export default function MovieDetail() {
       setIsBuffering(false);
       setIsPlaying(true);
       kickAutoHide(true);
+      setPosterHidden(true);
     };
 
     const onTimeUpdate = () => {
@@ -1360,6 +1387,7 @@ export default function MovieDetail() {
         },
       });
 
+      removeContinueWatching(movie._id);
       alert("Xóa phim thành công.");
       navigate("/");
     } catch (err) {
@@ -1507,6 +1535,17 @@ export default function MovieDetail() {
                 preload="metadata"
                 poster={posterImage || backdropSrc || FALLBACK_POSTER}
               />
+
+              <div className={`nf-poster-layer${posterHidden ? " nf-poster-layer--hidden" : ""}`}>
+                <img
+                  src={backdropSrc || posterImage || FALLBACK_POSTER}
+                  alt=""
+                  draggable="false"
+                />
+                <div className="nf-poster-layer__vignette" />
+              </div>
+
+              <PlayerWatermark />
 
               {skipIndicator && (
                 <div className={`nf-skip-indicator ${skipSide}`}>
@@ -1725,6 +1764,8 @@ export default function MovieDetail() {
               </div>
             </div>
 
+            <AdSlot placement="movie_detail_below_player" variant="banner" />
+
             <section className="movie-info-card">
               <div className="movie-info-card__header">
                 <div className="movie-info-card__left">
@@ -1781,15 +1822,30 @@ export default function MovieDetail() {
               </div>
 
               <div className="movie-meta-grid">
-                <img
-                  src={posterImage || FALLBACK_POSTER}
-                  alt={movie.title}
-                  className="movie-poster"
-                  style={{ objectFit: "cover", objectPosition: "center" }}
-                  onError={(e) => {
-                    e.currentTarget.src = FALLBACK_POSTER;
-                  }}
-                />
+                <div className="movie-poster-wrap">
+                  {previewItems.length > 0 ? (
+                    <GifPoster
+                      previewItems={previewItems}
+                      fallback={cardThumbImage || FALLBACK_POSTER}
+                      alt={movie.title}
+                    />
+                  ) : (
+                    <img
+                      src={cardThumbImage}
+                      alt={movie.title}
+                      className="movie-poster"
+                      onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
+                    />
+                  )}
+                  <div className="movie-poster-overlay">
+                    {movie.rating ? (
+                      <span className="movie-poster-badge movie-poster-badge--rating">
+                        ⭐ {movie.rating}
+                      </span>
+                    ) : null}
+                    <span className="movie-poster-badge movie-poster-badge--hd">HD</span>
+                  </div>
+                </div>
 
                 <div className="movie-meta-content">
                   {movie.genre?.length > 0 && (
@@ -1864,6 +1920,8 @@ export default function MovieDetail() {
           </main>
 
           <aside className="movie-detail-side">
+            <AdSlot placement="movie_detail_sidebar" variant="side" />
+
             <div className="movie-side-card">
               <div className="movie-section-head">
                 <h3>Video liên quan</h3>
@@ -2190,5 +2248,83 @@ export default function MovieDetail() {
         </div>
       )}
     </div>
+  );
+}
+
+const CORNERS = [
+  { top: "12px",  left: "14px",  bottom: "auto", right: "auto" },
+  { top: "12px",  right: "14px", bottom: "auto", left: "auto"  },
+  { bottom: "56px", left: "14px",  top: "auto",  right: "auto" },
+  { bottom: "56px", right: "14px", top: "auto",  left: "auto"  },
+];
+
+function PlayerWatermark() {
+  const [corner, setCorner] = useState(() => Math.floor(Math.random() * 4));
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCorner((prev) => {
+        let next;
+        do { next = Math.floor(Math.random() * 4); } while (next === prev);
+        return next;
+      });
+    }, Math.floor(Math.random() * 5000) + 7000); // 7–12 s random
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="nf-watermark" style={CORNERS[corner]}>
+      <span className="nf-watermark__dot" />
+      clipdam18.com
+    </div>
+  );
+}
+
+function GifPoster({ previewItems, fallback, alt }) {
+  const frames = useMemo(() => {
+    if (!previewItems.length) return [fallback];
+    const total = previewItems.length;
+    const count = Math.min(10, total);
+    const picked = new Set();
+    const result = [];
+
+    // evenly spaced picks
+    for (let i = 0; i < count; i++) {
+      const idx = Math.floor((i / count) * total);
+      picked.add(idx);
+      result.push(previewItems[idx].url);
+    }
+
+    // shuffle for random feel
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+
+    return result.filter(Boolean);
+  }, [previewItems, fallback]);
+
+  const [idx, setIdx] = useState(0);
+  const [animKey, setAnimKey] = useState(0);
+
+  useEffect(() => {
+    if (frames.length <= 1) return;
+    const timer = setInterval(() => {
+      setIdx((prev) => (prev + 1) % frames.length);
+      setAnimKey((prev) => prev + 1);
+    }, 750);
+    return () => clearInterval(timer);
+  }, [frames]);
+
+  return (
+    <img
+      key={animKey}
+      src={frames[idx] || fallback}
+      alt={alt}
+      className="movie-poster gif-poster"
+      onError={(e) => {
+        e.currentTarget.src = fallback;
+      }}
+    />
   );
 }

@@ -9,6 +9,34 @@ const FALLBACK_POSTER =
 const FALLBACK_BACKDROP =
   "https://dummyimage.com/1600x900/111/ffffff&text=Backdrop";
 
+function normalizeImage(url) {
+  return typeof url === "string" && url.trim() ? url.trim() : "";
+}
+
+function getTimelineFrames(movie, count = 3) {
+  const items = Array.isArray(movie?.previewTimeline?.items)
+    ? movie.previewTimeline.items
+    : [];
+  const urls = [...new Set(items.map((i) => normalizeImage(i?.url)).filter(Boolean))];
+  if (!urls.length) return [];
+  if (urls.length <= count) return urls.slice(0, count);
+  const ratios = count === 3 ? [0.15, 0.48, 0.8] : [0.12, 0.38, 0.66, 0.88];
+  return ratios
+    .map((r) => urls[Math.min(urls.length - 1, Math.floor((urls.length - 1) * r))])
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, count);
+}
+
+function getCardImages(movie) {
+  const backdrop = normalizeImage(movie?.backdrop);
+  const poster = normalizeImage(movie?.poster);
+  const frames = getTimelineFrames(movie, 2);
+  const primary = backdrop || frames[0] || poster || FALLBACK_POSTER;
+  const secondary = frames[1] || poster || primary;
+  const tertiary = frames[0] || backdrop || poster || primary;
+  return [primary, secondary, tertiary];
+}
+
 export default function GenreMovies() {
   const [searchParams] = useSearchParams();
   const [movies, setMovies] = useState([]);
@@ -133,16 +161,19 @@ export default function GenreMovies() {
                 className="genre-card"
               >
                 <div className="genre-card__image-wrap">
-                  <img
-                    className="genre-card__image"
-                    src={movie.poster || movie.backdrop || FALLBACK_POSTER}
-                    alt={movie.title}
-                    loading={index < 4 ? "eager" : "lazy"}
-                    decoding="async"
-                    onError={(e) => {
-                      e.currentTarget.src = FALLBACK_POSTER;
-                    }}
-                  />
+                  <div className="genre-card__strip">
+                    {getCardImages(movie).map((src, i) => (
+                      <div key={i} className={`genre-card__pane genre-card__pane--${i + 1}`}>
+                        <img
+                          src={src}
+                          alt={i === 1 ? movie.title : ""}
+                          loading={index < 4 ? "eager" : "lazy"}
+                          decoding="async"
+                          onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
+                        />
+                      </div>
+                    ))}
+                  </div>
 
                   <div className="genre-card__overlay">
                     <span className="genre-card__watch">Xem chi tiết</span>

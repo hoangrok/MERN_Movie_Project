@@ -12,6 +12,7 @@ const rateLimit = require("express-rate-limit");
 const uploadRoutes = require("./routes/uploadRoutes");
 const movieRoutes = require("./routes/movieRoutes");
 const userRoutes = require("./routes/UserRoutes");
+const adRoutes = require("./routes/adRoutes");
 
 const app = express();
 
@@ -111,6 +112,8 @@ app.use((req, res, next) => {
 app.use("/api/movies", movieRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/ads", adRoutes);
+app.use("/api/feedback", require("./routes/feedbackRoutes"));
 
 app.get("/", (req, res) => res.send("API is running"));
 

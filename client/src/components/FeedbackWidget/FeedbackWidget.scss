@@ -1,0 +1,205 @@
+.fbWidget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+
+  &__trigger {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #e50914;
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    transition: transform 0.2s, background 0.2s;
+    flex-shrink: 0;
+
+    &:hover {
+      transform: scale(1.1);
+      background: #f40612;
+    }
+  }
+
+  &__panel {
+    width: 320px;
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    border-radius: 14px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    animation: fbSlideUp 0.22s ease;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #111;
+    border-bottom: 1px solid #2a2a2a;
+
+    span {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover {
+      color: #fff;
+      background: #2a2a2a;
+    }
+  }
+
+  &__tabs {
+    display: flex;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  &__tab {
+    flex: 1;
+    padding: 10px 8px;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    border-bottom: 2px solid transparent;
+
+    &:hover {
+      color: #ccc;
+      background: #1f1f1f;
+    }
+
+    &.active {
+      color: #e50914;
+      border-bottom-color: #e50914;
+      background: #1f1f1f;
+    }
+  }
+
+  &__body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__textarea {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e5e5e5;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+    font-family: inherit;
+
+    &::placeholder {
+      color: #555;
+    }
+
+    &:focus {
+      border-color: #e50914;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+    }
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__count {
+    font-size: 11px;
+    color: #555;
+  }
+
+  &__submit {
+    background: #e50914;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+
+    &:hover:not(:disabled) {
+      background: #f40612;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__error {
+    font-size: 12px;
+    color: #ff6b6b;
+    margin: 0;
+  }
+
+  &__success {
+    text-align: center;
+    color: #4ade80;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 16px 0;
+  }
+}
+
+@keyframes fbSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .fbWidget {
+    bottom: 16px;
+    right: 16px;
+
+    &__panel {
+      width: calc(100vw - 32px);
+    }
+  }
+}

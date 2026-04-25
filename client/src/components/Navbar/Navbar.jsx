@@ -33,6 +33,9 @@ const Navbar = ({ isScrolled }) => {
   const movies = useSelector((state) => state.movie.movies || []);
   const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
   const { user } = useSelector((state) => state.auth);
+  const visibleLinks = user?.isAdmin
+    ? [...links, { name: "Ads", path: "/admin/ads" }, { name: "Feedback", path: "/admin/feedback" }]
+    : links;
 
   const [searchedInput, setSearchedInput] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
@@ -214,7 +217,7 @@ const Navbar = ({ isScrolled }) => {
           </div>
 
           <ul className="navbar__content--links">
-            {links.map((link, index) => (
+            {visibleLinks.map((link, index) => (
               <li key={index}>
                 <Link
                   to={link.path}

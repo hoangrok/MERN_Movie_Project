@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronRight,
   FaPlay,
   FaCheck,
   FaTimes,
-  FaFire,
-  FaEye,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
 import Loader from "../components/Loader/Loader";
+import AdSlot from "../components/Ads/AdSlot";
+import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import { fetchMovies, getTrending } from "../store/Slice/movie-slice";
 import {
   getContinueWatching,
   removeContinueWatching,
   formatRemainingTime,
+  syncContinueWatchingWithServer,
 } from "../utils/continueWatching";
 import "../assets/styles/Home.scss";
 
@@ -64,70 +65,29 @@ function getTimelineFrames(movie, count = 3) {
 
 function getBestThumb(movie) {
   return (
-    normalizeImage(movie?.poster) ||
-    getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.backdrop) ||
+    getTimelineFrames(movie, 1)[0] ||
+    normalizeImage(movie?.poster) ||
     FALLBACK_POSTER
   );
 }
 
-function formatViews(views) {
-  if (!views) return "0 lượt xem";
-  if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M lượt xem`;
-  if (views >= 1000) return `${(views / 1000).toFixed(1)}K lượt xem`;
-  return `${views} lượt xem`;
-}
+function getDirectPreviewUrl(movie) {
+  const rawPreviewUrl =
+    movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
 
-function HeroBackdrop({ movie }) {
-  const [loadedImages, setLoadedImages] = useState({});
-
-  const frames = getTimelineFrames(movie, 3);
-  const heroImages = [
-    normalizeImage(movie?.poster),
-    ...frames,
-    normalizeImage(movie?.backdrop),
-  ]
-    .filter(Boolean)
-    .filter((url, index, arr) => arr.indexOf(url) === index)
-    .slice(0, 3);
-
-  while (heroImages.length < 3) {
-    heroImages.push(heroImages[heroImages.length - 1] || FALLBACK_POSTER);
+  if (
+    typeof rawPreviewUrl === "string" &&
+    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim())
+  ) {
+    return rawPreviewUrl.trim();
   }
 
-  return (
-    <div className="heroFeature__backdrop" aria-hidden="true">
-      <div className="heroFeature__backdropTrack">
-        {heroImages.map((src, index) => (
-          <div
-            key={`${src}-${index}`}
-            className={`heroFeature__backdropPane heroFeature__backdropPane--${index + 1}`}
-          >
-            <img
-              src={src || FALLBACK_POSTER}
-              alt=""
-              draggable="false"
-              loading="eager"
-              decoding="async"
-              className={loadedImages[src] ? "is-loaded" : ""}
-              onLoad={() => {
-                setLoadedImages((prev) => ({ ...prev, [src]: true }));
-              }}
-              onError={(e) => {
-                e.currentTarget.src = FALLBACK_POSTER;
-                setLoadedImages((prev) => ({ ...prev, [src]: true }));
-              }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--left" />
-      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--bottom" />
-      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--top" />
-      <div className="heroFeature__backdropOverlay heroFeature__backdropOverlay--glow" />
-    </div>
-  );
+  return "";
 }
+
+
+
 
 export default function Home() {
   const dispatch = useDispatch();
@@ -151,8 +111,19 @@ export default function Home() {
   }, [dispatch, status]);
 
   useEffect(() => {
+    let alive = true;
+
     const loadCW = () => {
-      setContinueWatching(getContinueWatching() || []);
+      const localList = getContinueWatching() || [];
+      if (alive) {
+        setContinueWatching(localList);
+      }
+
+      syncContinueWatchingWithServer().then((syncedList) => {
+        if (alive) {
+          setContinueWatching(syncedList || []);
+        }
+      });
     };
 
     loadCW();
@@ -161,6 +132,7 @@ export default function Home() {
     window.addEventListener("focus", loadCW);
 
     return () => {
+      alive = false;
       window.removeEventListener("continue-watching-updated", loadCW);
       window.removeEventListener("focus", loadCW);
     };
@@ -245,10 +217,6 @@ export default function Home() {
     [continueWatching]
   );
 
-  const featuredMovie = useMemo(() => {
-    return trendingMovies[0] || suggestedMovies[0] || movies[0] || null;
-  }, [trendingMovies, suggestedMovies, movies]);
-
   const togglePreferredGenre = (genre) => {
     setSelectedGenres((prev) =>
       prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
@@ -284,12 +252,7 @@ export default function Home() {
       <Navbar isScrolled={isScrolling} />
 
       <main className="homeLayout homeShell">
-        {featuredMovie ? (
-          <HeroFeature
-            movie={featuredMovie}
-            recommendationGenres={recommendationGenres}
-          />
-        ) : null}
+        <AdSlot placement="home_top" variant="banner" />
 
         <div className="homeBoard">
           <aside className="homeBoard__left">
@@ -365,6 +328,8 @@ export default function Home() {
           </section>
 
           <aside className="homeBoard__right">
+            <AdSlot placement="home_sidebar" variant="side" />
+
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="Top xem" to="/top-viewed" />
               <div className="topColumn">
@@ -439,70 +404,6 @@ export default function Home() {
   );
 }
 
-function HeroFeature({ movie, recommendationGenres = [] }) {
-  if (!movie?._id) return null;
-
-  const metaGenres =
-    Array.isArray(movie?.genre) && movie.genre.length
-      ? movie.genre
-      : recommendationGenres;
-
-  return (
-    <section
-      className="heroFeature"
-      style={{
-        position: "relative",
-        overflow: "hidden",
-        isolation: "isolate",
-      }}
-    >
-      <HeroBackdrop movie={movie} />
-
-      <div
-        className="heroFeature__content"
-        style={{ position: "relative", zIndex: 2 }}
-      >
-        <span className="heroFeature__badge">
-          <FaFire /> Nổi bật hôm nay
-        </span>
-
-        <h1 title={movie.title}>{movie.title || "Untitled"}</h1>
-
-        <div className="heroFeature__meta">
-          {movie.year ? <span>{movie.year}</span> : null}
-          {movie.rating ? <span>⭐ {movie.rating}</span> : null}
-          <span>{formatViews(movie.views || 0)}</span>
-          <span>HD</span>
-        </div>
-
-        <p>
-          {movie.description?.trim()
-            ? movie.description
-            : "Nội dung đang được cập nhật."}
-        </p>
-
-        <div className="heroFeature__genres">
-          {metaGenres.slice(0, 4).map((genre) => (
-            <span key={genre}>{genre}</span>
-          ))}
-        </div>
-
-        <div className="heroFeature__actions">
-          <Link
-            to={`/movie/${movie._id}`}
-            className="heroFeature__btn heroFeature__btn--primary"
-          >
-            <FaPlay /> Xem ngay
-          </Link>
-
-          <Link to="/top-viewed" className="heroFeature__btn">
-            <FaEye /> Khám phá thêm
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function SectionHeadLink({ title, to }) {
   return (
@@ -527,10 +428,18 @@ function SectionHeadButton({ title, onClick }) {
 }
 
 function PosterCard({ movie, badge = "" }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [canPlayPreview, setCanPlayPreview] = useState(false);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+
   if (!movie?._id) return null;
 
-  const primary = normalizeImage(movie?.poster) || FALLBACK_POSTER;
-  const secondary = normalizeImage(movie?.backdrop) || primary;
+  const frames = getTimelineFrames(movie, 2);
+  const poster = normalizeImage(movie?.poster);
+  const primary =
+    normalizeImage(movie?.backdrop) || frames[0] || poster || FALLBACK_POSTER;
+  const secondary = frames[1] || poster || primary;
+  const previewUrl = getDirectPreviewUrl(movie);
 
   const cardImages = [primary, secondary, primary]
     .filter(Boolean)
@@ -541,9 +450,19 @@ function PosterCard({ movie, badge = "" }) {
   }
 
   return (
-    <Link to={`/movie/${movie._id}`} className="posterCard posterCard--cinematic">
+    <Link
+      to={`/movie/${movie._id}`}
+      className={`posterCard posterCard--cinematic ${
+        isHovered ? "is-hovered" : ""
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setCanPlayPreview(false);
+      }}
+    >
       <div className="posterCard__imageWrap posterCard__imageWrap--cinematic">
-        <div className="posterCard__strip">
+        <div className={`posterCard__strip ${canPlayPreview ? "is-hidden" : ""}`}>
           {cardImages.map((src, index) => (
             <div
               key={`${src}-${index}`}
@@ -561,6 +480,16 @@ function PosterCard({ movie, badge = "" }) {
             </div>
           ))}
         </div>
+
+        <HoverPreviewVideo
+          active={isHovered}
+          movieId={movie._id}
+          directUrl={previewUrl}
+          frames={previewFrames}
+          className="posterCard__video"
+          poster={primary}
+          onVisibleChange={setCanPlayPreview}
+        />
 
         <div className="posterCard__cinematicShade" />
 
@@ -587,65 +516,23 @@ function PosterCard({ movie, badge = "" }) {
 function ContinueCard({ movie, onRemove }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const [previewFailed, setPreviewFailed] = useState(false);
-  const videoRef = useRef(null);
-  const hoverTimerRef = useRef(null);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
 
   if (!movie?._id) return null;
 
   const thumb = getBestThumb(movie);
-  const rawPreviewUrl =
-    movie.previewUrl || movie.trailer || movie.trailerUrl || "";
-
-  const isDirectVideoFile =
-    typeof rawPreviewUrl === "string" &&
-    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
-
-  const previewUrl = isDirectVideoFile ? rawPreviewUrl.trim() : "";
+  const previewUrl = getDirectPreviewUrl(movie);
+  const previewStartAt =
+    Number(movie.currentTime || 0) > 8 ? Number(movie.currentTime) : 18;
   const progressValue = Number(movie.progressPercent || movie.progress || 0);
-
-  const resetPreview = () => {
-    setCanPlayPreview(false);
-
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      } catch {}
-    }
-  };
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-
-    if (!previewUrl || previewFailed) return;
-
-    hoverTimerRef.current = setTimeout(async () => {
-      try {
-        if (!videoRef.current) return;
-
-        videoRef.current.currentTime = 0;
-        const playPromise = videoRef.current.play();
-
-        if (playPromise && typeof playPromise.then === "function") {
-          await playPromise;
-        }
-
-        setCanPlayPreview(true);
-      } catch {
-        setCanPlayPreview(false);
-      }
-    }, 450);
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    resetPreview();
+    setCanPlayPreview(false);
   };
 
   return (
@@ -667,27 +554,16 @@ function ContinueCard({ movie, onRemove }) {
           }}
         />
 
-        {previewUrl && !previewFailed ? (
-          <video
-            ref={videoRef}
-            className={`continueItem__video ${canPlayPreview ? "is-visible" : ""}`}
-            src={previewUrl}
-            muted
-            playsInline
-            loop
-            preload="none"
-            poster={thumb}
-            onWaiting={() => setCanPlayPreview(false)}
-            onCanPlay={() => {
-              if (isHovered) setCanPlayPreview(true);
-            }}
-            onPlaying={() => setCanPlayPreview(true)}
-            onError={() => {
-              setPreviewFailed(true);
-              resetPreview();
-            }}
-          />
-        ) : null}
+        <HoverPreviewVideo
+          active={isHovered}
+          movieId={movie._id}
+          directUrl={previewUrl}
+          frames={previewFrames}
+          className="continueItem__video"
+          poster={thumb}
+          startAt={previewStartAt}
+          onVisibleChange={setCanPlayPreview}
+        />
 
         <div className="continueItem__overlay">
           <div className="continueItem__play">
@@ -723,22 +599,54 @@ function ContinueCard({ movie, onRemove }) {
   );
 }
 
+
+function formatViews(views) {
+  if (!views) return "0 lượt xem";
+  if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M lượt xem`;
+  if (views >= 1000) return `${(views / 1000).toFixed(1)}K lượt xem`;
+  return `${views} lượt xem`;
+}
+
 function TopCard({ movie, index }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [canPlayPreview, setCanPlayPreview] = useState(false);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+
   if (!movie?._id) return null;
 
   const thumb = getBestThumb(movie);
+  const previewUrl = getDirectPreviewUrl(movie);
 
   return (
-    <Link to={`/movie/${movie._id}`} className="topItem">
+    <Link
+      to={`/movie/${movie._id}`}
+      className="topItem"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setCanPlayPreview(false);
+      }}
+    >
       <span className="topItem__rank">#{index + 1}</span>
 
       <div className="topItem__thumb">
         <img
+          className={canPlayPreview ? "is-hidden" : ""}
           src={thumb}
           alt={movie.title || "movie"}
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
+        />
+
+        <HoverPreviewVideo
+          active={isHovered}
+          movieId={movie._id}
+          directUrl={previewUrl}
+          frames={previewFrames}
+          className="topItem__video"
+          poster={thumb}
+          onVisibleChange={setCanPlayPreview}
         />
       </div>
 
