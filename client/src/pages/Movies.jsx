@@ -3,50 +3,48 @@ import { useDispatch, useSelector } from "react-redux";
 import Loader from "../components/Loader/Loader";
 import Navbar from "../components/Navbar/Navbar";
 import Slider from "../components/Slider/Slider";
-import { fetchMovies, getGenres } from "../store/Slice/movie-slice";
+import { fetchMovies } from "../store/Slice/movie-slice";
 import "../assets/styles/Movies.scss";
 import NotFound from "../components/NotFound/NotFound";
 
 const Movies = () => {
   const dispatch = useDispatch();
 
-  const genresLoaded = useSelector((state) => state.movie.genresLoaded);
-  const movies = useSelector((state) => state.movie.movies);
+  const movies = useSelector((state) => state.movie.movies || []);
   const status = useSelector((state) => state.movie.status);
   const [isScrolling, setIsScrolling] = useState(false);
 
   useEffect(() => {
-    if (status === "idle") {
-      dispatch(getGenres());
-    }
-  }, [dispatch, status]);
-
-  useEffect(() => {
-    if (genresLoaded) {
-      dispatch(fetchMovies({ type: "movie" }));
-    }
-  }, [dispatch, genresLoaded]);
+    dispatch(fetchMovies({ type: "movie" }));
+  }, [dispatch]);
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolling(window.pageYOffset !== 0);
+      setIsScrolling(window.scrollY > 0);
     };
 
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
+
+  const isLoading = status === "loading" || status === "pending";
 
   return (
     <div>
-      {status === "pending" && <Loader />}
+      {isLoading && <Loader />}
       <Navbar isScrolled={isScrolling} isGenresActive={true} />
+
       {movies.length > 0 ? (
         <div className="moviesPage">
           <Slider movies={movies} />
         </div>
-      ) : (
+      ) : !isLoading ? (
         <NotFound />
-      )}
+      ) : null}
     </div>
   );
 };

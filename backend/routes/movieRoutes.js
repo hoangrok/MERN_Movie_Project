@@ -7,6 +7,7 @@ const {
   getTopViewedMovies,
   getGenres,
   getMovieById,
+  validateMovieIds,
   createMovie,
   updateMovie,
   deleteMovie,
@@ -27,6 +28,7 @@ router.get("/trending", getTrending);
 router.get("/latest", getLatestMovies);
 router.get("/top-viewed", getTopViewedMovies);
 router.get("/genres", getGenres);
+router.get("/validate", validateMovieIds);
 
 // Admin CRUD
 router.post("/", protect, adminOnly, createMovie);

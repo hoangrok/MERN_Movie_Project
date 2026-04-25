@@ -1,3 +1,5 @@
+import { API_URL } from "./api";
+
 const STORAGE_KEY = "dam18_continue_watching";
 
 function safeParse(value, fallback = []) {
@@ -21,6 +23,13 @@ function normalizeMovie(movie = {}, currentTime = 0, duration = 0) {
 
   const safeDuration = Number(duration || movie?.duration || 0);
   const safeCurrentTime = Number(currentTime || movie?.currentTime || 0);
+  const rawUpdatedAt = movie?.lastWatchedAt || movie?.updatedAt;
+  const parsedUpdatedAt = Number(rawUpdatedAt);
+  const updatedAt = Number.isFinite(parsedUpdatedAt)
+    ? parsedUpdatedAt
+    : rawUpdatedAt
+    ? Date.parse(rawUpdatedAt) || Date.now()
+    : Date.now();
 
   const progress =
     safeDuration > 0
@@ -54,13 +63,21 @@ function normalizeMovie(movie = {}, currentTime = 0, duration = 0) {
     progress,
     previewUrl:
       typeof movie?.previewUrl === "string" ? movie.previewUrl : "",
+    previewTimeline: movie?.previewTimeline || null,
     trailer:
       typeof movie?.trailer === "string"
         ? movie.trailer
         : typeof movie?.trailerUrl === "string"
         ? movie.trailerUrl
         : "",
-    updatedAt: Date.now(),
+    trailerUrl:
+      typeof movie?.trailerUrl === "string"
+        ? movie.trailerUrl
+        : typeof movie?.trailer === "string"
+        ? movie.trailer
+        : "",
+    updatedAt,
+    lastWatchedAt: updatedAt,
   };
 }
 
@@ -82,6 +99,8 @@ export function saveContinueWatching(movie, currentTime = 0, duration = 0) {
 
   const normalized = normalizeMovie(movie, currentTime, duration);
   if (!normalized) return;
+  normalized.updatedAt = Date.now();
+  normalized.lastWatchedAt = normalized.updatedAt;
 
   if (
     normalized.duration > 0 &&
@@ -98,6 +117,49 @@ export function saveContinueWatching(movie, currentTime = 0, duration = 0) {
   const nextList = [normalized, ...currentList].slice(0, 50);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(nextList));
   emitContinueWatchingUpdated();
+}
+
+export async function syncContinueWatchingWithServer() {
+  const list = getContinueWatching();
+
+  if (typeof window === "undefined" || list.length === 0) {
+    return list;
+  }
+
+  const ids = [
+    ...new Set(
+      list
+        .map((item) => String(item?._id || item?.id || "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (ids.length === 0) return list;
+
+  try {
+    const res = await fetch(
+      `${API_URL}/movies/validate?ids=${encodeURIComponent(ids.join(","))}`,
+      { cache: "no-store" }
+    );
+    const data = await res.json();
+
+    if (!res.ok || !data?.success || !Array.isArray(data.validIds)) {
+      return list;
+    }
+
+    const validIds = new Set(data.validIds.map((item) => String(item)));
+    const nextList = list.filter((item) => validIds.has(String(item._id)));
+
+    if (nextList.length !== list.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextList));
+      emitContinueWatchingUpdated();
+    }
+
+    return nextList;
+  } catch (err) {
+    console.error("sync continue watching error:", err);
+    return list;
+  }
 }
 
 export function removeContinueWatching(movieId) {

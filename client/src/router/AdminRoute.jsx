@@ -3,7 +3,8 @@ import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
 const AdminRoute = ({ children }) => {
-  const { token, user } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth);
+  const token = user?.token || user?.accessToken;
 
   if (!token) {
     return <Navigate to="/login" replace />;

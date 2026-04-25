@@ -8,15 +8,13 @@ export const API_URL = API_BASE;
 
 // ===== Generic fetch helper =====
 export async function apiFetch(path, options = {}) {
-  const isGet = !options.method || options.method.toUpperCase() === "GET";
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
-    cache: isGet ? "default" : "no-store",
+    cache: options.cache || "no-store",
   });
 
   if (!res.ok) {

@@ -6,6 +6,7 @@ import {
   removeContinueWatching,
   clearContinueWatching,
   formatRemainingTime,
+  syncContinueWatchingWithServer,
 } from "../utils/continueWatching";
 import "../assets/styles/ContinueWatching.scss";
 
@@ -17,16 +18,30 @@ export default function ContinueWatching() {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    setItems(getContinueWatching() || []);
+    let alive = true;
 
     const onScroll = () => setIsScrolled(window.scrollY > 20);
-    const reload = () => setItems(getContinueWatching() || []);
+    const reload = () => {
+      const localList = getContinueWatching() || [];
+      if (alive) {
+        setItems(localList);
+      }
+
+      syncContinueWatchingWithServer().then((syncedList) => {
+        if (alive) {
+          setItems(syncedList || []);
+        }
+      });
+    };
+
+    reload();
 
     window.addEventListener("scroll", onScroll);
     window.addEventListener("continue-watching-updated", reload);
     window.addEventListener("focus", reload);
 
     return () => {
+      alive = false;
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("continue-watching-updated", reload);
       window.removeEventListener("focus", reload);

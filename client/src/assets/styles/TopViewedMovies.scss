@@ -68,7 +68,7 @@
 
 .rank-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 18px;
 }
 
@@ -97,10 +97,33 @@
 
 .rank-card__image {
   width: 100%;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
+  object-position: center top;
   display: block;
   transition: transform 0.22s ease;
+}
+
+.rank-card__image.is-hidden {
+  opacity: 0;
+}
+
+.rank-card__video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #111;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.rank-card__video.is-visible {
+  opacity: 1;
 }
 
 .rank-card:hover .rank-card__image {
@@ -125,6 +148,7 @@
 .rank-card__overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -257,7 +281,7 @@
   }
 
   .rank-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px;
   }
 
@@ -272,7 +296,7 @@
 
 @media (max-width: 520px) {
   .rank-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .rank-hero__desc {

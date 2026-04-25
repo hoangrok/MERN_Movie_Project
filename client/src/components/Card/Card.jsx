@@ -1,9 +1,10 @@
-import React, { memo, useMemo, useRef, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import "./Card.scss";
 import { Link } from "react-router-dom";
+import HoverPreviewVideo from "../HoverPreview/HoverPreviewVideo";
 
 const FALLBACK_POSTER =
-  "https://dummyimage.com/400x600/222/ffffff&text=Poster";
+  "https://dummyimage.com/1280x720/222/ffffff&text=Poster";
 
 function normalizeImage(url) {
   return typeof url === "string" && url.trim() ? url.trim() : "";
@@ -48,20 +49,30 @@ function getTimelineFrames(movie, count = 3) {
 
 function getBestThumb(movie) {
   return (
-    normalizeImage(movie?.poster) ||
-    getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.backdrop) ||
+    getTimelineFrames(movie, 1)[0] ||
+    normalizeImage(movie?.poster) ||
     FALLBACK_POSTER
   );
+}
+
+function getDirectPreviewUrl(movie) {
+  const rawPreviewUrl =
+    movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
+
+  if (
+    typeof rawPreviewUrl === "string" &&
+    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim())
+  ) {
+    return rawPreviewUrl.trim();
+  }
+
+  return "";
 }
 
 function CardComponent({ movie }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const [previewFailed, setPreviewFailed] = useState(false);
-
-  const videoRef = useRef(null);
-  const hoverTimerRef = useRef(null);
 
   if (!movie?._id) return null;
 
@@ -73,59 +84,16 @@ function CardComponent({ movie }) {
     : movie?.genre || "";
 
   const imageSrc = useMemo(() => getBestThumb(movie), [movie]);
-
-  const rawPreviewUrl =
-    movie?.previewUrl || movie?.trailer || movie?.trailerUrl || "";
-
-  const isDirectVideoFile =
-    typeof rawPreviewUrl === "string" &&
-    /\.(mp4|webm|ogg)(\?.*)?$/i.test(rawPreviewUrl.trim());
-
-  const previewUrl = isDirectVideoFile ? rawPreviewUrl.trim() : "";
-
-  const resetPreview = () => {
-    setCanPlayPreview(false);
-
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      } catch {}
-    }
-  };
+  const previewUrl = useMemo(() => getDirectPreviewUrl(movie), [movie]);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-
-    if (!previewUrl || previewFailed) return;
-
-    hoverTimerRef.current = setTimeout(async () => {
-      try {
-        if (!videoRef.current) return;
-
-        videoRef.current.currentTime = 0;
-        const playPromise = videoRef.current.play();
-
-        if (playPromise && typeof playPromise.then === "function") {
-          await playPromise;
-        }
-
-        setCanPlayPreview(true);
-      } catch (err) {
-        console.log("Preview autoplay blocked:", err);
-        setCanPlayPreview(false);
-      }
-    }, 450);
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    resetPreview();
+    setCanPlayPreview(false);
   };
 
   return (
@@ -156,27 +124,15 @@ function CardComponent({ movie }) {
           }}
         />
 
-        {previewUrl && !previewFailed ? (
-          <video
-            ref={videoRef}
-            className={`movieCard__video ${canPlayPreview ? "is-visible" : ""}`}
-            src={previewUrl}
-            muted
-            playsInline
-            loop
-            preload="none"
-            poster={imageSrc}
-            onWaiting={() => setCanPlayPreview(false)}
-            onCanPlay={() => {
-              if (isHovered) setCanPlayPreview(true);
-            }}
-            onPlaying={() => setCanPlayPreview(true)}
-            onError={() => {
-              setPreviewFailed(true);
-              resetPreview();
-            }}
-          />
-        ) : null}
+        <HoverPreviewVideo
+          active={isHovered}
+          movieId={movie._id}
+          directUrl={previewUrl}
+          frames={previewFrames}
+          className="movieCard__video"
+          poster={imageSrc}
+          onVisibleChange={setCanPlayPreview}
+        />
 
         <div className="movieCard__gradient" />
       </div>

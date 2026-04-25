@@ -18,6 +18,7 @@ import LatestMovies from "../pages/LatestMovies";
 import TopViewedMovies from "../pages/TopViewedMovies";
 import GenreMovies from "../pages/GenreMovies";
 import AdminNewMovie from "../pages/AdminNewMovie";
+import AdminAds from "../pages/AdminAds";
 
 const AppRouter = () => {
   return (
@@ -46,6 +47,14 @@ const AppRouter = () => {
         element={
           <AdminRoute>
             <AdminNewMovie />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/ads"
+        element={
+          <AdminRoute>
+            <AdminAds />
           </AdminRoute>
         }
       />

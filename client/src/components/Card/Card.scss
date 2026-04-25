@@ -2,9 +2,9 @@
   display: block;
   text-decoration: none;
   color: #fff;
-  width: 180px;
-  min-width: 180px;
-  flex: 0 0 180px;
+  width: 240px;
+  min-width: 240px;
+  flex: 0 0 240px;
   transition: transform 0.25s ease;
 
   &:hover {
@@ -15,7 +15,7 @@
 .movieCard__media {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 16 / 9;
   border-radius: 16px;
   overflow: hidden;
   background: #111;
@@ -45,6 +45,7 @@
 .movieCard__image {
   z-index: 1;
   object-fit: cover;
+  object-position: center top;
   transition: transform 0.45s ease, opacity 0.22s ease;
 }
 
@@ -124,17 +125,17 @@
 
 @media (max-width: 1024px) {
   .movieCard {
-    width: 160px;
-    min-width: 160px;
-    flex: 0 0 160px;
+    width: 200px;
+    min-width: 200px;
+    flex: 0 0 200px;
   }
 }
 
 @media (max-width: 768px) {
   .movieCard {
-    width: 140px;
-    min-width: 140px;
-    flex: 0 0 140px;
+    width: 180px;
+    min-width: 180px;
+    flex: 0 0 180px;
   }
 
   .movieCard__info h3 {

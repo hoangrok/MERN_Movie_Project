@@ -4,6 +4,7 @@ const fsp = require("fs/promises");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Movie = require("../models/Movie");
+const User = require("../models/UserModel");
 const { makeStreamUrl } = require("../utils/streamToken");
 const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
 
@@ -104,10 +105,7 @@ const normalizeImage = (value = "") => {
 // ==========================
 const getMovies = async (req, res) => {
   try {
-    setPublicCache(
-      res,
-      "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
-    );
+    setNoStore(res);
 
     const { q, genre, limit = 24, page = 1 } = req.query;
 
@@ -174,7 +172,7 @@ const getMovies = async (req, res) => {
 // ==========================
 const getLatestMovies = async (req, res) => {
   try {
-    setPublicCache(res);
+    setNoStore(res);
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -203,7 +201,7 @@ const getLatestMovies = async (req, res) => {
 // ==========================
 const getTopViewedMovies = async (req, res) => {
   try {
-    setPublicCache(res);
+    setNoStore(res);
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -265,10 +263,7 @@ const getGenres = async (req, res) => {
 // ==========================
 const getMovieById = async (req, res) => {
   try {
-    setPublicCache(
-      res,
-      "public, max-age=60, s-maxage=120, stale-while-revalidate=300"
-    );
+    setNoStore(res);
 
     const { id } = req.params;
 
@@ -294,6 +289,51 @@ const getMovieById = async (req, res) => {
     });
   } catch (err) {
     console.error("getMovieById error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// ==========================
+// VALIDATE MOVIE IDS
+// ==========================
+const validateMovieIds = async (req, res) => {
+  try {
+    setNoStore(res);
+
+    const ids = [
+      ...new Set(
+        String(req.query.ids || "")
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean)
+      ),
+    ]
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .slice(0, 100);
+
+    if (ids.length === 0) {
+      return res.json({
+        success: true,
+        validIds: [],
+      });
+    }
+
+    const movies = await Movie.find({
+      _id: { $in: ids },
+      isPublished: true,
+    })
+      .select("_id")
+      .lean();
+
+    return res.json({
+      success: true,
+      validIds: movies.map((movie) => movie._id.toString()),
+    });
+  } catch (err) {
+    console.error("validateMovieIds error:", err);
     return res.status(500).json({
       success: false,
       message: err.message,
@@ -508,6 +548,24 @@ const deleteMovie = async (req, res) => {
 
     await Movie.findByIdAndDelete(id);
 
+    try {
+      const idVariants = [id, movie._id, movie._id.toString()];
+      await User.updateMany(
+        {},
+        { $pull: { likedMovies: { id: { $in: idVariants } } } }
+      );
+      await User.updateMany(
+        {},
+        { $pull: { likedMovies: { _id: { $in: idVariants } } } }
+      );
+      await User.updateMany(
+        {},
+        { $pull: { likedMovies: { $in: idVariants } } }
+      );
+    } catch (cleanupErr) {
+      console.error("deleteMovie liked cleanup error:", cleanupErr);
+    }
+
     return res.json({
       success: true,
       message: "Movie deleted successfully",
@@ -596,10 +654,7 @@ const getStreamUrl = async (req, res) => {
 // ==========================
 const getRelatedMovies = async (req, res) => {
   try {
-    setPublicCache(
-      res,
-      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
-    );
+    setNoStore(res);
 
     const { id } = req.params;
 
@@ -691,10 +746,7 @@ const incrementView = async (req, res) => {
 // ==========================
 const getTrending = async (req, res) => {
   try {
-    setPublicCache(
-      res,
-      "public, max-age=60, s-maxage=180, stale-while-revalidate=300"
-    );
+    setNoStore(res);
 
     const movies = await Movie.find({ isPublished: true })
       .select(LIST_PROJECTION)
@@ -721,6 +773,7 @@ module.exports = {
   getTopViewedMovies,
   getGenres,
   getMovieById,
+  validateMovieIds,
   createMovie,
   updateMovie,
   deleteMovie,
