@@ -1545,7 +1545,7 @@ export default function MovieDetail() {
                 <div className="nf-poster-layer__vignette" />
               </div>
 
-              <PlayerWatermark />
+              <PlayerWatermark key={id} />
 
               {skipIndicator && (
                 <div className={`nf-skip-indicator ${skipSide}`}>
@@ -2252,31 +2252,61 @@ export default function MovieDetail() {
 }
 
 const CORNERS = [
-  { top: "12px",  left: "14px",  bottom: "auto", right: "auto" },
-  { top: "12px",  right: "14px", bottom: "auto", left: "auto"  },
-  { bottom: "56px", left: "14px",  top: "auto",  right: "auto" },
-  { bottom: "56px", right: "14px", top: "auto",  left: "auto"  },
+  { top: "14px",    left: "16px",  bottom: "auto", right: "auto" },
+  { top: "14px",    right: "16px", bottom: "auto", left: "auto"  },
+  { bottom: "60px", left: "16px",  top: "auto",    right: "auto" },
+  { bottom: "60px", right: "16px", top: "auto",    left: "auto"  },
 ];
 
+const TICKER_ITEMS = Array.from({ length: 8 }, (_, i) => i);
+
+function VideoIntro() {
+  return (
+    <div className="nf-video-intro">
+      <div className="nf-video-intro__ticker">
+        <div className="nf-video-intro__track">
+          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((_, i) => (
+            <span key={i} className="nf-video-intro__item">
+              <span className="nf-video-intro__dot" />
+              CLIPDAM18.COM
+              <span className="nf-video-intro__sep" />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlayerWatermark() {
+  const [showIntro, setShowIntro] = useState(true);
   const [corner, setCorner] = useState(() => Math.floor(Math.random() * 4));
 
   useEffect(() => {
-    const id = setInterval(() => {
+    const t = setTimeout(() => setShowIntro(false), 3200);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (showIntro) return;
+    const intervalId = setInterval(() => {
       setCorner((prev) => {
         let next;
         do { next = Math.floor(Math.random() * 4); } while (next === prev);
         return next;
       });
-    }, Math.floor(Math.random() * 5000) + 7000); // 7–12 s random
-    return () => clearInterval(id);
-  }, []);
+    }, Math.floor(Math.random() * 5000) + 7000);
+    return () => clearInterval(intervalId);
+  }, [showIntro]);
 
   return (
-    <div className="nf-watermark" style={CORNERS[corner]}>
-      <span className="nf-watermark__dot" />
-      clipdam18.com
-    </div>
+    <>
+      {showIntro && <VideoIntro />}
+      <div className="nf-watermark" style={CORNERS[corner]}>
+        <span className="nf-watermark__dot" />
+        clipdam18.com
+      </div>
+    </>
   );
 }
 
