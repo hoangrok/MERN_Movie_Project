@@ -41,6 +41,10 @@
       "destination": "/favicon.svg"
     },
     {
+      "source": "/sitemap-movies.xml",
+      "destination": "https://api.clipdam18.com/sitemap.xml"
+    },
+    {
       "source": "/((?!.*\\.).*)",
       "destination": "/index.html"
     }
