@@ -257,7 +257,7 @@ export default function Home() {
         <div className="homeBoard">
           <aside className="homeBoard__left">
             <div className="homePanel homePanel--side">
-              <SectionHeadLink title="Xem tiếp" to="/continue-watching" />
+              <SectionHeadLink title="🔥 Xem dở hôm qua" to="/continue-watching" />
               <div className="continueColumn">
                 {status === "loading" && cwMovies.length === 0 ? (
                   <>
@@ -283,7 +283,7 @@ export default function Home() {
           <section className="homeBoard__center">
             <div className="homePanel">
               <SectionHeadButton
-                title="Gợi ý cho bạn"
+                title="💋 Hợp gu của bạn"
                 onClick={handleRecommendedMore}
               />
               <div className="posterRow">
@@ -308,7 +308,7 @@ export default function Home() {
             </div>
 
             <div className="homePanel">
-              <SectionHeadLink title="Mới cập nhật" to="/latest" />
+              <SectionHeadLink title="🆕 Clip 18+ Mới Nhất" to="/latest" />
               <div className="posterRow">
                 {status === "loading" && latestMovies.length === 0 ? (
                   <>
@@ -331,7 +331,7 @@ export default function Home() {
             <AdSlot placement="home_sidebar" variant="side" />
 
             <div className="homePanel homePanel--side">
-              <SectionHeadLink title="Top xem" to="/top-viewed" />
+              <SectionHeadLink title="👑 Top Clip Hot Nhất" to="/top-viewed" />
               <div className="topColumn">
                 {status === "loading" && topMovies.length === 0 ? (
                   <>
