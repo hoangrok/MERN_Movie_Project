@@ -1545,7 +1545,7 @@ export default function MovieDetail() {
                 <div className="nf-poster-layer__vignette" />
               </div>
 
-              <PlayerWatermark key={id} />
+              <PlayerWatermark key={id} videoStarted={posterHidden} />
 
               {skipIndicator && (
                 <div className={`nf-skip-indicator ${skipSide}`}>
@@ -2278,14 +2278,18 @@ function VideoIntro() {
   );
 }
 
-function PlayerWatermark() {
-  const [showIntro, setShowIntro] = useState(true);
+function PlayerWatermark({ videoStarted }) {
+  const [showIntro, setShowIntro] = useState(false);
   const [corner, setCorner] = useState(() => Math.floor(Math.random() * 4));
+  const introFired = useRef(false);
 
   useEffect(() => {
+    if (!videoStarted || introFired.current) return;
+    introFired.current = true;
+    setShowIntro(true);
     const t = setTimeout(() => setShowIntro(false), 3200);
     return () => clearTimeout(t);
-  }, []);
+  }, [videoStarted]);
 
   useEffect(() => {
     if (showIntro) return;
