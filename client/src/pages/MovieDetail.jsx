@@ -1545,8 +1545,6 @@ export default function MovieDetail() {
                 <div className="nf-poster-layer__vignette" />
               </div>
 
-              <PlayerWatermark key={id} videoStarted={posterHidden} />
-
               {skipIndicator && (
                 <div className={`nf-skip-indicator ${skipSide}`}>
                   {skipIndicator}
@@ -2248,69 +2246,6 @@ export default function MovieDetail() {
         </div>
       )}
     </div>
-  );
-}
-
-const CORNERS = [
-  { top: "14px",    left: "16px",  bottom: "auto", right: "auto" },
-  { top: "14px",    right: "16px", bottom: "auto", left: "auto"  },
-  { bottom: "60px", left: "16px",  top: "auto",    right: "auto" },
-  { bottom: "60px", right: "16px", top: "auto",    left: "auto"  },
-];
-
-const TICKER_ITEMS = Array.from({ length: 8 }, (_, i) => i);
-
-function VideoIntro() {
-  return (
-    <div className="nf-video-intro">
-      <div className="nf-video-intro__ticker">
-        <div className="nf-video-intro__track">
-          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((_, i) => (
-            <span key={i} className="nf-video-intro__item">
-              <span className="nf-video-intro__dot" />
-              CLIPDAM18.COM
-              <span className="nf-video-intro__sep" />
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlayerWatermark({ videoStarted }) {
-  const [showIntro, setShowIntro] = useState(false);
-  const [corner, setCorner] = useState(() => Math.floor(Math.random() * 4));
-  const introFired = useRef(false);
-
-  useEffect(() => {
-    if (!videoStarted || introFired.current) return;
-    introFired.current = true;
-    setShowIntro(true);
-    const t = setTimeout(() => setShowIntro(false), 3200);
-    return () => clearTimeout(t);
-  }, [videoStarted]);
-
-  useEffect(() => {
-    if (showIntro) return;
-    const intervalId = setInterval(() => {
-      setCorner((prev) => {
-        let next;
-        do { next = Math.floor(Math.random() * 4); } while (next === prev);
-        return next;
-      });
-    }, Math.floor(Math.random() * 5000) + 7000);
-    return () => clearInterval(intervalId);
-  }, [showIntro]);
-
-  return (
-    <>
-      {showIntro && <VideoIntro />}
-      <div className="nf-watermark" style={CORNERS[corner]}>
-        <span className="nf-watermark__dot" />
-        clipdam18.com
-      </div>
-    </>
   );
 }
 

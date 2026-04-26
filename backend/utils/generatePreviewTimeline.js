@@ -79,17 +79,21 @@ function getVideoDuration(videoPath) {
   });
 }
 
-function takeScreenshot(videoPath, outputPath, timestampSec, size = "640x360") {
+function takeScreenshot(videoPath, outputPath, timestampSec, size = "960x?") {
   return new Promise((resolve, reject) => {
-    ffmpeg(videoPath)
+    const command = ffmpeg(videoPath)
       .seekInput(Math.max(0, Number(timestampSec) || 0))
       .frames(1)
       .outputOptions(["-q:v 2", "-y"])
-      .size(size)
       .output(outputPath)
       .on("end", resolve)
-      .on("error", reject)
-      .run();
+      .on("error", reject);
+
+    if (size) {
+      command.size(size);
+    }
+
+    command.run();
   });
 }
 
@@ -106,6 +110,13 @@ function buildCandidateTimestamps(duration, candidateCount = 18) {
   }
 
   return Array.from(new Set(values));
+}
+
+function getAutoPreviewCount(duration) {
+  if (duration >= 1800) return 24;
+  if (duration >= 900) return 20;
+  if (duration >= 300) return 16;
+  return 10;
 }
 
 async function analyzeFrame(filePath) {
@@ -195,11 +206,12 @@ async function analyzeFrame(filePath) {
   };
 }
 
-async function buildJpegBuffer(filePath, width, height, quality = 84) {
+async function buildJpegBuffer(filePath, width, height, quality = 84, fit = "cover") {
   return sharp(filePath)
     .resize(width, height, {
-      fit: "cover",
+      fit,
       position: "centre",
+      background: { r: 5, g: 7, b: 12, alpha: 1 },
       withoutEnlargement: false,
     })
     .jpeg({ quality, mozjpeg: true })
@@ -211,12 +223,12 @@ module.exports = async function generatePreviewTimeline(
   outputDir,
   options = {}
 ) {
-  const previewCount = Number(options.previewCount) || 8;
-  const candidateCount = Number(options.candidateCount) || 18;
+  const requestedPreviewCount = Number(options.previewCount) || 0;
+  const requestedCandidateCount = Number(options.candidateCount) || 0;
   const prefix = options.prefix || "preview";
   const movieId = sanitizeKeyPart(options.movieId || "movie");
-  const previewWidth = Number(options.previewWidth) || 320;
-  const previewHeight = Number(options.previewHeight) || 180;
+  const previewWidth = Number(options.previewWidth) || 640;
+  const previewHeight = Number(options.previewHeight) || 360;
   const posterWidth = Number(options.posterWidth) || 900;
   const posterHeight = Number(options.posterHeight) || 1350;
 
@@ -250,6 +262,9 @@ module.exports = async function generatePreviewTimeline(
     ensureDir(outputDir);
 
     const duration = await getVideoDuration(videoPath);
+    const previewCount = requestedPreviewCount || getAutoPreviewCount(duration);
+    const candidateCount =
+      requestedCandidateCount || Math.max(24, previewCount * 2);
     const timestamps = buildCandidateTimestamps(duration, candidateCount);
 
     const candidates = [];
@@ -261,7 +276,7 @@ module.exports = async function generatePreviewTimeline(
       tempFiles.push(filePath);
 
       try {
-        await takeScreenshot(videoPath, filePath, second, "640x360");
+        await takeScreenshot(videoPath, filePath, second);
 
         if (!fs.existsSync(filePath)) continue;
 
@@ -338,7 +353,8 @@ module.exports = async function generatePreviewTimeline(
         frame.path,
         previewWidth,
         previewHeight,
-        82
+        84,
+        "contain"
       );
 
       const key = `previews/${movieId}/${Date.now()}-${i + 1}-${randomId(4)}.jpg`;

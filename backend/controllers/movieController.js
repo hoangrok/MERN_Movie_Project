@@ -100,14 +100,44 @@ const normalizeImage = (value = "") => {
   return next || "";
 };
 
+const pickEvenly = (items = [], limit = 10) => {
+  if (!Array.isArray(items) || items.length <= limit) return items;
+
+  return Array.from({ length: limit }, (_item, index) => {
+    const ratio = index / Math.max(1, limit - 1);
+    const itemIndex = Math.min(
+      items.length - 1,
+      Math.round((items.length - 1) * ratio)
+    );
+    return items[itemIndex];
+  });
+};
+
+const compactListMovie = (movie) => {
+  const items = movie?.previewTimeline?.items;
+  if (!Array.isArray(items) || items.length <= 10) return movie;
+
+  return {
+    ...movie,
+    previewTimeline: {
+      ...movie.previewTimeline,
+      items: pickEvenly(items, 10),
+      totalItems: items.length,
+    },
+  };
+};
+
+const compactListMovies = (items = []) => items.map(compactListMovie);
+
 // ==========================
 // GET MOVIES
 // ==========================
 const getMovies = async (req, res) => {
   try {
-    setNoStore(res);
+    setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
     const { q, genre, limit = 24, page = 1 } = req.query;
+    const includeTotal = req.query.includeTotal !== "false";
 
     const filter = { isPublished: true };
 
@@ -145,17 +175,17 @@ const getMovies = async (req, res) => {
         .skip(skip)
         .limit(limitNum)
         .lean(),
-      Movie.countDocuments(filter),
+      includeTotal ? Movie.countDocuments(filter) : Promise.resolve(0),
     ]);
 
     return res.json({
       success: true,
-      items,
+      items: compactListMovies(items),
       pagination: {
         page: pageNum,
         limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages: includeTotal ? Math.ceil(total / limitNum) : 0,
       },
     });
   } catch (err) {
@@ -172,7 +202,7 @@ const getMovies = async (req, res) => {
 // ==========================
 const getLatestMovies = async (req, res) => {
   try {
-    setNoStore(res);
+    setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -185,7 +215,7 @@ const getLatestMovies = async (req, res) => {
 
     return res.json({
       success: true,
-      items,
+      items: compactListMovies(items),
     });
   } catch (err) {
     console.error("getLatestMovies error:", err);
@@ -201,7 +231,7 @@ const getLatestMovies = async (req, res) => {
 // ==========================
 const getTopViewedMovies = async (req, res) => {
   try {
-    setNoStore(res);
+    setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
     const { limit = 30 } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
@@ -214,7 +244,7 @@ const getTopViewedMovies = async (req, res) => {
 
     return res.json({
       success: true,
-      items,
+      items: compactListMovies(items),
     });
   } catch (err) {
     console.error("getTopViewedMovies error:", err);
@@ -746,7 +776,7 @@ const incrementView = async (req, res) => {
 // ==========================
 const getTrending = async (req, res) => {
   try {
-    setNoStore(res);
+    setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
     const movies = await Movie.find({ isPublished: true })
       .select(LIST_PROJECTION)
@@ -756,7 +786,7 @@ const getTrending = async (req, res) => {
 
     return res.json({
       success: true,
-      items: movies,
+      items: compactListMovies(movies),
     });
   } catch (err) {
     console.error("getTrending error:", err);

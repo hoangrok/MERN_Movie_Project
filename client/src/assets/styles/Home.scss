@@ -329,6 +329,10 @@
   padding: 14px;
 }
 
+.homeBoard__center .homePanel {
+  overflow: visible;
+}
+
 .sectionHead {
   display: flex;
   align-items: center;
@@ -493,11 +497,14 @@
   z-index: 3;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  background: #0b0d14;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  background: #05070c;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.28s ease, filter 0.28s ease;
+  filter: brightness(1.04) saturate(1.04) contrast(1.02);
 }
 
 .continueItem__video.is-visible {
@@ -514,12 +521,14 @@
   z-index: 3;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  display: block;
+  object-fit: contain;
   object-position: center;
-  background: #0b0d14;
+  background: #05070c;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.28s ease, filter 0.28s ease;
+  filter: brightness(1.04) saturate(1.04) contrast(1.02);
 }
 
 .topItem__video.is-visible {
@@ -652,6 +661,7 @@
 }
 
 .posterRow {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
@@ -674,18 +684,31 @@
     0 18px 40px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease,
+    transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.38s ease,
     border-color 0.3s ease,
-    background 0.3s ease;
+    background 0.3s ease,
+    filter 0.3s ease;
+  will-change: transform;
 }
 
 .posterCard:hover {
-  transform: translateY(-7px) scale(1.012);
+  z-index: 6;
+  transform: translateY(-5px) scale(1.012);
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
     0 28px 56px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.posterCard.is-preview-ready {
+  z-index: 12;
+  transform: translateY(-13px) scale(1.055);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 34px 74px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(255, 255, 255, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
 .posterCard__imageWrap {
@@ -707,11 +730,20 @@
   gap: 4px;
   padding: 4px;
   opacity: 1;
-  transition: opacity 0.22s ease;
+  transform: scale(1);
+  transition:
+    opacity 0.34s ease,
+    transform 0.46s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.34s ease;
 }
 
 .posterCard__strip.is-hidden {
   opacity: 0;
+}
+
+.posterCard.is-preview-ready .posterCard__strip {
+  transform: scale(1.01);
+  filter: brightness(1.06) saturate(1.04);
 }
 
 .posterCard__video {
@@ -720,16 +752,27 @@
   z-index: 3;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  display: block;
+  object-fit: contain;
   object-position: center;
-  background: #090c14;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.035), transparent 48%),
+    #05070c;
   opacity: 0;
+  transform: scale(1);
+  filter: brightness(1.06) saturate(1.04) contrast(1.03);
   pointer-events: none;
-  transition: opacity 0.22s ease;
+  transition:
+    opacity 0.38s ease,
+    filter 0.38s ease;
+  backface-visibility: hidden;
+  image-rendering: auto;
+  will-change: opacity;
 }
 
 .posterCard__video.is-visible {
   opacity: 1;
+  transform: scale(1);
 }
 
 .posterCard__pane {
@@ -746,8 +789,8 @@
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(to top, rgba(2, 4, 8, 0.62), rgba(2, 4, 8, 0.18) 48%, rgba(2, 4, 8, 0.34)),
-    linear-gradient(90deg, rgba(2, 4, 8, 0.26), transparent 34%, transparent 66%, rgba(2, 4, 8, 0.26));
+    linear-gradient(to top, rgba(2, 4, 8, 0.42), rgba(2, 4, 8, 0.1) 48%, rgba(2, 4, 8, 0.2)),
+    linear-gradient(90deg, rgba(2, 4, 8, 0.14), transparent 34%, transparent 66%, rgba(2, 4, 8, 0.14));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
 }
 
@@ -758,18 +801,18 @@
   object-fit: cover;
   object-position: center;
   transform: none;
-  filter: brightness(0.66) saturate(0.92);
+  filter: brightness(0.86) saturate(1.02) contrast(1.02);
   transition: transform 0.35s ease, filter 0.35s ease;
   backface-visibility: hidden;
 }
 
 .posterCard__pane--1 img,
 .posterCard__pane--3 img {
-  filter: brightness(0.58) saturate(0.88);
+  filter: brightness(0.76) saturate(0.98) contrast(1.02);
 }
 
 .posterCard__pane--2 img {
-  filter: brightness(0.7) saturate(0.94);
+  filter: brightness(0.92) saturate(1.04) contrast(1.03);
 }
 
 .posterCard__pane--2 {
@@ -778,12 +821,22 @@
 
 .posterCard:hover .posterCard__pane img {
   transform: scale(1.03);
-  filter: brightness(0.72) saturate(0.96);
+  filter: brightness(0.98) saturate(1.08) contrast(1.03);
+}
+
+.posterCard.is-preview-ready .posterCard__pane img {
+  transform: scale(1.08);
+  filter: brightness(1.04) saturate(1.12) contrast(1.04);
 }
 
 .posterCard:hover .posterCard__pane--1 img,
 .posterCard:hover .posterCard__pane--3 img {
-  filter: brightness(0.64) saturate(0.92);
+  filter: brightness(0.86) saturate(1.02) contrast(1.03);
+}
+
+.posterCard.is-preview-ready .posterCard__pane--1 img,
+.posterCard.is-preview-ready .posterCard__pane--3 img {
+  filter: brightness(0.94) saturate(1.08) contrast(1.04);
 }
 
 .posterCard__cinematicShade {
@@ -795,24 +848,156 @@
     linear-gradient(
       90deg,
       rgba(4, 6, 10, 0.34) 0%,
-      rgba(4, 6, 10, 0.12) 18%,
-      rgba(4, 6, 10, 0.05) 34%,
-      rgba(4, 6, 10, 0.05) 66%,
-      rgba(4, 6, 10, 0.12) 82%,
-      rgba(4, 6, 10, 0.34) 100%
+      rgba(4, 6, 10, 0.08) 18%,
+      rgba(4, 6, 10, 0.02) 34%,
+      rgba(4, 6, 10, 0.02) 66%,
+      rgba(4, 6, 10, 0.08) 82%,
+      rgba(4, 6, 10, 0.28) 100%
     ),
     linear-gradient(
       to top,
-      rgba(3, 5, 10, 0.56) 0%,
-      rgba(3, 5, 10, 0.18) 38%,
-      rgba(3, 5, 10, 0.08) 100%
+      rgba(3, 5, 10, 0.38) 0%,
+      rgba(3, 5, 10, 0.1) 38%,
+      rgba(3, 5, 10, 0.03) 100%
     );
+}
+
+.posterCard.has-preview .posterCard__cinematicShade {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(4, 6, 10, 0.2) 0%,
+      rgba(4, 6, 10, 0.03) 22%,
+      rgba(4, 6, 10, 0.01) 78%,
+      rgba(4, 6, 10, 0.2) 100%
+    ),
+    linear-gradient(
+      to top,
+      rgba(3, 5, 10, 0.3) 0%,
+      rgba(3, 5, 10, 0.05) 42%,
+      rgba(3, 5, 10, 0.01) 100%
+    );
+}
+
+.posterCard__save {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 8;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.18), transparent 34%),
+    rgba(0, 0, 0, 0.56);
+  color: rgba(255, 255, 255, 0.9);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease,
+    box-shadow 0.24s ease;
+}
+
+.posterCard__save::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(229, 9, 20, 0.24), transparent 62%);
+  opacity: 0;
+  transform: scale(0.72);
+  transition:
+    opacity 0.24s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.posterCard__saveIcon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  transform: translateZ(0);
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.posterCard__save svg {
+  width: 16px;
+  height: 16px;
+}
+
+.posterCard__save:hover {
+  transform: translateY(-1px) scale(1.08);
+  color: #fff;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.2), transparent 34%),
+    rgba(229, 9, 20, 0.72);
+  border-color: rgba(255, 160, 160, 0.35);
+  box-shadow:
+    0 16px 32px rgba(229, 9, 20, 0.22),
+    0 12px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.posterCard__save:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.posterCard__save:hover .posterCard__saveIcon {
+  transform: scale(1.08);
+}
+
+.posterCard__save.is-saved {
+  color: #ff3b47;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 120, 130, 0.18), transparent 35%),
+    rgba(0, 0, 0, 0.68);
+  border-color: rgba(229, 9, 20, 0.38);
+  box-shadow:
+    0 14px 30px rgba(229, 9, 20, 0.16),
+    0 12px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.posterCard__save.is-saved .posterCard__saveIcon {
+  animation: heartPop 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.posterCard__save:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.posterCard__save.is-saving .posterCard__saveIcon {
+  animation: heartPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes heartPop {
+  0% { transform: scale(0.72); }
+  55% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+@keyframes heartPulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.72; }
+  50% { transform: scale(1.08); opacity: 1; }
 }
 
 .posterCard__badge {
   position: absolute;
   top: 14px;
-  left: 14px;
+  right: 14px;
   z-index: 6;
   padding: 6px 11px;
   border-radius: 999px;
@@ -839,6 +1024,10 @@
 
 .posterCard:hover .posterCard__hover {
   opacity: 1;
+}
+
+.posterCard.has-preview .posterCard__hover {
+  opacity: 0;
 }
 
 .posterCard__play {

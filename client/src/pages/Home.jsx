@@ -1,23 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronRight,
   FaPlay,
   FaCheck,
   FaTimes,
+  FaHeart,
+  FaRegHeart,
 } from "react-icons/fa";
+import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
-import Loader from "../components/Loader/Loader";
 import AdSlot from "../components/Ads/AdSlot";
 import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import { fetchMovies, getTrending } from "../store/Slice/movie-slice";
+import { updateLikedMovies } from "../store/Slice/auth-slice";
 import {
   getContinueWatching,
   removeContinueWatching,
   formatRemainingTime,
   syncContinueWatchingWithServer,
 } from "../utils/continueWatching";
+import { API_URL } from "../utils/api";
 import "../assets/styles/Home.scss";
 
 const FALLBACK_POSTER =
@@ -42,15 +46,24 @@ function getTimelineFrames(movie, count = 3) {
   const items = Array.isArray(movie?.previewTimeline?.items)
     ? movie.previewTimeline.items
     : [];
+  const targetCount = Math.max(1, Number(count) || 3);
 
   const urls = dedupeImages(
     items.map((item) => normalizeImage(item?.url)).filter(Boolean)
   );
 
   if (!urls.length) return [];
-  if (urls.length <= count) return urls.slice(0, count);
+  if (urls.length <= targetCount) return urls.slice(0, targetCount);
 
-  const ratios = count === 4 ? [0.12, 0.38, 0.66, 0.88] : [0.15, 0.48, 0.8];
+  const ratios =
+    targetCount === 1
+      ? [0.5]
+      : targetCount === 4
+        ? [0.12, 0.38, 0.66, 0.88]
+        : Array.from({ length: targetCount }, (_item, index) => {
+            const ratio = index / Math.max(1, targetCount - 1);
+            return 0.08 + ratio * 0.84;
+          });
 
   return dedupeImages(
     ratios.map((ratio) => {
@@ -60,7 +73,7 @@ function getTimelineFrames(movie, count = 3) {
       );
       return urls[index];
     })
-  ).slice(0, count);
+  ).slice(0, targetCount);
 }
 
 function getBestThumb(movie) {
@@ -95,7 +108,12 @@ export default function Home() {
 
   const movies = useSelector((state) => state.movie.movies || []);
   const trendingMovies = useSelector((state) => state.movie.trending || []);
-  const status = useSelector((state) => state.movie.status);
+  const moviesStatus = useSelector(
+    (state) => state.movie.moviesStatus || state.movie.status
+  );
+  const trendingStatus = useSelector(
+    (state) => state.movie.trendingStatus || state.movie.status
+  );
   const { user } = useSelector((state) => state.auth);
 
   const [isScrolling, setIsScrolling] = useState(false);
@@ -104,11 +122,14 @@ export default function Home() {
   const [selectedGenres, setSelectedGenres] = useState([]);
 
   useEffect(() => {
-    if (status === "idle") {
+    if (moviesStatus === "idle") {
       dispatch(fetchMovies({ type: "all" }));
+    }
+
+    if (trendingStatus === "idle") {
       dispatch(getTrending());
     }
-  }, [dispatch, status]);
+  }, [dispatch, moviesStatus, trendingStatus]);
 
   useEffect(() => {
     let alive = true;
@@ -216,6 +237,9 @@ export default function Home() {
     () => continueWatching.slice(0, 6),
     [continueWatching]
   );
+  const isMoviesLoading = moviesStatus === "loading" && movies.length === 0;
+  const isTrendingLoading =
+    trendingStatus === "loading" && trendingMovies.length === 0;
 
   const togglePreferredGenre = (genre) => {
     setSelectedGenres((prev) =>
@@ -248,7 +272,6 @@ export default function Home() {
 
   return (
     <div className="homePage">
-      {status === "loading" && <Loader />}
       <Navbar isScrolled={isScrolling} />
 
       <main className="homeLayout homeShell">
@@ -259,7 +282,7 @@ export default function Home() {
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="🔥 Xem dở hôm qua" to="/continue-watching" />
               <div className="continueColumn">
-                {status === "loading" && cwMovies.length === 0 ? (
+                {isMoviesLoading && cwMovies.length === 0 ? (
                   <>
                     <SideSkeleton />
                     <SideSkeleton />
@@ -283,11 +306,11 @@ export default function Home() {
           <section className="homeBoard__center">
             <div className="homePanel">
               <SectionHeadButton
-                title="💋 Hợp gu của bạn"
+                title="💋 Hợp gu của mày"
                 onClick={handleRecommendedMore}
               />
               <div className="posterRow">
-                {status === "loading" && suggestedMovies.length === 0 ? (
+                {isMoviesLoading && suggestedMovies.length === 0 ? (
                   <>
                     <PosterSkeleton />
                     <PosterSkeleton />
@@ -310,7 +333,7 @@ export default function Home() {
             <div className="homePanel">
               <SectionHeadLink title="🆕 Clip 18+ Mới Nhất" to="/latest" />
               <div className="posterRow">
-                {status === "loading" && latestMovies.length === 0 ? (
+                {isMoviesLoading && latestMovies.length === 0 ? (
                   <>
                     <PosterSkeleton />
                     <PosterSkeleton />
@@ -333,7 +356,7 @@ export default function Home() {
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="👑 Top Clip Hot Nhất" to="/top-viewed" />
               <div className="topColumn">
-                {status === "loading" && topMovies.length === 0 ? (
+                {isTrendingLoading && topMovies.length === 0 ? (
                   <>
                     <SideSkeleton compact />
                     <SideSkeleton compact />
@@ -428,11 +451,19 @@ function SectionHeadButton({ title, onClick }) {
 }
 
 function PosterCard({ movie, badge = "" }) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
   const [isHovered, setIsHovered] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+  const [saving, setSaving] = useState(false);
+  const previewTimerRef = useRef(null);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 10), [movie]);
 
-  if (!movie?._id) return null;
+  const isSaved = (user?.likedMovies || []).some(
+    (item) => String(item?.id || item?._id) === String(movie._id)
+  );
 
   const frames = getTimelineFrames(movie, 2);
   const poster = normalizeImage(movie?.poster);
@@ -449,19 +480,112 @@ function PosterCard({ movie, badge = "" }) {
     cardImages.push(cardImages[cardImages.length - 1] || FALLBACK_POSTER);
   }
 
+  const clearPreviewTimer = () => {
+    if (previewTimerRef.current) {
+      clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    clearPreviewTimer();
+    previewTimerRef.current = setTimeout(() => {
+      setPreviewReady(true);
+    }, 1000);
+  };
+
+  const handleMouseLeave = () => {
+    clearPreviewTimer();
+    setIsHovered(false);
+    setPreviewReady(false);
+    setCanPlayPreview(false);
+  };
+
+  useEffect(() => {
+    return () => clearPreviewTimer();
+  }, []);
+
+  const handleToggleSave = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user?.token) {
+      navigate("/login");
+      return;
+    }
+
+    if (saving) return;
+
+    try {
+      setSaving(true);
+
+      if (isSaved) {
+        const { data } = await axios.put(
+          `${API_URL}/users/remove`,
+          { movieId: movie._id },
+          {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
+          }
+        );
+
+        dispatch(updateLikedMovies(data.movies || []));
+      } else {
+        const { data } = await axios.post(
+          `${API_URL}/users/add`,
+          { movie: { ...movie, id: movie._id } },
+          {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
+          }
+        );
+
+        dispatch(updateLikedMovies(data.movies || []));
+      }
+    } catch (err) {
+      console.error("toggle save from home error:", err.response?.data || err.message);
+
+      if (err.response?.status === 401) {
+        navigate("/login");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!movie?._id) return null;
+
   return (
     <Link
       to={`/movie/${movie._id}`}
       className={`posterCard posterCard--cinematic ${
         isHovered ? "is-hovered" : ""
+      } ${previewReady ? "is-preview-ready" : ""} ${
+        canPlayPreview ? "has-preview" : ""
       }`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        setCanPlayPreview(false);
-      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="posterCard__imageWrap posterCard__imageWrap--cinematic">
+        <button
+          type="button"
+          className={`posterCard__save ${isSaved ? "is-saved" : ""} ${
+            saving ? "is-saving" : ""
+          }`}
+          onClick={handleToggleSave}
+          disabled={saving}
+          aria-pressed={isSaved}
+          aria-label={isSaved ? "Bỏ khỏi bộ sưu tập" : "Lưu vào bộ sưu tập"}
+          title={isSaved ? "Bỏ khỏi bộ sưu tập" : "Lưu vào bộ sưu tập"}
+        >
+          <span className="posterCard__saveIcon">
+            {isSaved ? <FaHeart /> : <FaRegHeart />}
+          </span>
+        </button>
+
         <div className={`posterCard__strip ${canPlayPreview ? "is-hidden" : ""}`}>
           {cardImages.map((src, index) => (
             <div
@@ -482,12 +606,14 @@ function PosterCard({ movie, badge = "" }) {
         </div>
 
         <HoverPreviewVideo
-          active={isHovered}
+          active={previewReady}
           movieId={movie._id}
           directUrl={previewUrl}
           frames={previewFrames}
           className="posterCard__video"
           poster={primary}
+          delay={80}
+          frameIntervalMs={360}
           onVisibleChange={setCanPlayPreview}
         />
 
@@ -516,7 +642,7 @@ function PosterCard({ movie, badge = "" }) {
 function ContinueCard({ movie, onRemove }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 8), [movie]);
 
   if (!movie?._id) return null;
 
@@ -562,6 +688,7 @@ function ContinueCard({ movie, onRemove }) {
           className="continueItem__video"
           poster={thumb}
           startAt={previewStartAt}
+          frameIntervalMs={380}
           onVisibleChange={setCanPlayPreview}
         />
 
@@ -610,7 +737,7 @@ function formatViews(views) {
 function TopCard({ movie, index }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+  const previewFrames = useMemo(() => getTimelineFrames(movie, 8), [movie]);
 
   if (!movie?._id) return null;
 
@@ -646,6 +773,7 @@ function TopCard({ movie, index }) {
           frames={previewFrames}
           className="topItem__video"
           poster={thumb}
+          frameIntervalMs={380}
           onVisibleChange={setCanPlayPreview}
         />
       </div>

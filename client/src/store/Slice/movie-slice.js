@@ -9,9 +9,14 @@ console.log("API_URL:", API_URL);
 // 1️⃣ Lấy tất cả movies
 export const fetchMovies = createAsyncThunk(
   "movie/fetchMovies",
-  async ({ type }, thunkAPI) => {
+  async ({ type, includeTotal = false, limit } = {}, thunkAPI) => {
     try {
-      const res = await axios.get(`${API_URL}/movies?type=${type}`);
+      const params = new URLSearchParams();
+      if (type) params.set("type", type);
+      if (limit) params.set("limit", limit);
+      params.set("includeTotal", includeTotal ? "true" : "false");
+
+      const res = await axios.get(`${API_URL}/movies?${params.toString()}`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -24,11 +29,14 @@ export const fetchMovies = createAsyncThunk(
 // 2️⃣ Lấy movies theo genre
 export const fetchMoviesWithGenre = createAsyncThunk(
   "movie/fetchMoviesWithGenre",
-  async ({ type, genre }, thunkAPI) => {
+  async ({ type, genre, includeTotal = false }, thunkAPI) => {
     try {
-      const res = await axios.get(
-        `${API_URL}/movies?type=${type}&genre=${genre}`
-      );
+      const params = new URLSearchParams();
+      if (type) params.set("type", type);
+      if (genre) params.set("genre", genre);
+      params.set("includeTotal", includeTotal ? "true" : "false");
+
+      const res = await axios.get(`${API_URL}/movies?${params.toString()}`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -43,7 +51,13 @@ export const searchMovies = createAsyncThunk(
   "movie/searchMovies",
   async ({ query }, thunkAPI) => {
     try {
-      const res = await axios.get(`${API_URL}/movies?q=${query}&limit=12`);
+      const params = new URLSearchParams({
+        q: query || "",
+        limit: "12",
+        includeTotal: "false",
+      });
+
+      const res = await axios.get(`${API_URL}/movies?${params.toString()}`);
       return res.data.items || [];
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -95,6 +109,8 @@ const movieSlice = createSlice({
     current: null,
     likedMovies: [],
     status: "idle",
+    moviesStatus: "idle",
+    trendingStatus: "idle",
     error: null,
   },
   reducers: {
@@ -131,25 +147,31 @@ const movieSlice = createSlice({
     builder
       .addCase(fetchMovies.pending, (state) => {
         state.status = "loading";
+        state.moviesStatus = "loading";
       })
       .addCase(fetchMovies.fulfilled, (state, action) => {
         state.status = "succeeded";
+        state.moviesStatus = "succeeded";
         state.movies = action.payload;
       })
       .addCase(fetchMovies.rejected, (state, action) => {
         state.status = "failed";
+        state.moviesStatus = "failed";
         state.error = action.payload;
       })
 
       .addCase(fetchMoviesWithGenre.pending, (state) => {
         state.status = "loading";
+        state.moviesStatus = "loading";
       })
       .addCase(fetchMoviesWithGenre.fulfilled, (state, action) => {
         state.status = "succeeded";
+        state.moviesStatus = "succeeded";
         state.movies = action.payload;
       })
       .addCase(fetchMoviesWithGenre.rejected, (state, action) => {
         state.status = "failed";
+        state.moviesStatus = "failed";
         state.error = action.payload;
       })
 
@@ -179,13 +201,16 @@ const movieSlice = createSlice({
 
       .addCase(getTrending.pending, (state) => {
         state.status = "loading";
+        state.trendingStatus = "loading";
       })
       .addCase(getTrending.fulfilled, (state, action) => {
         state.status = "succeeded";
+        state.trendingStatus = "succeeded";
         state.trending = action.payload;
       })
       .addCase(getTrending.rejected, (state, action) => {
         state.status = "failed";
+        state.trendingStatus = "failed";
         state.error = action.payload;
       });
   },

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import Hls from "hls.js";
 import { API_URL } from "../../utils/api";
 
 const signedUrlCache = new Map();
+let hlsModulePromise = null;
 
 function getStoredToken() {
   try {
@@ -15,6 +15,14 @@ function getStoredToken() {
 
 function isHlsUrl(url = "") {
   return /\.m3u8(\?|#|$)/i.test(url);
+}
+
+async function loadHlsModule() {
+  if (!hlsModulePromise) {
+    hlsModulePromise = import("hls.js").then((mod) => mod.default || mod);
+  }
+
+  return hlsModulePromise;
 }
 
 async function getSignedStreamUrl(movieId, signal) {
@@ -53,6 +61,7 @@ export default function HoverPreviewVideo({
   className = "",
   startAt = 18,
   delay = 520,
+  frameIntervalMs = 420,
   onVisibleChange,
   onError,
 }) {
@@ -61,6 +70,21 @@ export default function HoverPreviewVideo({
   const [visible, setVisible] = useState(false);
   const [frameVisible, setFrameVisible] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
+
+  useEffect(() => {
+    if (!active || !frames.length) return;
+
+    const preloaders = frames.map((src) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+      return img;
+    });
+
+    return () => {
+      preloaders.length = 0;
+    };
+  }, [active, frames]);
 
   useEffect(() => {
     let disposed = false;
@@ -92,7 +116,7 @@ export default function HoverPreviewVideo({
       if (!frameInterval) {
         frameInterval = setInterval(() => {
           setFrameIndex((index) => (index + 1) % frames.length);
-        }, 700);
+        }, frameIntervalMs);
       }
     };
 
@@ -213,18 +237,33 @@ export default function HoverPreviewVideo({
         video.loop = true;
         video.playsInline = true;
         video.preload = "auto";
+        video.autoplay = true;
         video.poster = poster || "";
 
         video.onerror = () => {
           failVideoPreview(new Error("Preview video failed"));
         };
 
-        if (isHlsUrl(src) && Hls.isSupported()) {
+        if (isHlsUrl(src)) {
+          const Hls = await loadHlsModule().catch(() => null);
+
+          if (disposed) return;
+
+          if (!Hls?.isSupported()) {
+            video.src = src;
+            video.onloadedmetadata = playVideo;
+            video.oncanplay = playVideo;
+            video.load();
+            return;
+          }
+
           const hls = new Hls({
-            maxBufferLength: 18,
-            maxMaxBufferLength: 24,
-            fragLoadingMaxRetry: 1,
-            manifestLoadingMaxRetry: 1,
+            capLevelToPlayerSize: true,
+            startFragPrefetch: true,
+            maxBufferLength: 12,
+            maxMaxBufferLength: 18,
+            fragLoadingMaxRetry: 2,
+            manifestLoadingMaxRetry: 2,
           });
 
           hlsRef.current = hls;
@@ -254,7 +293,7 @@ export default function HoverPreviewVideo({
         setFrameIndex(0);
         frameTimer = setTimeout(() => {
           showFallback();
-        }, Math.min(delay, 260));
+        }, Math.min(delay, 180));
       }
 
       if (movieId || directUrl) {
@@ -276,6 +315,7 @@ export default function HoverPreviewVideo({
     poster,
     startAt,
     delay,
+    frameIntervalMs,
     onVisibleChange,
     onError,
   ]);
