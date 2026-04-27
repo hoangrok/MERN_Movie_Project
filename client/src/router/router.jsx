@@ -19,6 +19,7 @@ import TopViewedMovies from "../pages/TopViewedMovies";
 import GenreMovies from "../pages/GenreMovies";
 import AdminNewMovie from "../pages/AdminNewMovie";
 import AdminAds from "../pages/AdminAds";
+import NotFound from "../components/NotFound/NotFound";
 
 const AppRouter = () => {
   return (
@@ -92,7 +93,7 @@ const AppRouter = () => {
         }
       />
 
-      <Route path="*" element={<div>404 Not Found</div>} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

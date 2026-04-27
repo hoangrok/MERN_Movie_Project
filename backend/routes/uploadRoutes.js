@@ -89,45 +89,6 @@ const withTimeout = (promise, ms, label) =>
     ),
   ]);
 
-const escapeDrawtextText = (value) => {
-  return String(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'")
-    .replace(/%/g, "\\%")
-    .replace(/\r?\n/g, " ");
-};
-
-const escapeDrawtextPath = (value) => {
-  return String(value)
-    .replace(/\\/g, "/")
-    .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'");
-};
-
-const getWatermarkFontOption = () => {
-  const candidates = [
-    process.env.WATERMARK_FONT_FILE,
-    "C:\\Windows\\Fonts\\seguisb.ttf",
-    "C:\\Windows\\Fonts\\segoeuib.ttf",
-    "C:\\Windows\\Fonts\\arialbd.ttf",
-    "C:\\Windows\\Fonts\\ariblk.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-  ].filter(Boolean);
-
-  const fontFile = candidates.find((candidate) => {
-    try {
-      return fs.existsSync(candidate);
-    } catch (_) {
-      return false;
-    }
-  });
-
-  return fontFile ? `fontfile='${escapeDrawtextPath(fontFile)}'` : "";
-};
-
 const resolveWatermarkAssetPath = (value) => {
   const candidate = String(value || "").trim();
   if (!candidate) return "";
@@ -144,19 +105,16 @@ const resolveWatermarkAssetPath = (value) => {
   return path.resolve(__dirname, "..", candidate);
 };
 
-const getWatermarkGifPath = () => {
+const getWatermarkPngPath = () => {
   const candidates = [
-    process.env.WATERMARK_GIF_FILE,
-    path.join(__dirname, "..", "assets", "watermark.gif"),
+    process.env.WATERMARK_PNG_FILE,
+    path.join(__dirname, "..", "tools", "local-hls", "watermark.png"),
+    path.join(__dirname, "..", "assets", "watermark.png"),
   ].filter(Boolean);
 
   for (const candidate of candidates) {
     const resolved = resolveWatermarkAssetPath(candidate);
-    if (
-      resolved &&
-      /\.gif$/i.test(resolved) &&
-      fs.existsSync(resolved)
-    ) {
+    if (resolved && /\.png$/i.test(resolved) && fs.existsSync(resolved)) {
       return resolved;
     }
   }
@@ -170,165 +128,27 @@ const clampNumber = (value, fallback, min, max) => {
   return Math.min(max, Math.max(min, parsed));
 };
 
-const buildWatermarkFilter = () => {
-  const text = escapeDrawtextText(
-    process.env.WATERMARK_TEXT || "clipdam18.com"
-  );
-  const introText = escapeDrawtextText(
-    Array.from(
-      { length: 18 },
-      () => process.env.WATERMARK_INTRO_TEXT || "CLIPDAM18.COM"
-    ).join("     ")
-  );
-  const fontOption = getWatermarkFontOption();
-  const fontSize = Number(process.env.WATERMARK_FONT_SIZE) || 15;
-  const introFontSize = Number(process.env.WATERMARK_INTRO_FONT_SIZE) || 16;
+const buildPngWatermarkFilter = (videoWidth = 1920, videoHeight = 1080) => {
   const fallbackMargin = Number(process.env.WATERMARK_MARGIN) || 0;
   const marginX = Number(process.env.WATERMARK_MARGIN_X) || fallbackMargin || 24;
   const topMargin = Number(process.env.WATERMARK_MARGIN_TOP) || fallbackMargin || 22;
-  const bottomMargin =
-    Number(process.env.WATERMARK_MARGIN_BOTTOM) || fallbackMargin || 78;
-  const introSeconds = Number(process.env.WATERMARK_INTRO_SECONDS) || 3;
-  const introBandHeight = Number(process.env.WATERMARK_INTRO_BAND_HEIGHT) || 60;
-  const introSpeed = Number(process.env.WATERMARK_INTRO_SPEED) || 230;
+  const bottomMargin = Number(process.env.WATERMARK_MARGIN_BOTTOM) || fallbackMargin || 78;
   const jumpSeconds = Number(process.env.WATERMARK_JUMP_SECONDS) || 7;
-  const jumpCycle = jumpSeconds * 6;
-  const jumpTime = `mod(t,${jumpCycle})`;
-  const introFadeInSeconds = Math.min(0.3, introSeconds / 3);
-  const introFadeOutStart = Math.max(introFadeInSeconds, introSeconds - 0.7);
-  const introFadeOutSeconds = Math.max(0.1, introSeconds - introFadeOutStart);
-  const textX = [
-    `if(lt(${jumpTime},${jumpSeconds}),w-tw-${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 2}),${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 3}),${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 4}),w-tw-${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 5}),${marginX},(w-tw)/2)))))`,
-  ].join(",");
-  const textY = [
-    `if(lt(${jumpTime},${jumpSeconds}),${topMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 2}),h-th-${bottomMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 3}),${topMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 4}),h-th-${bottomMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 5}),(h-th)/2,(h-th)/2)))))`,
-  ].join(",");
-  const blinkAlpha = "if(lt(mod(t,2.4),0.96),0.95,if(lt(mod(t,2.4),1.32),0.42,0.95))";
-  const drawTextBase = [
-    fontOption,
-    "fontcolor=0xFF2D3D@0.98",
-    "borderw=2",
-    "bordercolor=black@0.92",
-    "shadowcolor=white@0.22",
-    "shadowx=1",
-    "shadowy=1",
-  ].filter(Boolean);
-  const introDrawTextBase = [
-    fontOption,
-    "fontcolor=0xFF2D3D@0.95",
-    "borderw=2",
-    "bordercolor=black@0.88",
-    "shadowcolor=white@0.2",
-    "shadowx=1",
-    "shadowy=1",
-  ].filter(Boolean);
+  const pngOpacity = clampNumber(process.env.WATERMARK_PNG_OPACITY, 0.9, 0.1, 1);
 
-  return [
-    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-    "format=yuv420p",
-    [
-      `drawtext=text='${introText}'`,
-      ...introDrawTextBase,
-      `fontsize=${introFontSize}`,
-      `x='w-mod(t*${introSpeed},w+tw)'`,
-      `y='h-${introBandHeight}-h*0.14+(${introBandHeight}-th)/2'`,
-      `alpha='if(lt(t,${introFadeInSeconds}),t/${introFadeInSeconds},if(lt(t,${introFadeOutStart}),1,if(lt(t,${introSeconds}),(${introSeconds}-t)/${introFadeOutSeconds},0)))'`,
-      `enable='between(t,0,${introSeconds})'`,
-    ].join(":"),
-    [
-      `drawtext=text='${text}'`,
-      ...drawTextBase,
-      `fontsize=${fontSize}`,
-      `x='${textX}'`,
-      `y='${textY}'`,
-      `alpha='${blinkAlpha}'`,
-    ].join(":"),
-  ].join(",");
-};
+  // Scale PNG to ~18% of shorter side, capped at WATERMARK_PNG_MAX_WIDTH
+  const shorterSide = Math.min(videoWidth, videoHeight);
+  const maxW = clampNumber(process.env.WATERMARK_PNG_MAX_WIDTH, 320, 80, 720);
+  const pngW = Math.min(maxW, Math.max(88, Math.round(shorterSide * 0.2)));
+  const cornerIndex = `mod(floor(t/${jumpSeconds})*7+3,4)`;
 
-const buildGifWatermarkFilter = () => {
-  const introText = escapeDrawtextText(
-    Array.from(
-      { length: 18 },
-      () => process.env.WATERMARK_INTRO_TEXT || "CLIPDAM18.COM"
-    ).join("     ")
-  );
-  const fontOption = getWatermarkFontOption();
-  const introFontSize = Number(process.env.WATERMARK_INTRO_FONT_SIZE) || 16;
-  const fallbackMargin = Number(process.env.WATERMARK_MARGIN) || 0;
-  const marginX = Number(process.env.WATERMARK_MARGIN_X) || fallbackMargin || 24;
-  const topMargin = Number(process.env.WATERMARK_MARGIN_TOP) || fallbackMargin || 22;
-  const bottomMargin =
-    Number(process.env.WATERMARK_MARGIN_BOTTOM) || fallbackMargin || 78;
-  const introSeconds = Number(process.env.WATERMARK_INTRO_SECONDS) || 3;
-  const introBandHeight = Number(process.env.WATERMARK_INTRO_BAND_HEIGHT) || 60;
-  const introSpeed = Number(process.env.WATERMARK_INTRO_SPEED) || 230;
-  const jumpSeconds = Number(process.env.WATERMARK_JUMP_SECONDS) || 7;
-  const jumpCycle = jumpSeconds * 6;
-  const jumpTime = `mod(t,${jumpCycle})`;
-  const gifFps = clampNumber(process.env.WATERMARK_GIF_FPS, 15, 6, 30);
-  const gifOpacity = clampNumber(process.env.WATERMARK_GIF_OPACITY, 0.9, 0.1, 1);
-  const gifMaxWidth = clampNumber(
-    process.env.WATERMARK_GIF_MAX_WIDTH,
-    150,
-    48,
-    420
-  );
-  const gifWidthRatio = clampNumber(
-    process.env.WATERMARK_GIF_WIDTH_RATIO,
-    0.15,
-    0.05,
-    0.35
-  );
-  const introFadeInSeconds = Math.min(0.3, introSeconds / 3);
-  const introFadeOutStart = Math.max(introFadeInSeconds, introSeconds - 0.7);
-  const introFadeOutSeconds = Math.max(0.1, introSeconds - introFadeOutStart);
-  const overlayX = [
-    `if(lt(${jumpTime},${jumpSeconds}),main_w-overlay_w-${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 2}),${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 3}),${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 4}),main_w-overlay_w-${marginX}`,
-    `if(lt(${jumpTime},${jumpSeconds * 5}),${marginX},(main_w-overlay_w)/2)))))`,
-  ].join(",");
-  const overlayY = [
-    `if(lt(${jumpTime},${jumpSeconds}),${topMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 2}),main_h-overlay_h-${bottomMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 3}),${topMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 4}),main_h-overlay_h-${bottomMargin}`,
-    `if(lt(${jumpTime},${jumpSeconds * 5}),(main_h-overlay_h)/2,(main_h-overlay_h)/2)))))`,
-  ].join(",");
-  const introDrawTextBase = [
-    fontOption,
-    "fontcolor=0xFF2D3D@0.95",
-    "borderw=2",
-    "bordercolor=black@0.88",
-    "shadowcolor=white@0.2",
-    "shadowx=1",
-    "shadowy=1",
-  ].filter(Boolean);
-
+  // scale PNG to fixed pixel width (no scale2ref — simpler, more compatible)
   return [
     "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[base]",
-    `[1:v]fps=${gifFps},format=rgba,colorchannelmixer=aa=${gifOpacity}[gifraw]`,
-    `[gifraw][base]scale2ref=w='min(${gifMaxWidth},main_w*${gifWidthRatio})':h=-1[wm][base2]`,
-    `[base2][wm]overlay=x='${overlayX}':y='${overlayY}':shortest=1:eof_action=pass[watermarked]`,
-    [
-      `[watermarked]drawtext=text='${introText}'`,
-      ...introDrawTextBase,
-      `fontsize=${introFontSize}`,
-      `x='w-mod(t*${introSpeed},w+tw)'`,
-      `y='h-${introBandHeight}-h*0.14+(${introBandHeight}-th)/2'`,
-      `alpha='if(lt(t,${introFadeInSeconds}),t/${introFadeInSeconds},if(lt(t,${introFadeOutStart}),1,if(lt(t,${introSeconds}),(${introSeconds}-t)/${introFadeOutSeconds},0)))'`,
-      `enable='between(t,0,${introSeconds})'`,
-    ].join(":") + "[v]",
+    `[1:v]format=rgba,colorchannelmixer=aa=${pngOpacity},scale=${pngW}:-2[wm]`,
+    `[base][wm]overlay=` +
+      `x='if(eq(${cornerIndex},0),${marginX},if(eq(${cornerIndex},1),main_w-overlay_w-${marginX},if(eq(${cornerIndex},2),${marginX},main_w-overlay_w-${marginX})))':` +
+      `y='if(eq(${cornerIndex},0),${topMargin},if(eq(${cornerIndex},1),${topMargin},if(eq(${cornerIndex},2),main_h-overlay_h-${bottomMargin},main_h-overlay_h-${bottomMargin})))'[v]`,
   ].join(";");
 };
 
@@ -376,38 +196,45 @@ async function processVideoInBackground({ movieId, tempVideo }) {
 
     const watermarkEnabled = process.env.WATERMARK_ENABLED !== "false";
     const canCopy = watermarkEnabled ? false : await canUseCopyMode(tempVideo);
-    const watermarkGifPath = watermarkEnabled ? getWatermarkGifPath() : "";
+    const watermarkPngPath = watermarkEnabled ? getWatermarkPngPath() : "";
+
+    // Probe video dimensions for dimension-aware filters
+    let videoWidth = 1920;
+    let videoHeight = 1080;
+    try {
+      const probe = await ffprobeAsync(tempVideo);
+      const vs = probe?.streams?.find((s) => s.codec_type === "video");
+      if (vs?.width && vs?.height) {
+        videoWidth = vs.width;
+        videoHeight = vs.height;
+      }
+    } catch (e) {
+      console.warn("probe dimensions failed, using defaults:", e.message);
+    }
+
     console.log("copy mode:", canCopy);
     console.log("watermark burn-in:", watermarkEnabled);
-    console.log("watermark gif:", watermarkGifPath || "none");
+    console.log("watermark png:", watermarkPngPath || "none");
+    console.log("video dimensions:", `${videoWidth}x${videoHeight}`);
 
     const masterPath = path.join(outputDir, "master.m3u8");
 
     if (watermarkEnabled) {
+      if (!watermarkPngPath) {
+        throw new Error("Watermark PNG not found. Expected backend/assets/watermark.png.");
+      }
+
       console.log("3 - Convert HLS WATERMARK MODE");
 
       await withTimeout(
         new Promise((resolve, reject) => {
           const command = ffmpeg(tempVideo);
-          const watermarkOptions = watermarkGifPath
-            ? [
-                "-filter_complex",
-                buildGifWatermarkFilter(),
-                "-map [v]",
-                "-map 0:a?",
-              ]
-            : [
-                "-vf",
-                buildWatermarkFilter(),
-                "-map 0:v:0",
-                "-map 0:a?",
-              ];
-
-          if (watermarkGifPath) {
-            command
-              .input(watermarkGifPath)
-              .inputOptions(["-stream_loop -1", "-ignore_loop 0"]);
-          }
+          const watermarkOptions = [
+            "-filter_complex", buildPngWatermarkFilter(videoWidth, videoHeight),
+            "-map [v]",
+            "-map 0:a?",
+          ];
+          command.input(watermarkPngPath);
 
           command
             .videoCodec("libx264")

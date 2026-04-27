@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/GenreMovies.scss";
 import { API_URL } from "../utils/api";
+import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -49,6 +50,16 @@ export default function GenreMovies() {
       .map((x) => x.trim())
       .filter(Boolean);
   }, [searchParams]);
+
+  useEffect(() => {
+    const label = genreList.length > 0 ? genreList.join(", ") : "Tất cả thể loại";
+    setSEO({
+      title: `${label} - Dam17+1`,
+      description: `Xem video thể loại ${label} chất lượng cao trên Dam17+1.`,
+      url: `https://www.clipdam18.com/genres?genres=${encodeURIComponent(genreList.join(","))}`,
+      image: "https://www.clipdam18.com/og-image.jpg",
+    });
+  }, [genreList]);
 
   useEffect(() => {
     let active = true;

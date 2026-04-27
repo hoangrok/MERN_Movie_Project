@@ -66,19 +66,26 @@
 
 .navbar__logo-link {
   text-decoration: none;
-  color: #fff;
+  display: inline-flex;
+  align-items: center;
 }
 
-.navbar__logo-link h1 {
-  margin: 0;
-  font-size: clamp(1.9rem, 2.4vw, 2.8rem);
-  line-height: 1;
-  font-weight: 1000;
-  letter-spacing: -0.06em;
-  background: linear-gradient(90deg, #ffffff 0%, #ffd1d1 35%, #ff3b30 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 10px 26px rgba(229, 9, 20, 0.14);
+.navbar__logo-img {
+  display: block;
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(80, 160, 255, 0.55))
+          drop-shadow(0 0 22px rgba(160, 60, 255, 0.3));
+  transition:
+    filter 0.25s ease,
+    transform 0.25s ease;
+}
+
+.navbar__logo-link:hover .navbar__logo-img {
+  filter: drop-shadow(0 0 14px rgba(80, 200, 255, 0.75))
+          drop-shadow(0 0 30px rgba(200, 80, 255, 0.45));
+  transform: scale(1.04);
 }
 
 .navbar__content--links {
@@ -746,8 +753,8 @@
 }
 
 @media (max-width: 560px) {
-  .navbar__logo-link h1 {
-    font-size: 2rem;
+  .navbar__logo-img {
+    height: 38px;
   }
 
   .navbar__content--links {

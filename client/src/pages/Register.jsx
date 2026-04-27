@@ -1,9 +1,31 @@
-import React, { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  FaArrowRight,
+  FaEnvelope,
+  FaEye,
+  FaEyeSlash,
+  FaLock,
+  FaPlay,
+  FaUser,
+} from "react-icons/fa";
 import { register } from "../services/authService";
+import "../assets/styles/Auth.scss";
 
 export default function Register() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = "Đăng ký - Dam17+1";
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.setAttribute('name', 'robots');
+      document.head.appendChild(robotsMeta);
+    }
+    robotsMeta.setAttribute('content', 'noindex, nofollow');
+    return () => { robotsMeta.setAttribute('content', 'index, follow'); };
+  }, []);
 
   const [form, setForm] = useState({
     name: "",
@@ -15,6 +37,21 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const passwordScore = useMemo(() => {
+    let score = 0;
+    if (form.password.length >= 6) score += 1;
+    if (/[A-Z]/.test(form.password)) score += 1;
+    if (/\d/.test(form.password)) score += 1;
+    if (/[^A-Za-z0-9]/.test(form.password)) score += 1;
+    return score;
+  }, [form.password]);
+
+  const passwordLabel = ["Quá ngắn", "Tạm ổn", "Khá ổn", "Tốt", "Rất tốt"][
+    passwordScore
+  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,7 +72,7 @@ export default function Register() {
     setSuccessMsg("");
 
     if (!form.name.trim()) {
-      setErrorMsg("Vui lòng nhập tên");
+      setErrorMsg("Vui lòng nhập tên hiển thị");
       return;
     }
 
@@ -80,7 +117,7 @@ export default function Register() {
 
         setTimeout(() => {
           navigate("/login");
-        }, 1000);
+        }, 900);
       } else {
         setErrorMsg(res?.message || "Đăng ký thất bại");
       }
@@ -93,140 +130,142 @@ export default function Register() {
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>Đăng ký</h1>
-
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
-          {errorMsg ? <div style={errorBoxStyle}>{errorMsg}</div> : null}
-          {successMsg ? <div style={successBoxStyle}>{successMsg}</div> : null}
-
-          <input
-            type="text"
-            name="name"
-            placeholder="Tên hiển thị"
-            value={form.name}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-
-          <input
-            type="password"
-            name="password"
-            placeholder="Mật khẩu"
-            value={form.password}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-
-          <input
-            type="password"
-            name="confirmPassword"
-            placeholder="Xác nhận mật khẩu"
-            value={form.confirmPassword}
-            onChange={handleChange}
-            style={inputStyle}
-          />
-
-          <button type="submit" style={buttonStyle} disabled={loading}>
-            {loading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
-          </button>
-        </form>
-
-        <p style={textStyle}>
-          Đã có tài khoản?{" "}
-          <Link to="/login" style={linkStyle}>
-            Đăng nhập
+    <main className="authPage authPage--register">
+      <section className="authShell" aria-label="Đăng ký Clipdam18">
+        <div className="authBrand">
+          <Link to="/" className="authBrand__mark" aria-label="Về trang chủ">
+            <span className="authBrand__play">
+              <FaPlay />
+            </span>
+            <span>clipdam18.com</span>
           </Link>
-        </p>
-      </div>
-    </div>
+
+          <div className="authBrand__copy">
+            <p className="authBrand__eyebrow">Tài khoản cá nhân</p>
+            <h1>Tạo không gian xem của riêng bạn.</h1>
+            <p>
+              Thêm video vào bộ sưu tập, giữ lịch sử đang xem và đồng bộ trải
+              nghiệm trên nhiều thiết bị.
+            </p>
+          </div>
+        </div>
+
+        <div className="authPanel">
+          <div className="authPanel__head">
+            <p>Start watching</p>
+            <h2>Tạo tài khoản</h2>
+          </div>
+
+          {errorMsg ? (
+            <div className="authNotice authNotice--error" role="alert">
+              {errorMsg}
+            </div>
+          ) : null}
+          {successMsg ? (
+            <div className="authNotice authNotice--success" role="status">
+              {successMsg}
+            </div>
+          ) : null}
+
+          <form className="authForm" onSubmit={handleSubmit}>
+            <label className="authField">
+              <span>Tên hiển thị</span>
+              <div className="authField__control">
+                <FaUser />
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Tên của bạn"
+                  value={form.name}
+                  onChange={handleChange}
+                  autoComplete="name"
+                />
+              </div>
+            </label>
+
+            <label className="authField">
+              <span>Email</span>
+              <div className="authField__control">
+                <FaEnvelope />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  autoComplete="email"
+                />
+              </div>
+            </label>
+
+            <label className="authField">
+              <span>Mật khẩu</span>
+              <div className="authField__control">
+                <FaLock />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Tối thiểu 6 ký tự"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="authField__toggle"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+            </label>
+
+            <div className="authStrength" data-score={passwordScore}>
+              <div className="authStrength__track">
+                <span />
+              </div>
+              <p>{passwordLabel}</p>
+            </div>
+
+            <label className="authField">
+              <span>Xác nhận mật khẩu</span>
+              <div className="authField__control">
+                <FaLock />
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  placeholder="Nhập lại mật khẩu"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="authField__toggle"
+                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  aria-label={
+                    showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"
+                  }
+                  title={showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+            </label>
+
+            <button className="authSubmit" type="submit" disabled={loading}>
+              <span>{loading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</span>
+              <FaArrowRight />
+            </button>
+          </form>
+
+          <p className="authSwitch">
+            Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+          </p>
+        </div>
+      </section>
+    </main>
   );
 }
-
-const pageStyle = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#0b0b0f",
-  padding: 24,
-};
-
-const cardStyle = {
-  width: "100%",
-  maxWidth: 420,
-  background: "#14141c",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 16,
-  padding: 28,
-  color: "#fff",
-  boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-};
-
-const titleStyle = {
-  margin: "0 0 20px",
-  color: "#fff",
-  fontSize: 32,
-  fontWeight: 800,
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "#1c1c25",
-  color: "#fff",
-  outline: "none",
-};
-
-const buttonStyle = {
-  width: "100%",
-  padding: "12px 16px",
-  borderRadius: 10,
-  border: "none",
-  background: "#e50914",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-  opacity: 1,
-};
-
-const textStyle = {
-  marginTop: 18,
-  color: "rgba(255,255,255,0.72)",
-};
-
-const linkStyle = {
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-};
-
-const errorBoxStyle = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  background: "rgba(229, 9, 20, 0.14)",
-  border: "1px solid rgba(229, 9, 20, 0.35)",
-  color: "#ffb3b8",
-  fontSize: 14,
-};
-
-const successBoxStyle = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  background: "rgba(16, 185, 129, 0.14)",
-  border: "1px solid rgba(16, 185, 129, 0.35)",
-  color: "#b7ffdf",
-  fontSize: 14,
-};

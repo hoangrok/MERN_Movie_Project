@@ -1,16 +1,22 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
-  loginUser,
-  resetAuthState,
-} from "../store/Slice/auth-slice";
+  FaArrowRight,
+  FaEnvelope,
+  FaEye,
+  FaEyeSlash,
+  FaLock,
+  FaPlay,
+} from "react-icons/fa";
+import { loginUser, resetAuthState } from "../store/Slice/auth-slice";
+import "../assets/styles/Auth.scss";
 
 export default function Login() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const { user, isLoading, isSuccess, isError, message } = useSelector(
+  const { user, isLoading, isError, message } = useSelector(
     (state) => state.auth
   );
 
@@ -18,6 +24,19 @@ export default function Login() {
     email: "",
     password: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    document.title = "Đăng nhập - Dam17+1";
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.setAttribute('name', 'robots');
+      document.head.appendChild(robotsMeta);
+    }
+    robotsMeta.setAttribute('content', 'noindex, nofollow');
+    return () => { robotsMeta.setAttribute('content', 'index, follow'); };
+  }, []);
 
   useEffect(() => {
     if (user && user.token) {
@@ -27,7 +46,7 @@ export default function Login() {
     return () => {
       dispatch(resetAuthState());
     };
-  }, [user, isSuccess, navigate, dispatch]);
+  }, [user, navigate, dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,118 +58,100 @@ export default function Login() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    dispatch(loginUser(form));
+    dispatch(
+      loginUser({
+        email: form.email.trim(),
+        password: form.password,
+      })
+    );
   };
 
   return (
-    <div style={pageStyle}>
-      <div style={overlayStyle} />
-      <div style={boxStyle}>
-        <h1 style={titleStyle}>Đăng nhập</h1>
-
-        {isError && (
-          <p style={{ color: "#ff6b6b", marginBottom: 14 }}>{message}</p>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            style={inputStyle}
-            required
-          />
-
-          <input
-            type="password"
-            name="password"
-            placeholder="Mật khẩu"
-            value={form.password}
-            onChange={handleChange}
-            style={inputStyle}
-            required
-          />
-
-          <button type="submit" style={buttonStyle} disabled={isLoading}>
-            {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
-          </button>
-        </form>
-
-        <p style={textStyle}>
-          Chưa có tài khoản?{" "}
-          <Link to="/register" style={linkStyle}>
-            Đăng ký
+    <main className="authPage authPage--login">
+      <section className="authShell" aria-label="Đăng nhập Clipdam18">
+        <div className="authBrand">
+          <Link to="/" className="authBrand__mark" aria-label="Về trang chủ">
+            <span className="authBrand__play">
+              <FaPlay />
+            </span>
+            <span>clipdam18.com</span>
           </Link>
-        </p>
-      </div>
-    </div>
+
+          <div className="authBrand__copy">
+            <p className="authBrand__eyebrow">Bộ sưu tập riêng của bạn</p>
+            <h1>Đăng nhập để tiếp tục xem.</h1>
+            <p>
+              Lưu clip yêu thích, quay lại video đang xem và giữ trải nghiệm
+              của bạn liền mạch hơn.
+            </p>
+          </div>
+        </div>
+
+        <div className="authPanel">
+          <div className="authPanel__head">
+            <p>Welcome back</p>
+            <h2>Đăng nhập</h2>
+          </div>
+
+          {isError ? (
+            <div className="authNotice authNotice--error" role="alert">
+              {message || "Đăng nhập thất bại"}
+            </div>
+          ) : null}
+
+          <form className="authForm" onSubmit={handleSubmit}>
+            <label className="authField">
+              <span>Email</span>
+              <div className="authField__control">
+                <FaEnvelope />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={handleChange}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </label>
+
+            <label className="authField">
+              <span>Mật khẩu</span>
+              <div className="authField__control">
+                <FaLock />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="Nhập mật khẩu"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="authField__toggle"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+            </label>
+
+            <button className="authSubmit" type="submit" disabled={isLoading}>
+              <span>{isLoading ? "Đang đăng nhập..." : "Đăng nhập"}</span>
+              <FaArrowRight />
+            </button>
+          </form>
+
+          <p className="authSwitch">
+            Chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
+          </p>
+        </div>
+      </section>
+    </main>
   );
 }
-
-const pageStyle = {
-  minHeight: "100vh",
-  background:
-    'linear-gradient(rgba(0,0,0,0.72), rgba(0,0,0,0.78)), url("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1600&q=80") center/cover no-repeat',
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  position: "relative",
-};
-
-const overlayStyle = {
-  position: "absolute",
-  inset: 0,
-};
-
-const boxStyle = {
-  position: "relative",
-  zIndex: 2,
-  width: "100%",
-  maxWidth: 420,
-  background: "rgba(15,15,18,0.88)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 16,
-  padding: 32,
-  backdropFilter: "blur(14px)",
-  boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-};
-
-const titleStyle = {
-  color: "#fff",
-  marginBottom: 22,
-  fontSize: 32,
-  fontWeight: 800,
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "14px 16px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#fff",
-  outline: "none",
-};
-
-const buttonStyle = {
-  background: "#e50914",
-  color: "#fff",
-  border: "none",
-  padding: "14px 16px",
-  borderRadius: 10,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const textStyle = {
-  marginTop: 18,
-  color: "rgba(255,255,255,0.72)",
-};
-
-const linkStyle = {
-  color: "#fff",
-  fontWeight: 700,
-  textDecoration: "none",
-};
