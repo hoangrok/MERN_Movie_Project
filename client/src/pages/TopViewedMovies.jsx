@@ -118,9 +118,9 @@ export default function TopViewedMovies() {
 
   useEffect(() => {
     setSEO({
-      title: "Top luot xem | Dam17+1",
-      description: "Nhung video duoc xem nhieu nhat tren Dam17+1.",
-      url: window.location.href,
+      title: "Top lượt xem - Dam17+1",
+      description: "Những video được xem nhiều nhất trên Dam17+1. Cập nhật theo thời gian thực.",
+      url: "https://www.clipdam18.com/top-viewed",
       image: "https://www.clipdam18.com/og-image.jpg",
     });
   }, []);
@@ -171,7 +171,7 @@ export default function TopViewedMovies() {
           </p>
         </div>
 
-        <AdSlot placement="top_viewed_top" variant="banner" />
+        <AdSlot placement="top_viewed_top" variant="banner" defer />
 
         {loading ? (
           <div className="rank-grid">

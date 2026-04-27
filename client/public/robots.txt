@@ -1,4 +1,13 @@
 User-agent: *
 Allow: /
+Disallow: /movies
+Disallow: /tv-shows
+Disallow: /new-popular
+Disallow: /my-list
+Disallow: /trailer
+Disallow: /watch/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
 
 Sitemap: https://www.clipdam18.com/sitemap.xml

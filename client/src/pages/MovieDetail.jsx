@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import Hls from "hls.js";
 import axios from "axios";
 import Navbar from "../components/Navbar/Navbar";
 import AdSlot from "../components/Ads/AdSlot";
 import "../assets/styles/MovieDetailPlayer.css";
+import { setSEO } from "../utils/seo";
 import {
   saveContinueWatching,
   getContinueWatching,
@@ -18,6 +18,15 @@ const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
 const FALLBACK_BACKDROP =
   "https://dummyimage.com/1280x720/111/ffffff&text=Backdrop";
+let hlsModulePromise = null;
+
+async function loadHlsModule() {
+  if (!hlsModulePromise) {
+    hlsModulePromise = import("hls.js").then((mod) => mod.default || mod);
+  }
+
+  return hlsModulePromise;
+}
 
 function normalizeImage(url, fallback = "") {
   return typeof url === "string" && url.trim() ? url.trim() : fallback;
@@ -436,7 +445,9 @@ export default function MovieDetail() {
           return true;
         }
 
-        if (Hls.isSupported()) {
+        const Hls = await loadHlsModule().catch(() => null);
+
+        if (Hls?.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
@@ -747,6 +758,57 @@ export default function MovieDetail() {
 
     setSaved(exists);
   }, [movie, user]);
+
+  useEffect(() => {
+    if (!movie) return;
+
+    // JSON-LD Schema for Google
+    const schemaId = "movie-jsonld";
+    let script = document.getElementById(schemaId);
+    if (!script) {
+      script = document.createElement("script");
+      script.id = schemaId;
+      script.type = "application/ld+json";
+      document.head.appendChild(script);
+    }
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      name: movie.title,
+      description: movie.description || movie.title,
+      thumbnailUrl: movie.poster || movie.backdrop || "",
+      uploadDate: movie.createdAt || new Date().toISOString(),
+      duration: movie.duration ? `PT${movie.duration}M` : undefined,
+      contentUrl: `https://www.clipdam18.com/movie/${movie._id}`,
+      embedUrl: `https://www.clipdam18.com/movie/${movie._id}`,
+      ...(movie.rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: movie.rating, bestRating: 10, ratingCount: 1 } } : {}),
+    };
+    script.textContent = JSON.stringify(schema);
+
+    const canonical = `https://www.clipdam18.com/movie/${movie._id}`;
+    const genreText =
+      Array.isArray(movie.genre) && movie.genre.length > 0
+        ? ` ${movie.genre.slice(0, 3).join(", ")}.`
+        : "";
+    const rawDescription = String(movie.description || "").trim();
+    const description = rawDescription
+      ? rawDescription.slice(0, 155)
+      : `Xem ${movie.title} tren Dam17+1.${genreText}`;
+
+    setSEO({
+      title: `${movie.title} - Dam17+1`,
+      description,
+      image:
+        movie.backdrop || movie.poster || "https://www.clipdam18.com/og-image.jpg",
+      url: canonical,
+      type: "video.movie",
+    });
+
+    return () => {
+      const el = document.getElementById(schemaId);
+      if (el) el.remove();
+    };
+  }, [movie]);
 
   useEffect(() => {
     if (!movie) return;

@@ -1,8 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import AdSlot from "./components/Ads/AdSlot";
-import FeedbackWidget from "./components/FeedbackWidget/FeedbackWidget";
+import useDeferredMount from "./hooks/useDeferredMount";
 
 const Home = lazy(() => import("./pages/Home"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -17,9 +16,12 @@ const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const MyList = lazy(() => import("./pages/MyList"));
 const ContinueWatching = lazy(() => import("./pages/ContinueWatching"));
+const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
+const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
 
 function App() {
   const { user } = useSelector((state) => state.auth);
+  const showDeferredChrome = useDeferredMount({ delay: 1400 });
 
   return (
     <Suspense fallback={null}>
@@ -49,8 +51,12 @@ function App() {
         <Route path="/my-list" element={<MyList />} />
         <Route path="/continue-watching" element={<ContinueWatching />} />
       </Routes>
-      <AdSlot placement="floating_bottom" variant="floating" />
-      <FeedbackWidget />
+      {showDeferredChrome ? (
+        <>
+          <AdSlot placement="floating_bottom" variant="floating" defer />
+          <FeedbackWidget />
+        </>
+      ) : null}
     </Suspense>
   );
 }

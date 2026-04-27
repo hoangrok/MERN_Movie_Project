@@ -5,6 +5,7 @@ import AdSlot from "../components/Ads/AdSlot";
 import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import "../assets/styles/LatestMovies.scss";
 import { API_URL } from "../utils/api";
+import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/1280x720/222/ffffff&text=Poster";
@@ -126,6 +127,15 @@ export default function LatestMovies() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setSEO({
+      title: "Phim mới cập nhật - Dam17+1",
+      description: "Danh sách video mới nhất được cập nhật hằng ngày trên Dam17+1.",
+      url: "https://www.clipdam18.com/latest",
+      image: "https://www.clipdam18.com/og-image.jpg",
+    });
+  }, []);
+
+  useEffect(() => {
     const loadMovies = async () => {
       try {
         const res = await fetch(`${API_URL}/movies/latest`, {
@@ -172,7 +182,7 @@ export default function LatestMovies() {
           </p>
         </div>
 
-        <AdSlot placement="latest_top" variant="banner" />
+        <AdSlot placement="latest_top" variant="banner" defer />
 
         {loading ? (
           <div className="latest-grid">

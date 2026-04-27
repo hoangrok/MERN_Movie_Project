@@ -29,6 +29,7 @@ const Navbar = ({ isScrolled }) => {
 
   const genreBoxRef = useRef(null);
   const searchBoxRef = useRef(null);
+  const genresRequestedRef = useRef(false);
 
   const movies = useSelector((state) => state.movie.movies || []);
   const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
@@ -44,22 +45,25 @@ const Navbar = ({ isScrolled }) => {
   const [showGenreDropdown, setShowGenreDropdown] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
 
-  useEffect(() => {
-    const loadGenres = async () => {
-      try {
-        const res = await fetch(`${API_URL}/movies/genres`);
-        const data = await res.json();
+  const ensureGenresLoaded = async () => {
+    if (genresRequestedRef.current) return;
 
-        if (data.success) {
-          setGenres(data.items || []);
-        }
-      } catch (err) {
-        console.error("loadGenres error:", err);
+    genresRequestedRef.current = true;
+
+    try {
+      const res = await fetch(`${API_URL}/movies/genres`);
+      const data = await res.json();
+
+      if (data.success) {
+        setGenres(data.items || []);
+      } else {
+        setGenres([]);
       }
-    };
-
-    loadGenres();
-  }, []);
+    } catch (err) {
+      genresRequestedRef.current = false;
+      console.error("loadGenres error:", err);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -159,6 +163,9 @@ const Navbar = ({ isScrolled }) => {
 
   const searchMovieHandler = (e) => {
     const value = e.target.value;
+    if (value.trim()) {
+      ensureGenresLoaded();
+    }
     setSearchedInput(value);
     setShowSearchResult(!!value.trim());
   };
@@ -212,7 +219,11 @@ const Navbar = ({ isScrolled }) => {
         <div className="navbar__content">
           <div className="navbar__content--logo">
             <Link to="/" className="navbar__logo-link">
-              <h1>Dam18</h1>
+              <img
+                src="/logo.png"
+                alt="ClipDam18"
+                className="navbar__logo-img"
+              />
             </Link>
           </div>
 
@@ -237,7 +248,10 @@ const Navbar = ({ isScrolled }) => {
                 className={`navbar__genre-trigger ${
                   showGenreDropdown ? "active" : ""
                 }`}
-                onClick={() => setShowGenreDropdown((prev) => !prev)}
+                onClick={() => {
+                  ensureGenresLoaded();
+                  setShowGenreDropdown((prev) => !prev);
+                }}
               >
                 Thể loại
                 <FaChevronDown

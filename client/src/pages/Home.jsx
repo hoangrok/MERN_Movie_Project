@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { setSEO } from "../utils/seo";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronRight,
@@ -22,11 +23,33 @@ import {
   syncContinueWatchingWithServer,
 } from "../utils/continueWatching";
 import { API_URL } from "../utils/api";
+import useDeferredMount from "../hooks/useDeferredMount";
 import "../assets/styles/Home.scss";
+
+const AdPopup = lazy(() => import("../components/Ads/AdPopup"));
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/1280x720/111827/ffffff&text=ClipDam18";
 const PREF_KEY = "dam18_preferred_genres";
+const HOME_MOVIE_LIMIT = 18;
+
+function scheduleDeferredTask(callback, timeout = 1200) {
+  if (typeof window === "undefined") return () => {};
+
+  if ("requestIdleCallback" in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout });
+    return () => {
+      if ("cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }
+
+  const timerId = window.setTimeout(callback, timeout);
+  return () => {
+    window.clearTimeout(timerId);
+  };
+}
 
 function normalizeImage(url) {
   return typeof url === "string" && url.trim() ? url.trim() : "";
@@ -105,6 +128,7 @@ function getDirectPreviewUrl(movie) {
 export default function Home() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const showDeferredPopup = useDeferredMount({ delay: 1800 });
 
   const movies = useSelector((state) => state.movie.movies || []);
   const trendingMovies = useSelector((state) => state.movie.trending || []);
@@ -122,8 +146,17 @@ export default function Home() {
   const [selectedGenres, setSelectedGenres] = useState([]);
 
   useEffect(() => {
+    setSEO({
+      title: "Dam17+1 - Video mới cập nhật hằng ngày",
+      description: "Xem video chất lượng cao, cập nhật hằng ngày. Tìm kiếm nhanh, giao diện đẹp, tối ưu cho điện thoại.",
+      url: "https://www.clipdam18.com/",
+      image: "https://www.clipdam18.com/og-image.jpg",
+    });
+  }, []);
+
+  useEffect(() => {
     if (moviesStatus === "idle") {
-      dispatch(fetchMovies({ type: "all" }));
+      dispatch(fetchMovies({ type: "all", limit: HOME_MOVIE_LIMIT }));
     }
 
     if (trendingStatus === "idle") {
@@ -133,29 +166,40 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
+    let cancelScheduledSync = () => {};
 
-    const loadCW = () => {
+    const loadCW = ({ syncWithServer = false } = {}) => {
       const localList = getContinueWatching() || [];
       if (alive) {
         setContinueWatching(localList);
       }
 
-      syncContinueWatchingWithServer().then((syncedList) => {
-        if (alive) {
-          setContinueWatching(syncedList || []);
-        }
-      });
+      cancelScheduledSync();
+
+      if (!syncWithServer) return;
+
+      cancelScheduledSync = scheduleDeferredTask(() => {
+        syncContinueWatchingWithServer().then((syncedList) => {
+          if (alive) {
+            setContinueWatching(syncedList || []);
+          }
+        });
+      }, 1400);
     };
 
-    loadCW();
+    const handleCWUpdated = () => loadCW();
+    const handleWindowFocus = () => loadCW({ syncWithServer: true });
 
-    window.addEventListener("continue-watching-updated", loadCW);
-    window.addEventListener("focus", loadCW);
+    loadCW({ syncWithServer: true });
+
+    window.addEventListener("continue-watching-updated", handleCWUpdated);
+    window.addEventListener("focus", handleWindowFocus);
 
     return () => {
       alive = false;
-      window.removeEventListener("continue-watching-updated", loadCW);
-      window.removeEventListener("focus", loadCW);
+      cancelScheduledSync();
+      window.removeEventListener("continue-watching-updated", handleCWUpdated);
+      window.removeEventListener("focus", handleWindowFocus);
     };
   }, [user?._id, user?.email]);
 
@@ -272,10 +316,15 @@ export default function Home() {
 
   return (
     <div className="homePage">
+      {showDeferredPopup ? (
+        <Suspense fallback={null}>
+          <AdPopup />
+        </Suspense>
+      ) : null}
       <Navbar isScrolled={isScrolling} />
 
       <main className="homeLayout homeShell">
-        <AdSlot placement="home_top" variant="banner" />
+        <AdSlot placement="home_top" variant="banner" defer />
 
         <div className="homeBoard">
           <aside className="homeBoard__left">
@@ -351,7 +400,7 @@ export default function Home() {
           </section>
 
           <aside className="homeBoard__right">
-            <AdSlot placement="home_sidebar" variant="side" />
+            <AdSlot placement="home_sidebar" variant="side" defer />
 
             <div className="homePanel homePanel--side">
               <SectionHeadLink title="👑 Top Clip Hot Nhất" to="/top-viewed" />
@@ -459,7 +508,11 @@ function PosterCard({ movie, badge = "" }) {
   const [canPlayPreview, setCanPlayPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const previewTimerRef = useRef(null);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 10), [movie]);
+  const showPreviewMedia = isHovered || previewReady || canPlayPreview;
+  const previewFrames = useMemo(
+    () => (showPreviewMedia ? getTimelineFrames(movie, 10) : []),
+    [movie, showPreviewMedia]
+  );
 
   const isSaved = (user?.likedMovies || []).some(
     (item) => String(item?.id || item?._id) === String(movie._id)
@@ -479,6 +532,8 @@ function PosterCard({ movie, badge = "" }) {
   while (cardImages.length < 3) {
     cardImages.push(cardImages[cardImages.length - 1] || FALLBACK_POSTER);
   }
+
+  const stripImages = showPreviewMedia ? cardImages : [primary];
 
   const clearPreviewTimer = () => {
     if (previewTimerRef.current) {
@@ -587,7 +642,7 @@ function PosterCard({ movie, badge = "" }) {
         </button>
 
         <div className={`posterCard__strip ${canPlayPreview ? "is-hidden" : ""}`}>
-          {cardImages.map((src, index) => (
+          {stripImages.map((src, index) => (
             <div
               key={`${src}-${index}`}
               className={`posterCard__pane posterCard__pane--${index + 1}`}
@@ -595,8 +650,9 @@ function PosterCard({ movie, badge = "" }) {
               <img
                 src={src || FALLBACK_POSTER}
                 alt={movie.title || "movie"}
-                loading="lazy"
+                loading={badge ? "eager" : "lazy"}
                 decoding="async"
+                fetchPriority={badge ? "high" : "auto"}
                 onError={(e) => {
                   e.currentTarget.src = FALLBACK_POSTER;
                 }}
@@ -605,17 +661,19 @@ function PosterCard({ movie, badge = "" }) {
           ))}
         </div>
 
-        <HoverPreviewVideo
-          active={previewReady}
-          movieId={movie._id}
-          directUrl={previewUrl}
-          frames={previewFrames}
-          className="posterCard__video"
-          poster={primary}
-          delay={80}
-          frameIntervalMs={360}
-          onVisibleChange={setCanPlayPreview}
-        />
+        {showPreviewMedia ? (
+          <HoverPreviewVideo
+            active={previewReady}
+            movieId={movie._id}
+            directUrl={previewUrl}
+            frames={previewFrames}
+            className="posterCard__video"
+            poster={primary}
+            delay={80}
+            frameIntervalMs={360}
+            onVisibleChange={setCanPlayPreview}
+          />
+        ) : null}
 
         <div className="posterCard__cinematicShade" />
 
@@ -642,7 +700,10 @@ function PosterCard({ movie, badge = "" }) {
 function ContinueCard({ movie, onRemove }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 8), [movie]);
+  const previewFrames = useMemo(
+    () => (isHovered || canPlayPreview ? getTimelineFrames(movie, 8) : []),
+    [movie, isHovered, canPlayPreview]
+  );
 
   if (!movie?._id) return null;
 
@@ -680,17 +741,19 @@ function ContinueCard({ movie, onRemove }) {
           }}
         />
 
-        <HoverPreviewVideo
-          active={isHovered}
-          movieId={movie._id}
-          directUrl={previewUrl}
-          frames={previewFrames}
-          className="continueItem__video"
-          poster={thumb}
-          startAt={previewStartAt}
-          frameIntervalMs={380}
-          onVisibleChange={setCanPlayPreview}
-        />
+        {isHovered || canPlayPreview ? (
+          <HoverPreviewVideo
+            active={isHovered}
+            movieId={movie._id}
+            directUrl={previewUrl}
+            frames={previewFrames}
+            className="continueItem__video"
+            poster={thumb}
+            startAt={previewStartAt}
+            frameIntervalMs={380}
+            onVisibleChange={setCanPlayPreview}
+          />
+        ) : null}
 
         <div className="continueItem__overlay">
           <div className="continueItem__play">
@@ -737,7 +800,10 @@ function formatViews(views) {
 function TopCard({ movie, index }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 8), [movie]);
+  const previewFrames = useMemo(
+    () => (isHovered || canPlayPreview ? getTimelineFrames(movie, 8) : []),
+    [movie, isHovered, canPlayPreview]
+  );
 
   if (!movie?._id) return null;
 
@@ -766,16 +832,18 @@ function TopCard({ movie, index }) {
           }}
         />
 
-        <HoverPreviewVideo
-          active={isHovered}
-          movieId={movie._id}
-          directUrl={previewUrl}
-          frames={previewFrames}
-          className="topItem__video"
-          poster={thumb}
-          frameIntervalMs={380}
-          onVisibleChange={setCanPlayPreview}
-        />
+        {isHovered || canPlayPreview ? (
+          <HoverPreviewVideo
+            active={isHovered}
+            movieId={movie._id}
+            directUrl={previewUrl}
+            frames={previewFrames}
+            className="topItem__video"
+            poster={thumb}
+            frameIntervalMs={380}
+            onVisibleChange={setCanPlayPreview}
+          />
+        ) : null}
       </div>
 
       <div className="topItem__meta">

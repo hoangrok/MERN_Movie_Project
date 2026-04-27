@@ -89,15 +89,55 @@ export default function AdSlot({
   limit = 1,
   variant = "banner",
   className = "",
+  defer = false,
+  deferMs = 1200,
 }) {
   const [ads, setAds] = useState([]);
   const [dismissed, setDismissed] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(!defer);
+
+  useEffect(() => {
+    if (!defer) {
+      setShouldLoad(true);
+      return undefined;
+    }
+
+    setShouldLoad(false);
+
+    if (typeof window === "undefined") {
+      setShouldLoad(true);
+      return undefined;
+    }
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(
+        () => {
+          setShouldLoad(true);
+        },
+        { timeout: deferMs }
+      );
+
+      return () => {
+        if ("cancelIdleCallback" in window) {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timerId = window.setTimeout(() => {
+      setShouldLoad(true);
+    }, deferMs);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [defer, deferMs]);
 
   useEffect(() => {
     let active = true;
 
     const loadAds = async () => {
-      if (!placement) return;
+      if (!placement || !shouldLoad) return;
 
       try {
         const params = new URLSearchParams({
@@ -129,9 +169,9 @@ export default function AdSlot({
     return () => {
       active = false;
     };
-  }, [placement, limit]);
+  }, [placement, limit, shouldLoad]);
 
-  if (!ads.length || dismissed) return null;
+  if (!shouldLoad || !ads.length || dismissed) return null;
 
   const firstAdId = ads[0]?._id || "";
 
