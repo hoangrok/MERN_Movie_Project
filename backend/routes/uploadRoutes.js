@@ -89,68 +89,7 @@ const withTimeout = (promise, ms, label) =>
     ),
   ]);
 
-const resolveWatermarkAssetPath = (value) => {
-  const candidate = String(value || "").trim();
-  if (!candidate) return "";
-
-  if (path.isAbsolute(candidate)) {
-    return candidate;
-  }
-
-  const cwdPath = path.resolve(process.cwd(), candidate);
-  if (fs.existsSync(cwdPath)) {
-    return cwdPath;
-  }
-
-  return path.resolve(__dirname, "..", candidate);
-};
-
-const getWatermarkPngPath = () => {
-  const candidates = [
-    process.env.WATERMARK_PNG_FILE,
-    path.join(__dirname, "..", "tools", "local-hls", "watermark.png"),
-    path.join(__dirname, "..", "assets", "watermark.png"),
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    const resolved = resolveWatermarkAssetPath(candidate);
-    if (resolved && /\.png$/i.test(resolved) && fs.existsSync(resolved)) {
-      return resolved;
-    }
-  }
-
-  return "";
-};
-
-const clampNumber = (value, fallback, min, max) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(max, Math.max(min, parsed));
-};
-
-const buildPngWatermarkFilter = (videoWidth = 1920, videoHeight = 1080) => {
-  const fallbackMargin = Number(process.env.WATERMARK_MARGIN) || 0;
-  const marginX = Number(process.env.WATERMARK_MARGIN_X) || fallbackMargin || 24;
-  const topMargin = Number(process.env.WATERMARK_MARGIN_TOP) || fallbackMargin || 22;
-  const bottomMargin = Number(process.env.WATERMARK_MARGIN_BOTTOM) || fallbackMargin || 78;
-  const jumpSeconds = Number(process.env.WATERMARK_JUMP_SECONDS) || 7;
-  const pngOpacity = clampNumber(process.env.WATERMARK_PNG_OPACITY, 0.9, 0.1, 1);
-
-  // Scale PNG to ~18% of shorter side, capped at WATERMARK_PNG_MAX_WIDTH
-  const shorterSide = Math.min(videoWidth, videoHeight);
-  const maxW = clampNumber(process.env.WATERMARK_PNG_MAX_WIDTH, 320, 80, 720);
-  const pngW = Math.min(maxW, Math.max(88, Math.round(shorterSide * 0.2)));
-  const cornerIndex = `mod(floor(t/${jumpSeconds})*7+3,4)`;
-
-  // scale PNG to fixed pixel width (no scale2ref — simpler, more compatible)
-  return [
-    "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[base]",
-    `[1:v]format=rgba,colorchannelmixer=aa=${pngOpacity},scale=${pngW}:-2[wm]`,
-    `[base][wm]overlay=` +
-      `x='if(eq(${cornerIndex},0),${marginX},if(eq(${cornerIndex},1),main_w-overlay_w-${marginX},if(eq(${cornerIndex},2),${marginX},main_w-overlay_w-${marginX})))':` +
-      `y='if(eq(${cornerIndex},0),${topMargin},if(eq(${cornerIndex},1),${topMargin},if(eq(${cornerIndex},2),main_h-overlay_h-${bottomMargin},main_h-overlay_h-${bottomMargin})))'[v]`,
-  ].join(";");
-};
+const { buildWatermarkFilter } = require("../utils/watermark");
 
 const canUseCopyMode = async (videoPath) => {
   try {
@@ -196,7 +135,6 @@ async function processVideoInBackground({ movieId, tempVideo }) {
 
     const watermarkEnabled = process.env.WATERMARK_ENABLED !== "false";
     const canCopy = watermarkEnabled ? false : await canUseCopyMode(tempVideo);
-    const watermarkPngPath = watermarkEnabled ? getWatermarkPngPath() : "";
 
     // Probe video dimensions for dimension-aware filters
     let videoWidth = 1920;
@@ -214,33 +152,29 @@ async function processVideoInBackground({ movieId, tempVideo }) {
 
     console.log("copy mode:", canCopy);
     console.log("watermark burn-in:", watermarkEnabled);
-    console.log("watermark png:", watermarkPngPath || "none");
     console.log("video dimensions:", `${videoWidth}x${videoHeight}`);
 
     const masterPath = path.join(outputDir, "master.m3u8");
 
     if (watermarkEnabled) {
-      if (!watermarkPngPath) {
-        throw new Error("Watermark PNG not found. Expected backend/assets/watermark.png.");
-      }
-
       console.log("3 - Convert HLS WATERMARK MODE");
+
+      const { filterComplex, logoPath } = buildWatermarkFilter(videoWidth, videoHeight);
+      console.log("watermark filter:", logoPath ? `text+logo (${logoPath})` : "text-only");
 
       await withTimeout(
         new Promise((resolve, reject) => {
           const command = ffmpeg(tempVideo);
-          const watermarkOptions = [
-            "-filter_complex", buildPngWatermarkFilter(videoWidth, videoHeight),
-            "-map [v]",
-            "-map 0:a?",
-          ];
-          command.input(watermarkPngPath);
+
+          if (logoPath) command.input(logoPath);
 
           command
             .videoCodec("libx264")
             .audioCodec("aac")
             .outputOptions([
-              ...watermarkOptions,
+              "-filter_complex", filterComplex,
+              "-map [v]",
+              "-map 0:a?",
               "-preset veryfast",
               "-crf 22",
               "-pix_fmt yuv420p",

@@ -1,25 +1,11 @@
 const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
+const { buildWatermarkFilter } = require("./watermark");
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
-
-const getPngWatermarkPath = () => {
-  const candidates = [
-    path.join(__dirname, "..", "tools", "local-hls", "watermark.png"),
-    path.join(__dirname, "..", "assets", "watermark.png"),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return "";
-};
 
 function createVariantDefinitions(srcWidth, srcHeight) {
   const candidates = [
@@ -56,42 +42,39 @@ function createVariantDefinitions(srcWidth, srcHeight) {
   ];
 
   const filtered = candidates.filter(
-    (item) => srcHeight >= item.height || srcWidth >= item.width
+    (v) => srcHeight >= v.height || srcWidth >= v.width
   );
 
   return filtered.length ? filtered : [candidates[2]];
 }
 
-function buildPngFilterComplex(variant) {
-  const { width, height } = variant;
-  const padX = Math.max(16, Math.round(width * 0.022));
-  const topPadY = Math.max(14, Math.round(height * 0.02));
-  const padY = Math.max(14, Math.round(height * 0.082));
-  const pngW = Math.max(88, Math.round(width * 0.2));
-  const opacity = 0.9;
-  const jumpSeconds = 7;
-  const cornerIndex = `mod(floor(t/${jumpSeconds})*7+3,4)`;
-
-  return [
-    `[0:v]scale=w=${width}:h=${height}:force_original_aspect_ratio=decrease,` +
-      `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p[base]`,
-    `[1:v]format=rgba,colorchannelmixer=aa=${opacity},scale=${pngW}:-1[wm]`,
-    `[base][wm]overlay=` +
-      `x='if(eq(${cornerIndex},0),${padX},if(eq(${cornerIndex},1),W-w-${padX},if(eq(${cornerIndex},2),${padX},W-w-${padX})))':` +
-      `y='if(eq(${cornerIndex},0),${topPadY},if(eq(${cornerIndex},1),${topPadY},if(eq(${cornerIndex},2),H-h-${padY},H-h-${padY})))'[v]`,
-  ].join(";");
+function buildMasterPlaylist(variants) {
+  let content = "#EXTM3U\n#EXT-X-VERSION:3\n";
+  for (const v of variants) {
+    content += `#EXT-X-STREAM-INF:BANDWIDTH=${v.bandwidth},RESOLUTION=${v.width}x${v.height}\n`;
+    content += `${v.name}/index.m3u8\n`;
+  }
+  return content;
 }
 
-function encodeVariantHls(inputPath, outputDir, variant, withAudio, pngPath) {
+function encodeVariantHls(inputPath, outputDir, variant, withAudio) {
   return new Promise((resolve, reject) => {
+    const { filterComplex, logoPath } = buildWatermarkFilter(
+      variant.width,
+      variant.height
+    );
+
     const playlistPath = path.join(outputDir, "index.m3u8");
     const segmentPattern = path.join(outputDir, "seg_%03d.ts");
+
     const command = ffmpeg(inputPath);
 
-    command.input(pngPath);
+    if (logoPath) {
+      command.input(logoPath);
+    }
 
     const outputOptions = [
-      "-filter_complex", buildPngFilterComplex(variant),
+      "-filter_complex", filterComplex,
       "-map [v]",
       "-preset veryfast",
       "-profile:v main",
@@ -110,7 +93,12 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, pngPath) {
     ];
 
     if (withAudio) {
-      outputOptions.push("-map 0:a?", `-b:a ${variant.audioBitrate}`, "-ac 2", "-ar 48000");
+      outputOptions.push(
+        "-map 0:a?",
+        `-b:a ${variant.audioBitrate}`,
+        "-ac 2",
+        "-ar 48000"
+      );
     } else {
       outputOptions.push("-an");
     }
@@ -121,21 +109,12 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, pngPath) {
       .outputOptions(outputOptions)
       .output(playlistPath)
       .on("start", (cmd) => {
-        console.log(`[HLS ${variant.name}] watermark=png-overlay`, cmd.slice(0, 120));
+        console.log(`[HLS ${variant.name}] watermark=burn-in logo=${!!logoPath}`, cmd.slice(0, 140));
       })
       .on("end", () => resolve(variant))
       .on("error", reject)
       .run();
   });
-}
-
-function buildMasterPlaylist(variants) {
-  let content = "#EXTM3U\n#EXT-X-VERSION:3\n";
-  for (const item of variants) {
-    content += `#EXT-X-STREAM-INF:BANDWIDTH=${item.bandwidth},RESOLUTION=${item.width}x${item.height}\n`;
-    content += `${item.name}/index.m3u8\n`;
-  }
-  return content;
 }
 
 async function encodeMultiBitrateHls({
@@ -151,18 +130,13 @@ async function encodeMultiBitrateHls({
   ensureDir(outputDir);
 
   const variants = createVariantDefinitions(srcWidth, srcHeight);
-  const pngPath = getPngWatermarkPath();
-  if (!pngPath) {
-    throw new Error("Watermark PNG not found. Expected backend/assets/watermark.png.");
-  }
 
-  console.log("Starting multi bitrate HLS conversion:", variants.map((x) => x.name));
-  console.log(`Watermark: png-overlay (${pngPath})`);
+  console.log("Starting multi-bitrate HLS with watermark burn-in:", variants.map((v) => v.name));
 
   for (const variant of variants) {
     const variantDir = path.join(outputDir, variant.name);
     ensureDir(variantDir);
-    await encodeVariantHls(inputPath, variantDir, variant, withAudio, pngPath);
+    await encodeVariantHls(inputPath, variantDir, variant, withAudio);
   }
 
   const masterContent = buildMasterPlaylist(variants);
@@ -172,7 +146,7 @@ async function encodeMultiBitrateHls({
     variants,
     masterPath: path.join(outputDir, "master.m3u8"),
     watermarkEnabled: true,
-    watermarkType: "png-overlay",
+    watermarkType: "text+logo-burn-in",
   };
 }
 

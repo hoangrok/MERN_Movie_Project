@@ -21,7 +21,7 @@ const CONFIG = {
   r2PublicBaseUrl: (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, ""),
   streamBaseUrl: (process.env.STREAM_BASE_URL || "").replace(/\/+$/, ""),
   ffmpegPath: process.env.FFMPEG_PATH || "ffmpeg",
-  watermarkPath: path.resolve(__dirname, process.env.WATERMARK_PATH || "./watermark.png"),
+  watermarkPath: path.resolve(__dirname, process.env.WATERMARK_PATH || "./watermark.png"), // kept for legacy reference
   outputRoot: path.join(__dirname, "output"),
 };
 
@@ -134,37 +134,55 @@ async function burnWatermark(inputPath, workDir) {
     throw new Error(`Không tìm thấy video: ${inputPath}`);
   }
 
-  if (!fs.existsSync(CONFIG.watermarkPath)) {
-    throw new Error(`Không tìm thấy watermark: ${CONFIG.watermarkPath}`);
-  }
-
   const outputPath = path.join(workDir, "watermarked.mp4");
 
-  const args = [
-    "-y",
-    "-i",
-    `"${inputPath}"`,
-    "-i",
-    `"${CONFIG.watermarkPath}"`,
-    "-filter_complex",
-    `"[1:v]scale=120:-1[wm];[0:v][wm]overlay=W-w-20:H-h-20"`,
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "23",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    "-movflags",
-    "+faststart",
-    `"${outputPath}"`,
-  ];
+  // probe dimensions
+  let videoWidth = 1920;
+  let videoHeight = 1080;
+  try {
+    const probe = await ffprobeAsync(inputPath);
+    const vs = probe?.streams?.find((s) => s.codec_type === "video");
+    if (vs?.width && vs?.height) {
+      videoWidth = vs.width;
+      videoHeight = vs.height;
+    }
+  } catch (e) {
+    console.warn("probe dimensions failed, using defaults:", e.message);
+  }
 
-  console.log("\n🔥 Đang burn watermark local...\n");
-  await runCommand(CONFIG.ffmpegPath, args);
+  // build watermark filter using shared utility
+  const { buildWatermarkFilter } = require("../../utils/watermark");
+  const { filterComplex, logoPath } = buildWatermarkFilter(videoWidth, videoHeight);
+
+  console.log(`\n[watermark] burn-in: text${logoPath ? "+logo" : "-only"}, ${videoWidth}x${videoHeight}\n`);
+
+  await new Promise((resolve, reject) => {
+    const command = ffmpeg(inputPath);
+
+    if (logoPath) command.input(logoPath);
+
+    command
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions([
+        "-filter_complex", filterComplex,
+        "-map [v]",
+        "-map 0:a?",
+        "-preset veryfast",
+        "-crf 22",
+        "-pix_fmt yuv420p",
+        "-profile:v main",
+        "-b:a 128k",
+        "-ac 2",
+        "-ar 48000",
+        "-movflags +faststart",
+      ])
+      .output(outputPath)
+      .on("start", (cmd) => console.log("[watermark ffmpeg]", cmd.slice(0, 160)))
+      .on("end", resolve)
+      .on("error", reject)
+      .run();
+  });
 
   if (!fs.existsSync(outputPath)) {
     throw new Error("Không tạo được file watermarked.mp4");
