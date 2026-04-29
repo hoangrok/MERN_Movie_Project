@@ -1322,60 +1322,6 @@
   min-width: 0;
 }
 
-/* ===== Triple-image Poster Card ===== */
-.posterCard--triple .posterCard__imageWrap--triple {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr 0.95fr;
-  gap: 4px;
-  background: #0b1220;
-}
-
-.posterCard__pane {
-  position: relative;
-  overflow: hidden;
-  background: #0b1220;
-}
-
-.posterCard__pane::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background:
-    linear-gradient(to top, rgba(2, 4, 8, 0.62), rgba(2, 4, 8, 0.18) 48%, rgba(2, 4, 8, 0.34)),
-    linear-gradient(90deg, rgba(2, 4, 8, 0.26), transparent 34%, transparent 66%, rgba(2, 4, 8, 0.26));
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
-}
-
-.posterCard__pane img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  object-position: center;
-  filter: brightness(0.66) saturate(0.92);
-  transition: transform 0.35s ease, filter 0.35s ease;
-}
-
-.posterCard__pane--1 img,
-.posterCard__pane--3 img {
-  filter: brightness(0.58) saturate(0.88);
-}
-
-.posterCard__pane--2 img {
-  filter: brightness(0.7) saturate(0.94);
-}
-
-.posterCard:hover .posterCard__pane img {
-  transform: scale(1.05);
-  filter: brightness(0.72) saturate(0.96);
-}
-
-.posterCard:hover .posterCard__pane--1 img,
-.posterCard:hover .posterCard__pane--3 img {
-  filter: brightness(0.64) saturate(0.92);
-}
 
 @media (max-width: 1400px) {
   .homeLayout {

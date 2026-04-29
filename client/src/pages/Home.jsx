@@ -533,7 +533,7 @@ function PosterCard({ movie, badge = "" }) {
     cardImages.push(cardImages[cardImages.length - 1] || FALLBACK_POSTER);
   }
 
-  const stripImages = showPreviewMedia ? cardImages : [primary];
+  const stripImages = cardImages;
 
   const clearPreviewTimer = () => {
     if (previewTimerRef.current) {
