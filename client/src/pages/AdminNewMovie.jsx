@@ -28,6 +28,11 @@ export default function AdminNewMovie() {
   const [posterFile, setPosterFile] = useState(null);
   const [backdropFile, setBackdropFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
+  const [galleryFiles, setGalleryFiles] = useState([]);
+  const [galleryPreviews, setGalleryPreviews] = useState([]);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryMessage, setGalleryMessage] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -35,6 +40,41 @@ export default function AdminNewMovie() {
   const [movieId, setMovieId] = useState("");
   const [jobStatus, setJobStatus] = useState("");
   const pollRef = useRef(null);
+
+  const handleGalleryFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setGalleryFiles(files);
+    setGalleryPreviews(files.map((f) => URL.createObjectURL(f)));
+  };
+
+  const uploadGalleryImages = async () => {
+    if (!galleryFiles.length || !movieId) return;
+    setGalleryUploading(true);
+    setGalleryMessage("Đang upload ảnh...");
+
+    try {
+      const fd = new FormData();
+      galleryFiles.forEach((f) => fd.append("images", f));
+
+      const res = await fetch(`${API_URL}/upload/movie-images/${movieId}`, {
+        method: "POST",
+        headers: { ...getAuthHeaders() },
+        body: fd,
+      });
+
+      const data = await parseJsonSafe(res);
+      if (!res.ok || !data.success) throw new Error(data.message || "Upload ảnh thất bại");
+
+      setUploadedImages(data.images || []);
+      setGalleryFiles([]);
+      setGalleryPreviews([]);
+      setGalleryMessage(`Đã upload ${data.added} ảnh thành công`);
+    } catch (err) {
+      setGalleryMessage(err.message);
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -487,6 +527,87 @@ export default function AdminNewMovie() {
             {loading ? "Đang tạo..." : "Tạo Movie"}
           </button>
         </form>
+
+        {!!movieId && (
+          <div style={{ marginTop: 28, borderTop: "1px solid #2a2a2a", paddingTop: 22 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 14, color: "#fff" }}>
+              📸 Thêm ảnh cho video
+            </h2>
+
+            {galleryMessage && (
+              <p style={{ marginBottom: 12, color: "#f5c542", fontWeight: 600, fontSize: 14 }}>
+                {galleryMessage}
+              </p>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleGalleryFileChange}
+              style={inputStyle}
+            />
+
+            {galleryPreviews.length > 0 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                gap: 8,
+                marginTop: 12,
+              }}>
+                {galleryPreviews.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt=""
+                    style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 6, border: "1px solid #333" }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {uploadedImages.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 8 }}>
+                  Đã upload ({uploadedImages.length} ảnh):
+                </p>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                  gap: 8,
+                }}>
+                  {uploadedImages.map((src, i) => (
+                    <img
+                      key={i}
+                      src={src}
+                      alt=""
+                      style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 6, border: "1px solid #2a4a2a" }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              disabled={galleryUploading || galleryFiles.length === 0}
+              onClick={uploadGalleryImages}
+              style={{
+                marginTop: 14,
+                background: galleryFiles.length === 0 ? "#333" : "#1a6a3a",
+                color: "#fff",
+                border: "none",
+                padding: "11px 18px",
+                borderRadius: 8,
+                cursor: galleryFiles.length === 0 ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                opacity: galleryUploading ? 0.7 : 1,
+              }}
+            >
+              {galleryUploading ? "Đang upload..." : `Upload ${galleryFiles.length} ảnh`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

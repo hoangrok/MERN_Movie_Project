@@ -38,6 +38,8 @@ const movieSchema = new mongoose.Schema(
       default: null,
     },
 
+    images: [{ type: String }],
+
     previewTimeline: {
       duration: { type: Number, default: 0 },
       interval: { type: Number, default: 10 },

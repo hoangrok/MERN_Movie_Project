@@ -1933,6 +1933,10 @@ export default function MovieDetail() {
               </div>
             </section>
 
+            {(movie.images?.length > 0) && (
+              <MovieGallery images={movie.images} title={movie.title} />
+            )}
+
             <section className="movie-recommend-card">
               <div className="movie-section-head">
                 <h2>Có thể bạn sẽ thích</h2>
@@ -2357,5 +2361,79 @@ function GifPoster({ previewItems, fallback, alt }) {
         e.currentTarget.src = fallback;
       }}
     />
+  );
+}
+
+function MovieGallery({ images = [], title = "" }) {
+  const [lightbox, setLightbox] = useState(null); // index | null
+
+  const open = (i) => setLightbox(i);
+  const close = () => setLightbox(null);
+  const prev = (e) => { e.stopPropagation(); setLightbox((i) => (i - 1 + images.length) % images.length); };
+  const next = (e) => { e.stopPropagation(); setLightbox((i) => (i + 1) % images.length); };
+
+  useEffect(() => {
+    if (lightbox === null) return;
+    const onKey = (e) => {
+      if (e.key === "ArrowLeft") setLightbox((i) => (i - 1 + images.length) % images.length);
+      if (e.key === "ArrowRight") setLightbox((i) => (i + 1) % images.length);
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, images.length]);
+
+  return (
+    <section className="movie-gallery-section">
+      <div className="movie-section-head">
+        <h2>Ảnh ({images.length})</h2>
+      </div>
+
+      <div className="movie-gallery-grid">
+        {images.map((src, i) => (
+          <button
+            key={i}
+            type="button"
+            className="movie-gallery-thumb"
+            onClick={() => open(i)}
+            aria-label={`Xem ảnh ${i + 1}`}
+          >
+            <img
+              src={src}
+              alt={`${title} - ảnh ${i + 1}`}
+              loading="lazy"
+              onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
+            />
+            <span className="movie-gallery-thumb__overlay">🔍</span>
+          </button>
+        ))}
+      </div>
+
+      {lightbox !== null && (
+        <div
+          className="movie-lightbox"
+          onClick={close}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh"
+        >
+          <button className="movie-lightbox__close" onClick={close} aria-label="Đóng">✕</button>
+
+          <button className="movie-lightbox__nav movie-lightbox__nav--prev" onClick={prev} aria-label="Ảnh trước">‹</button>
+
+          <div className="movie-lightbox__img-wrap" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={images[lightbox]}
+              alt={`${title} - ảnh ${lightbox + 1}`}
+              className="movie-lightbox__img"
+              onError={(e) => { e.currentTarget.src = "https://dummyimage.com/800x450/111/fff&text=Lỗi+ảnh"; }}
+            />
+            <span className="movie-lightbox__counter">{lightbox + 1} / {images.length}</span>
+          </div>
+
+          <button className="movie-lightbox__nav movie-lightbox__nav--next" onClick={next} aria-label="Ảnh tiếp">›</button>
+        </div>
+      )}
+    </section>
   );
 }

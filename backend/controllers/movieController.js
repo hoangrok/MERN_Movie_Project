@@ -66,6 +66,7 @@ const PUBLIC_DETAIL_PROJECTION = [
   "subtitles",
   "thumbnailPickedAt",
   "previewTimeline",
+  "images",
   "createdAt",
   "updatedAt",
 ].join(" ");

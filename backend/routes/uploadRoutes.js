@@ -484,6 +484,80 @@ router.post("/image", protect, adminOnly, async (req, res) => {
 });
 
 // ==========================
+// UPLOAD MOVIE GALLERY IMAGES
+// ==========================
+
+router.post("/movie-images/:movieId", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ success: false, message: "movieId không hợp lệ" });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy movie" });
+    }
+
+    const files = req.files;
+    if (!files || Object.keys(files).length === 0) {
+      return res.status(400).json({ success: false, message: "Không có ảnh nào được gửi" });
+    }
+
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+    const uploadedUrls = [];
+
+    const fileList = Array.isArray(files.images)
+      ? files.images
+      : files.images
+        ? [files.images]
+        : Object.values(files).flat();
+
+    const MAX_IMAGES = 30;
+    const toUpload = fileList.slice(0, MAX_IMAGES);
+
+    for (const file of toUpload) {
+      const ext = path.extname(file.name || "image.jpg").toLowerCase() || ".jpg";
+      const key = `videos/${movieId}/gallery/${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext}`;
+      await uploadFileToR2(key, file.data, getContentType(key));
+      uploadedUrls.push(`${publicBase}/${key}`);
+    }
+
+    if (!movie.images) movie.images = [];
+    movie.images.push(...uploadedUrls);
+    await movie.save();
+
+    return res.json({ success: true, images: movie.images, added: uploadedUrls.length });
+  } catch (err) {
+    console.error("upload movie-images error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.delete("/movie-images/:movieId", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+    const { url } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ success: false, message: "movieId không hợp lệ" });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) return res.status(404).json({ success: false, message: "Không tìm thấy movie" });
+
+    movie.images = (movie.images || []).filter((img) => img !== url);
+    await movie.save();
+
+    return res.json({ success: true, images: movie.images });
+  } catch (err) {
+    console.error("delete movie-image error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================
 // UPLOAD VIDEO BACKGROUND
 // ==========================
 
