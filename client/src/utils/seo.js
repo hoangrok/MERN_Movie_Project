@@ -1,13 +1,10 @@
-export function setSEO({ title, description, image, url, robots, type = "website" }) {
+export function setSEO({ title, description, image, url, robots, keywords, type = "website" }) {
   if (typeof document === "undefined") return;
 
-  if (title) {
-    document.title = title;
-  }
+  if (title) document.title = title;
 
   const setMeta = (name, content, attr = "name") => {
     if (!content) return;
-
     let el = document.querySelector(`meta[${attr}="${name}"]`);
     if (!el) {
       el = document.createElement("meta");
@@ -18,21 +15,22 @@ export function setSEO({ title, description, image, url, robots, type = "website
   };
 
   if (description) setMeta("description", description);
-  if (robots) setMeta("robots", robots);
+  if (robots)      setMeta("robots", robots);
+  if (keywords)    setMeta("keywords", keywords);
 
-  if (title) setMeta("og:title", title, "property");
+  if (title)       setMeta("og:title", title, "property");
   if (description) setMeta("og:description", description, "property");
-  if (image) setMeta("og:image", image, "property");
-  if (url) setMeta("og:url", url, "property");
+  if (image)       setMeta("og:image", image, "property");
+  if (url)         setMeta("og:url", url, "property");
   setMeta("og:type", type, "property");
   setMeta("og:locale", "vi_VN", "property");
 
-  if (title) setMeta("twitter:title", title);
+  if (title)       setMeta("twitter:title", title);
   if (description) setMeta("twitter:description", description);
-  if (image) setMeta("twitter:image", image);
+  if (image)       setMeta("twitter:image", image);
   setMeta("twitter:card", "summary_large_image");
-  if (url) setMeta("twitter:url", url);
-  if (robots) setMeta("googlebot", robots);
+  if (url)         setMeta("twitter:url", url);
+  if (robots)      setMeta("googlebot", robots);
 
   if (url) {
     let link = document.querySelector("link[rel='canonical']");

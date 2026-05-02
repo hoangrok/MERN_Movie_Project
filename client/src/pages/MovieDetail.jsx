@@ -885,35 +885,68 @@ export default function MovieDetail() {
       script.type = "application/ld+json";
       document.head.appendChild(script);
     }
+    const canonical = `https://www.clipdam18.com/movie/${movie.slug || movie._id}`;
+    const genres = Array.isArray(movie.genre) ? movie.genre : [];
+    const genreText = genres.slice(0, 3).join(", ");
+    const rawDesc = String(movie.description || "").trim();
+
+    const description = rawDesc
+      ? rawDesc.slice(0, 155)
+      : `Xem ${movie.title}${genreText ? ` - ${genreText}` : ""} HD miễn phí tại Dam17+1. Clip sex Việt Nam chất lượng cao, cập nhật mới nhất.`;
+
+    const pageTitle = genreText
+      ? `${movie.title} [${genreText}] - Xem HD miễn phí - Dam17+1`
+      : `${movie.title} - Xem clip sex HD miễn phí - Dam17+1`;
+
+    const keywords = [
+      movie.title,
+      ...genres,
+      "clip sex", "video sex", "phim sex", "sex việt nam",
+      "xem miễn phí", "HD", "Dam17+1", "clipdam18",
+    ].filter(Boolean).join(", ");
+
     const schema = {
       "@context": "https://schema.org",
       "@type": "VideoObject",
       name: movie.title,
-      description: movie.description || movie.title,
-      thumbnailUrl: movie.poster || movie.backdrop || "",
+      description: description,
+      keywords: keywords,
+      thumbnailUrl: [movie.backdrop, movie.poster].filter(Boolean),
       uploadDate: movie.createdAt || new Date().toISOString(),
-      duration: movie.duration ? `PT${movie.duration}M` : undefined,
-      contentUrl: `https://www.clipdam18.com/movie/${movie.slug || movie._id}`,
-      embedUrl: `https://www.clipdam18.com/movie/${movie.slug || movie._id}`,
-      ...(movie.rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: movie.rating, bestRating: 10, ratingCount: 1 } } : {}),
+      duration: movie.duration ? `PT${Math.round(movie.duration)}M` : undefined,
+      contentUrl: canonical,
+      embedUrl: canonical,
+      inLanguage: "vi-VN",
+      genre: genres,
+      ...(movie.views ? {
+        interactionStatistic: {
+          "@type": "InteractionCounter",
+          interactionType: "https://schema.org/WatchAction",
+          userInteractionCount: movie.views,
+        }
+      } : {}),
+      ...(movie.rating ? {
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: movie.rating,
+          bestRating: 10,
+          worstRating: 1,
+          ratingCount: Math.max(1, movie.views || 1),
+        }
+      } : {}),
+      publisher: {
+        "@type": "Organization",
+        name: "Dam17+1",
+        url: "https://www.clipdam18.com",
+      },
     };
     script.textContent = JSON.stringify(schema);
 
-    const canonical = `https://www.clipdam18.com/movie/${movie.slug || movie._id}`;
-    const genreText =
-      Array.isArray(movie.genre) && movie.genre.length > 0
-        ? ` ${movie.genre.slice(0, 3).join(", ")}.`
-        : "";
-    const rawDescription = String(movie.description || "").trim();
-    const description = rawDescription
-      ? rawDescription.slice(0, 155)
-      : `Xem ${movie.title} tren Dam17+1.${genreText}`;
-
     setSEO({
-      title: `${movie.title} - Dam17+1`,
+      title: pageTitle,
       description,
-      image:
-        movie.backdrop || movie.poster || "https://www.clipdam18.com/og-image.jpg",
+      keywords,
+      image: movie.backdrop || movie.poster || "https://www.clipdam18.com/og-image.jpg",
       url: canonical,
       type: "video.movie",
     });
