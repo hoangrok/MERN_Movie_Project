@@ -89,7 +89,7 @@ export default function Login() {
 
         <div className="authPanel">
           <div className="authPanel__head">
-            <p>Welcome back</p>
+            <p>Chào mừng quay lại</p>
             <h2>Đăng nhập</h2>
           </div>
 

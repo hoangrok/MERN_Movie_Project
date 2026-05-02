@@ -144,7 +144,6 @@ export default function Home() {
   const [continueWatching, setContinueWatching] = useState([]);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
-
   useEffect(() => {
     setSEO({
       title: "Dam17+1 - Video mới cập nhật hằng ngày",
@@ -265,18 +264,36 @@ export default function Home() {
     }
   }, [movies.length, isNewUser]);
 
-  const suggestedMovies = useMemo(() => {
-    if (recommendationGenres.length === 0) return movies.slice(0, 6);
+  const dedupedMovies = useMemo(() => {
+    const seen = new Set();
+    return movies.filter((m) => {
+      if (!m.seriesId) return true;
+      if (seen.has(m.seriesId)) return false;
+      seen.add(m.seriesId);
+      return true;
+    });
+  }, [movies]);
 
-    const rec = movies.filter((movie) =>
+  const suggestedMovies = useMemo(() => {
+    if (recommendationGenres.length === 0) return dedupedMovies.slice(0, 6);
+
+    const rec = dedupedMovies.filter((movie) =>
       (movie.genre || []).some((g) => recommendationGenres.includes(g))
     );
 
-    return (rec.length ? rec : movies).slice(0, 6);
-  }, [movies, recommendationGenres]);
+    return (rec.length ? rec : dedupedMovies).slice(0, 6);
+  }, [dedupedMovies, recommendationGenres]);
 
-  const latestMovies = useMemo(() => movies.slice(0, 6), [movies]);
-  const topMovies = useMemo(() => trendingMovies.slice(0, 5), [trendingMovies]);
+  const latestMovies = useMemo(() => dedupedMovies.slice(0, 6), [dedupedMovies]);
+  const topMovies = useMemo(() => {
+    const seen = new Set();
+    return trendingMovies.filter((m) => {
+      if (!m.seriesId) return true;
+      if (seen.has(m.seriesId)) return false;
+      seen.add(m.seriesId);
+      return true;
+    }).slice(0, 3);
+  }, [trendingMovies]);
   const cwMovies = useMemo(
     () => continueWatching.slice(0, 6),
     [continueWatching]
@@ -424,6 +441,24 @@ export default function Home() {
                 )}
               </div>
             </div>
+
+            {allGenres.length > 0 && (
+              <div className="homePanel homePanel--side homePanel--genres">
+                <SectionHeadLink title="📂 Thể loại" to="/genres" />
+                <div className="genrePills">
+                  {allGenres.slice(0, 14).map((genre) => (
+                    <Link
+                      key={genre}
+                      to={`/genres?genres=${encodeURIComponent(genre)}`}
+                      className="genrePill"
+                    >
+                      {genre}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </aside>
         </div>
       </main>
@@ -615,7 +650,7 @@ function PosterCard({ movie, badge = "" }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className={`posterCard posterCard--cinematic ${
         isHovered ? "is-hovered" : ""
       } ${previewReady ? "is-preview-ready" : ""} ${
@@ -724,7 +759,7 @@ function ContinueCard({ movie, onRemove }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className="continueItem continueItem--row"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -812,7 +847,7 @@ function TopCard({ movie, index }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className="topItem"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {

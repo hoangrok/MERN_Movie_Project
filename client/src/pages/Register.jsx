@@ -152,7 +152,7 @@ export default function Register() {
 
         <div className="authPanel">
           <div className="authPanel__head">
-            <p>Start watching</p>
+            <p>Bắt đầu khám phá</p>
             <h2>Tạo tài khoản</h2>
           </div>
 

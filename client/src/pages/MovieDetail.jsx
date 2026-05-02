@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import Navbar from "../components/Navbar/Navbar";
 import AdSlot from "../components/Ads/AdSlot";
+import EpisodeList from "../components/EpisodeList/EpisodeList";
 import "../assets/styles/MovieDetailPlayer.css";
 import { setSEO } from "../utils/seo";
 import {
@@ -13,6 +14,10 @@ import {
 } from "../utils/continueWatching";
 import { API_URL } from "../utils/api";
 import { updateLikedMovies } from "../store/Slice/auth-slice";
+import {
+  cachePrefetchedStream,
+  getPrefetchedStream,
+} from "../utils/streamPrefetch";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -30,6 +35,15 @@ async function loadHlsModule() {
 
 function normalizeImage(url, fallback = "") {
   return typeof url === "string" && url.trim() ? url.trim() : fallback;
+}
+
+function getVideoFrameMode(width, height) {
+  const w = Number(width) || 0;
+  const h = Number(height) || 0;
+  if (!w || !h) return "landscape";
+  if (h > w) return "portrait";
+  if (w === h) return "square";
+  return "landscape";
 }
 
 function formatTime(seconds) {
@@ -120,6 +134,7 @@ const adminButtonStyle = {
 
 export default function MovieDetail() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
@@ -176,6 +191,12 @@ export default function MovieDetail() {
   const [adminMessage, setAdminMessage] = useState("");
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryImagePreviews, setGalleryImagePreviews] = useState([]);
+  const [seriesEditorLoading, setSeriesEditorLoading] = useState(false);
+  const [seriesEditorSaving, setSeriesEditorSaving] = useState(false);
+  const [seriesEditorItems, setSeriesEditorItems] = useState([]);
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewLeft, setPreviewLeft] = useState(0);
@@ -186,6 +207,9 @@ export default function MovieDetail() {
   const [hlsLevels, setHlsLevels] = useState([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [seriesImages, setSeriesImages] = useState([]);
+  const [videoFrameMode, setVideoFrameMode] = useState("landscape");
+  const isWorldMovie = movie?.contentArea === "world";
 
   const [editForm, setEditForm] = useState({
     title: "",
@@ -197,12 +221,39 @@ export default function MovieDetail() {
     poster: "",
     backdrop: "",
     hlsUrl: "",
+    contentArea: "default",
     isPublished: true,
+    seriesId: "",
+    seriesTitle: "",
+    season: "",
+    episode: "",
+    episodeLabel: "",
+    episodeTitle: "",
   });
+
+  const seededMovie = useMemo(() => {
+    const candidate = location.state?.prefetchedMovie;
+    if (!candidate) return null;
+    if (String(candidate?._id) === String(id) || String(candidate?.slug) === String(id)) {
+      return candidate;
+    }
+    return null;
+  }, [id, location.state]);
+
+  const seededStreamUrl = useMemo(() => {
+    if (!seededMovie) return "";
+    return typeof location.state?.prefetchedStreamUrl === "string"
+      ? location.state.prefetchedStreamUrl
+      : "";
+  }, [location.state, seededMovie]);
 
   useEffect(() => {
     currentMovieRef.current = movie;
   }, [movie]);
+
+  useEffect(() => {
+    setVideoFrameMode(getVideoFrameMode(movie?.videoWidth, movie?.videoHeight));
+  }, [movie?.videoWidth, movie?.videoHeight, movie?._id]);
 
   useEffect(() => {
     streamUrlRef.current = streamUrl;
@@ -250,6 +301,9 @@ export default function MovieDetail() {
   );
 
   const fetchSignedStream = useCallback(async () => {
+    const cached = getPrefetchedStream(id);
+    if (cached) return cached;
+
     const streamRes = await fetch(`${API_URL}/movies/${id}/stream`, {
       headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {},
     });
@@ -257,7 +311,7 @@ export default function MovieDetail() {
     const streamData = await streamRes.json();
 
     if (streamRes.ok && streamData?.success && streamData?.signedUrl) {
-      return streamData.signedUrl;
+      return cachePrefetchedStream(id, streamData.signedUrl);
     }
 
     throw new Error(streamData?.message || "Không lấy được stream");
@@ -642,13 +696,14 @@ export default function MovieDetail() {
   useEffect(() => {
     async function loadData() {
       try {
-        setPageLoading(true);
+        const hasSeededMovie = !!seededMovie;
+        setPageLoading(!hasSeededMovie);
         setError("");
-        setMovie(null);
+        setMovie(seededMovie || null);
         setRelated([]);
         setRecommend([]);
-        setStreamUrl("");
-        activeStreamUrlRef.current = "";
+        setStreamUrl(seededStreamUrl || "");
+        activeStreamUrlRef.current = seededStreamUrl || "";
         lastKnownTimeRef.current = 0;
         setIsReady(false);
         setIsPlaying(false);
@@ -712,16 +767,28 @@ export default function MovieDetail() {
 
           const items = allData?.items || allData?.movies || [];
           if (Array.isArray(items)) {
-            setRecommend(
-              items.filter((item) => String(item?._id) !== String(id)).slice(0, 8)
-            );
+            const seen = new Set();
+            const deduped = items.filter((item) => {
+              if (String(item?._id) === String(id)) return false;
+              if (item.seriesId) {
+                if (seen.has(item.seriesId)) return false;
+                seen.add(item.seriesId);
+              }
+              return true;
+            });
+            setRecommend(deduped.slice(0, 8));
           }
         } catch (err) {
           console.error("recommend error:", err);
         }
 
+        if (movieData.movie?.contentArea === "world") {
+          activeStreamUrlRef.current = "";
+          setStreamUrl("");
+          setIsBuffering(false);
+        } else {
         try {
-          const signedUrl = await fetchSignedStream();
+          const signedUrl = seededStreamUrl || (await fetchSignedStream());
           activeStreamUrlRef.current = signedUrl;
           setStreamUrl(signedUrl);
         } catch (err) {
@@ -734,6 +801,7 @@ export default function MovieDetail() {
             setIsBuffering(false);
           }
         }
+        }
       } catch (err) {
         console.error("MovieDetail loadData error:", err);
         setError("Lỗi tải dữ liệu movie");
@@ -744,7 +812,7 @@ export default function MovieDetail() {
     }
 
     loadData();
-  }, [id, fetchSignedStream]);
+  }, [id, fetchSignedStream, seededMovie, seededStreamUrl]);
 
   useEffect(() => {
     if (!movie || !user?.likedMovies) {
@@ -779,13 +847,13 @@ export default function MovieDetail() {
       thumbnailUrl: movie.poster || movie.backdrop || "",
       uploadDate: movie.createdAt || new Date().toISOString(),
       duration: movie.duration ? `PT${movie.duration}M` : undefined,
-      contentUrl: `https://www.clipdam18.com/movie/${movie._id}`,
-      embedUrl: `https://www.clipdam18.com/movie/${movie._id}`,
+      contentUrl: `https://www.clipdam18.com/movie/${movie.slug || movie._id}`,
+      embedUrl: `https://www.clipdam18.com/movie/${movie.slug || movie._id}`,
       ...(movie.rating ? { aggregateRating: { "@type": "AggregateRating", ratingValue: movie.rating, bestRating: 10, ratingCount: 1 } } : {}),
     };
     script.textContent = JSON.stringify(schema);
 
-    const canonical = `https://www.clipdam18.com/movie/${movie._id}`;
+    const canonical = `https://www.clipdam18.com/movie/${movie.slug || movie._id}`;
     const genreText =
       Array.isArray(movie.genre) && movie.genre.length > 0
         ? ` ${movie.genre.slice(0, 3).join(", ")}.`
@@ -823,8 +891,15 @@ export default function MovieDetail() {
       poster: movie.poster || "",
       backdrop: movie.backdrop || "",
       hlsUrl: movie.hlsUrl || "",
+      contentArea: movie.contentArea || "default",
       isPublished:
         typeof movie.isPublished === "boolean" ? movie.isPublished : true,
+      seriesId:     movie.seriesId     || "",
+      seriesTitle:  movie.seriesTitle  || "",
+      season:       movie.season       || "",
+      episode:      movie.episode      || "",
+      episodeLabel: movie.episodeLabel || "",
+      episodeTitle: movie.episodeTitle || "",
     });
 
     const firstTimelineImage = normalizeImage(
@@ -836,14 +911,51 @@ export default function MovieDetail() {
     preloadPreviewTimeline(movie?.previewTimeline?.items || []);
   }, [movie]);
 
+  // Aggregate images from all episodes in the series
   useEffect(() => {
-    if (!streamUrl || !videoRef.current) return;
+    if (!movie?.seriesId) {
+      setSeriesImages(movie?.images?.length ? movie.images : []);
+      return;
+    }
+    fetch(`${API_URL}/movies/series/${movie.seriesId}?ts=${Date.now()}`, {
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        const all = [
+          ...(movie?.images || []),
+          ...(d.episodes || []).flatMap((ep) => ep.images || []),
+        ];
+        const unique = [...new Set(all.filter(Boolean))];
+        setSeriesImages(unique.length ? unique : (movie?.images || []));
+      })
+      .catch(() => setSeriesImages(movie?.images || []));
+  }, [movie?.seriesId, movie?.images]);
+
+  useEffect(() => {
+    return () => {
+      galleryImagePreviews.forEach((src) => URL.revokeObjectURL(src));
+    };
+  }, [galleryImagePreviews]);
+
+  useEffect(() => {
+    if (!showAdminModal || !editForm.seriesId.trim()) {
+      setSeriesEditorItems([]);
+      return;
+    }
+
+    loadSeriesEditorItems(editForm.seriesId.trim());
+  }, [showAdminModal, editForm.seriesId]);
+
+  useEffect(() => {
+    if (isWorldMovie || !streamUrl || !videoRef.current) return;
 
     attachSourceToVideo(streamUrl, {
       preserveTime: true,
       autoplay: false,
     });
-  }, [streamUrl, attachSourceToVideo]);
+  }, [attachSourceToVideo, isWorldMovie, streamUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -884,6 +996,7 @@ export default function MovieDetail() {
       setDuration(video.duration || 0);
       setVolume(video.volume ?? 1);
       setIsMuted(video.muted);
+      setVideoFrameMode(getVideoFrameMode(video.videoWidth, video.videoHeight));
       setIsReady(true);
       setIsBuffering(false);
     };
@@ -1378,9 +1491,162 @@ export default function MovieDetail() {
     }
   };
 
+  const handleGalleryImageChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setGalleryImages(files);
+    setGalleryImagePreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
+  const handleUploadGalleryImages = async () => {
+    if (!movie?._id || !user?.token || galleryImages.length === 0) return;
+
+    try {
+      setUploadingGallery(true);
+      const formData = new FormData();
+      galleryImages.forEach((file) => formData.append("images", file));
+
+      const { data } = await axios.post(
+        `${API_URL}/upload/movie-images/${movie._id}`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+
+      if (!data?.success) {
+        throw new Error(data?.message || "Upload anh that bai");
+      }
+
+      setMovie((prev) => (prev ? { ...prev, images: data.images || [] } : prev));
+      setGalleryImages([]);
+      setGalleryImagePreviews([]);
+      setAdminMessage(`Da upload them ${data.added || 0} anh.`);
+    } catch (err) {
+      console.error("handleUploadGalleryImages error:", err.response?.data || err.message);
+      setAdminMessage(err.response?.data?.message || "Upload anh that bai.");
+    } finally {
+      setUploadingGallery(false);
+    }
+  };
+
+  const handleDeleteGalleryImage = async (imageUrl) => {
+    if (!movie?._id || !user?.token) return;
+    if (!window.confirm("Xoá ảnh này?")) return;
+    try {
+      const { data } = await axios.delete(
+        `${API_URL}/upload/movie-images/${movie._id}`,
+        {
+          headers: { Authorization: `Bearer ${user.token}` },
+          data: { url: imageUrl },
+        }
+      );
+      if (data?.success) {
+        setMovie((prev) => (prev ? { ...prev, images: data.images || [] } : prev));
+      }
+    } catch (err) {
+      console.error("handleDeleteGalleryImage error:", err.response?.data || err.message);
+    }
+  };
+
+  const loadSeriesEditorItems = async (seriesId) => {
+    if (!seriesId) {
+      setSeriesEditorItems([]);
+      return;
+    }
+
+    try {
+      setSeriesEditorLoading(true);
+      const res = await fetch(`${API_URL}/movies/series/${seriesId}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (data?.success) {
+        setSeriesEditorItems(data.episodes || []);
+      } else {
+        setSeriesEditorItems([]);
+      }
+    } catch (err) {
+      console.error("loadSeriesEditorItems error:", err);
+      setSeriesEditorItems([]);
+    } finally {
+      setSeriesEditorLoading(false);
+    }
+  };
+
+  const handleSeriesEditorChange = (index, field, value) => {
+    setSeriesEditorItems((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const handleSaveSeriesEditor = async () => {
+    if (!user?.token || seriesEditorItems.length === 0) return;
+
+    try {
+      setSeriesEditorSaving(true);
+      const baseSeriesTitle = editForm.seriesTitle.trim() || movie?.seriesTitle || movie?.title || "";
+
+      const results = await Promise.all(
+        seriesEditorItems.map(async (item, index) => {
+          const episodeNumber = Number(item.episode) || index + 1;
+          const episodeLabel =
+            typeof item.episodeLabel === "string" ? item.episodeLabel.trim() : "";
+          const displayLabel = episodeLabel || `Tập ${episodeNumber}`;
+
+          const payload = {
+            contentArea: editForm.contentArea === "world" ? "world" : "default",
+            seriesId: editForm.seriesId.trim(),
+            seriesTitle: baseSeriesTitle,
+            season: Number(item.season) || Number(editForm.season) || 1,
+            episode: episodeNumber,
+            episodeLabel,
+            episodeTitle: typeof item.episodeTitle === "string" ? item.episodeTitle.trim() : "",
+            title:
+              typeof item.title === "string" && item.title.trim()
+                ? item.title.trim()
+                : `${baseSeriesTitle} - ${displayLabel}`,
+          };
+
+          const { data } = await axios.put(`${API_URL}/movies/${item._id}`, payload, {
+            headers: {
+              Authorization: `Bearer ${user.token}`,
+            },
+          });
+
+          return data?.movie || item;
+        })
+      );
+
+      const nextItems = [...results].sort((a, b) => {
+        const seasonDiff = (Number(a.season) || 1) - (Number(b.season) || 1);
+        if (seasonDiff !== 0) return seasonDiff;
+        return (Number(a.episode) || 1) - (Number(b.episode) || 1);
+      });
+
+      setSeriesEditorItems(nextItems);
+      const currentMovie = nextItems.find((item) => String(item._id) === String(movie?._id));
+      if (currentMovie) {
+        setMovie((prev) => (prev ? { ...prev, ...currentMovie } : prev));
+      }
+      setAdminMessage("Da cap nhat danh sach tap.");
+    } catch (err) {
+      console.error("handleSaveSeriesEditor error:", err.response?.data || err.message);
+      setAdminMessage(err.response?.data?.message || "Cap nhat danh sach tap that bai.");
+    } finally {
+      setSeriesEditorSaving(false);
+    }
+  };
+
   const handleOpenAdminModal = () => {
     if (!user?.isAdmin) return;
     setAdminMessage("");
+    setGalleryImages([]);
+    setGalleryImagePreviews([]);
     setShowAdminModal(true);
   };
 
@@ -1388,6 +1654,8 @@ export default function MovieDetail() {
     if (adminLoading) return;
     setShowAdminModal(false);
     setAdminMessage("");
+    setGalleryImages([]);
+    setGalleryImagePreviews([]);
   };
 
   const handleUpdateMovie = async (e) => {
@@ -1409,7 +1677,14 @@ export default function MovieDetail() {
         poster: editForm.poster.trim(),
         backdrop: editForm.backdrop.trim(),
         hlsUrl: editForm.hlsUrl.trim(),
+        contentArea: editForm.contentArea === "world" ? "world" : "default",
         isPublished: !!editForm.isPublished,
+        seriesId:     editForm.seriesId.trim(),
+        seriesTitle:  editForm.seriesTitle.trim(),
+        season:       editForm.season === "" ? undefined : Number(editForm.season),
+        episode:      editForm.episode === "" ? undefined : Number(editForm.episode),
+        episodeLabel: editForm.episodeLabel.trim(),
+        episodeTitle: editForm.episodeTitle.trim(),
       };
 
       const { data } = await axios.put(`${API_URL}/movies/${movie._id}`, payload, {
@@ -1443,6 +1718,31 @@ export default function MovieDetail() {
 
     try {
       setAdminLoading(true);
+      let redirectPath = movie?.contentArea === "world" ? "/the-gioi" : "/latest";
+
+      if (movie?.seriesId) {
+        try {
+          const seriesRes = await fetch(
+            `${API_URL}/movies/series/${movie.seriesId}?ts=${Date.now()}`,
+            {
+              cache: "no-store",
+            }
+          );
+          const seriesData = await seriesRes.json();
+
+          if (seriesData?.success) {
+            const sibling = (seriesData.episodes || []).find(
+              (item) => String(item?._id) !== String(movie._id)
+            );
+            if (sibling?._id) {
+              redirectPath = `/movie/${sibling.slug || sibling._id}`;
+            }
+          }
+        } catch (seriesErr) {
+          console.error("delete redirect lookup error:", seriesErr);
+        }
+      }
+
       await axios.delete(`${API_URL}/movies/${movie._id}`, {
         headers: {
           Authorization: `Bearer ${user.token}`,
@@ -1451,7 +1751,7 @@ export default function MovieDetail() {
 
       removeContinueWatching(movie._id);
       alert("Xóa phim thành công.");
-      navigate("/");
+      navigate(redirectPath, { replace: true });
     } catch (err) {
       console.error("handleDeleteMovie error:", err.response?.data || err.message);
       alert(err.response?.data?.message || "Xóa phim thất bại.");
@@ -1461,6 +1761,8 @@ export default function MovieDetail() {
   };
 
   useEffect(() => {
+    if (isWorldMovie) return undefined;
+
     const onKey = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea") return;
@@ -1495,7 +1797,7 @@ export default function MovieDetail() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [duration]);
+  }, [duration, isWorldMovie]);
 
   const multipleQualities = hlsLevels.filter((l) => l.height > 0).length > 1;
   const qualityLabel =
@@ -1511,7 +1813,6 @@ export default function MovieDetail() {
   const bufferedPercent = safeDuration
     ? Math.min((bufferedTime / safeDuration) * 100, 100)
     : 0;
-
   if (error && !movie) {
     return (
       <div className="movie-detail-page">
@@ -1536,37 +1837,15 @@ export default function MovieDetail() {
 
   return (
     <div
-      className="movie-detail-page"
-      style={{
-        backgroundImage: `linear-gradient(to bottom, rgba(5,7,12,.4), rgba(5,7,12,.95)), url(${backdropSrc || FALLBACK_BACKDROP})`,
-      }}
+      className={`movie-detail-page${isWorldMovie ? " movie-detail-page--world" : ""}`}
     >
       <Navbar isScrolled={true} />
-
-      <div className="movie-detail-backdrop">
-        <img
-          src={backdropSrc || FALLBACK_BACKDROP}
-          alt={movie.title}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center",
-          }}
-          onError={(e) => {
-            const fallback =
-              normalizeImage(movie?.poster, "") || FALLBACK_BACKDROP;
-            e.currentTarget.src = fallback;
-            setBackdropSrc(fallback);
-          }}
-        />
-      </div>
 
       <div className="movie-detail-shell">
         <div className="movie-detail-breadcrumbs">
           <Link to="/">Trang chủ</Link>
           <span>/</span>
-          <span>Xem phim</span>
+          {isWorldMovie ? <Link to="/the-gioi">The gioi</Link> : <span>Xem phim</span>}
           <span>/</span>
           <strong>{movie.title}</strong>
         </div>
@@ -1577,9 +1856,12 @@ export default function MovieDetail() {
 
         <div className="movie-detail-layout">
           <main className="movie-detail-main">
+            {!isWorldMovie && (
             <div
               ref={playerRef}
-              className="nf-player"
+              className={`nf-player nf-player--${videoFrameMode}${
+                isWorldMovie ? " nf-player--world" : ""
+              }`}
               onMouseMove={() => kickAutoHide()}
               onMouseEnter={() => kickAutoHide()}
               onMouseLeave={() => {
@@ -1823,8 +2105,16 @@ export default function MovieDetail() {
                 </div>
               </div>
             </div>
+            )}
 
-            <AdSlot placement="movie_detail_below_player" variant="banner" />
+            {!isWorldMovie && (
+              <AdSlot placement="movie_detail_below_player" variant="banner" />
+            )}
+
+            <EpisodeList
+              movie={movie}
+              variant={isWorldMovie ? "world" : "default"}
+            />
 
             <section className="movie-info-card">
               <div className="movie-info-card__header">
@@ -1881,22 +2171,28 @@ export default function MovieDetail() {
                 </div>
               </div>
 
-              <div className="movie-meta-grid">
+              {seriesImages.length > 0 && (
+                <MovieGallery
+                  images={seriesImages}
+                  title={movie.seriesTitle || movie.title}
+                  isSeries={!!movie.seriesId}
+                  isWorld={isWorldMovie}
+                />
+              )}
+
+              <div
+                className={`movie-meta-grid${
+                  isWorldMovie ? " movie-meta-grid--world" : ""
+                }`}
+              >
+                {!isWorldMovie && (
                 <div className="movie-poster-wrap">
-                  {previewItems.length > 0 ? (
-                    <GifPoster
-                      previewItems={previewItems}
-                      fallback={cardThumbImage || FALLBACK_POSTER}
-                      alt={movie.title}
-                    />
-                  ) : (
-                    <img
-                      src={cardThumbImage}
-                      alt={movie.title}
-                      className="movie-poster"
-                      onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
-                    />
-                  )}
+                  <img
+                    src={cardThumbImage}
+                    alt={movie.title}
+                    className="movie-poster"
+                    onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
+                  />
                   <div className="movie-poster-overlay">
                     {movie.rating ? (
                       <span className="movie-poster-badge movie-poster-badge--rating">
@@ -1906,6 +2202,7 @@ export default function MovieDetail() {
                     <span className="movie-poster-badge movie-poster-badge--hd">HD</span>
                   </div>
                 </div>
+                )}
 
                 <div className="movie-meta-content">
                   {movie.genre?.length > 0 && (
@@ -1933,10 +2230,6 @@ export default function MovieDetail() {
               </div>
             </section>
 
-            {(movie.images?.length > 0) && (
-              <MovieGallery images={movie.images} title={movie.title} />
-            )}
-
             <section className="movie-recommend-card">
               <div className="movie-section-head">
                 <h2>Có thể bạn sẽ thích</h2>
@@ -1948,7 +2241,7 @@ export default function MovieDetail() {
                   (item) => (
                     <Link
                       key={item._id}
-                      to={`/movie/${item._id}`}
+                      to={`/movie/${item.slug || item._id}`}
                       className="related-card"
                     >
                       <div className="related-card__thumb">
@@ -1996,7 +2289,7 @@ export default function MovieDetail() {
                   related.map((item) => (
                     <Link
                       key={item._id}
-                      to={`/movie/${item._id}`}
+                      to={`/movie/${item.slug || item._id}`}
                       className="movie-side-item"
                     >
                       <img
@@ -2260,6 +2553,278 @@ export default function MovieDetail() {
                   />
                 </div>
 
+                <div style={adminFieldStyle}>
+                  <label style={adminLabelStyle}>Khu vuc noi dung</label>
+                  <select
+                    name="contentArea"
+                    value={editForm.contentArea}
+                    onChange={handleEditInputChange}
+                    style={adminInputStyle}
+                  >
+                    <option value="default">Noi dung thuong</option>
+                    <option value="world">The gioi</option>
+                  </select>
+                </div>
+
+                {/* ── SERIES ── */}
+                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 16 }}>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>
+                    📺 Seri phim (để trống nếu là phim lẻ)
+                  </p>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <div>
+                      <label style={adminLabelStyle}>Series ID</label>
+                      <input name="seriesId" placeholder='ID chung cho tất cả tập (VD: "ten-seri-abc")' value={editForm.seriesId} onChange={handleEditInputChange} style={adminInputStyle} />
+                    </div>
+                    <div>
+                      <label style={adminLabelStyle}>Tên seri</label>
+                      <input name="seriesTitle" placeholder="Tên seri đầy đủ" value={editForm.seriesTitle} onChange={handleEditInputChange} style={adminInputStyle} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <label style={adminLabelStyle}>Mùa (Season)</label>
+                        <input name="season" type="number" min="1" placeholder="1" value={editForm.season} onChange={handleEditInputChange} style={adminInputStyle} />
+                      </div>
+                      <div>
+                        <label style={adminLabelStyle}>Số tập (Episode)</label>
+                        <input name="episode" type="number" min="1" placeholder="1" value={editForm.episode} onChange={handleEditInputChange} style={adminInputStyle} />
+                        <input
+                          name="episodeLabel"
+                          placeholder="Nhan tap hien thi (abc, xyz...)"
+                          value={editForm.episodeLabel}
+                          onChange={handleEditInputChange}
+                          style={{ ...adminInputStyle, marginTop: 10 }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={adminLabelStyle}>Tên tập</label>
+                      <input name="episodeTitle" placeholder="VD: Khởi đầu" value={editForm.episodeTitle} onChange={handleEditInputChange} style={adminInputStyle} />
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    ...adminFieldStyle,
+                    gridColumn: "1 / -1",
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                    paddingTop: 16,
+                  }}
+                >
+                  <label style={adminLabelStyle}>Ảnh dưới player</label>
+
+                  {/* Already-uploaded images */}
+                  {movie?.images?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>
+                        Ảnh đã upload ({movie.images.length})
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                          gap: 8,
+                        }}
+                      >
+                        {movie.images.map((src, index) => (
+                          <div key={src || index} style={{ position: "relative" }}>
+                            <img
+                              src={src}
+                              alt={`gallery ${index + 1}`}
+                              style={{
+                                width: "100%",
+                                aspectRatio: "16/9",
+                                objectFit: "cover",
+                                borderRadius: 8,
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                display: "block",
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteGalleryImage(src)}
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                right: 4,
+                                background: "rgba(220,38,38,0.85)",
+                                border: "none",
+                                borderRadius: 4,
+                                color: "#fff",
+                                fontSize: 11,
+                                padding: "2px 6px",
+                                cursor: "pointer",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              Xoá
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New image picker */}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleGalleryImageChange}
+                    style={adminInputStyle}
+                  />
+
+                  {galleryImagePreviews.length > 0 && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                        gap: 8,
+                        marginTop: 8,
+                      }}
+                    >
+                      {galleryImagePreviews.map((src, index) => (
+                        <img
+                          key={src || index}
+                          src={src}
+                          alt="preview"
+                          style={{
+                            width: "100%",
+                            aspectRatio: "16/9",
+                            objectFit: "cover",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,0.12)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleUploadGalleryImages}
+                    disabled={uploadingGallery || galleryImages.length === 0}
+                    style={{
+                      ...adminButtonStyle,
+                      marginTop: 8,
+                      background:
+                        galleryImages.length === 0
+                          ? "rgba(255,255,255,0.08)"
+                          : "#14532d",
+                      color: "#fff",
+                    }}
+                  >
+                    {uploadingGallery
+                      ? "Đang upload ảnh..."
+                      : `Upload ${galleryImages.length || 0} ảnh`}
+                  </button>
+                </div>
+
+                {!!editForm.seriesId.trim() && (
+                  <div
+                    style={{
+                      ...adminFieldStyle,
+                      gridColumn: "1 / -1",
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                      paddingTop: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <label style={adminLabelStyle}>Danh sách các tập cùng seri</label>
+                      <button
+                        type="button"
+                        onClick={handleSaveSeriesEditor}
+                        disabled={seriesEditorSaving || seriesEditorItems.length === 0}
+                        style={{
+                          ...adminButtonStyle,
+                          background: "#1d4ed8",
+                          color: "#fff",
+                          padding: "8px 12px",
+                        }}
+                      >
+                        {seriesEditorSaving ? "Dang luu danh sach..." : "Luu danh sach tap"}
+                      </button>
+                    </div>
+
+                    {seriesEditorLoading ? (
+                      <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
+                        Dang tai danh sach tap...
+                      </div>
+                    ) : seriesEditorItems.length > 0 ? (
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {seriesEditorItems.map((item, index) => (
+                          <div
+                            key={item._id || index}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "80px 120px 1fr auto",
+                              gap: 8,
+                              alignItems: "center",
+                              background: "rgba(255,255,255,0.04)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              borderRadius: 10,
+                              padding: "10px 12px",
+                            }}
+                          >
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.episode || index + 1}
+                              onChange={(e) =>
+                                handleSeriesEditorChange(index, "episode", e.target.value)
+                              }
+                              style={adminInputStyle}
+                            />
+                            <input
+                              type="text"
+                              value={item.episodeLabel || ""}
+                              placeholder="Nhan tap"
+                              onChange={(e) =>
+                                handleSeriesEditorChange(index, "episodeLabel", e.target.value)
+                              }
+                              style={adminInputStyle}
+                            />
+                            <input
+                              type="text"
+                              value={item.episodeTitle || ""}
+                              placeholder="Ten tap"
+                              onChange={(e) =>
+                                handleSeriesEditorChange(index, "episodeTitle", e.target.value)
+                              }
+                              style={adminInputStyle}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/movie/${item.slug || item._id}`)}
+                              style={{
+                                ...adminButtonStyle,
+                                padding: "8px 12px",
+                                background: "rgba(255,255,255,0.08)",
+                                color: "#fff",
+                              }}
+                            >
+                              Mo
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
+                        Chua co danh sach tap trong seri nay.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div
                   style={{
                     ...adminFieldStyle,
@@ -2315,58 +2880,14 @@ export default function MovieDetail() {
   );
 }
 
-function GifPoster({ previewItems, fallback, alt }) {
-  const frames = useMemo(() => {
-    if (!previewItems.length) return [fallback];
-    const total = previewItems.length;
-    const count = Math.min(10, total);
-    const picked = new Set();
-    const result = [];
-
-    // evenly spaced picks
-    for (let i = 0; i < count; i++) {
-      const idx = Math.floor((i / count) * total);
-      picked.add(idx);
-      result.push(previewItems[idx].url);
-    }
-
-    // shuffle for random feel
-    for (let i = result.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [result[i], result[j]] = [result[j], result[i]];
-    }
-
-    return result.filter(Boolean);
-  }, [previewItems, fallback]);
-
-  const [idx, setIdx] = useState(0);
-  const [animKey, setAnimKey] = useState(0);
-
-  useEffect(() => {
-    if (frames.length <= 1) return;
-    const timer = setInterval(() => {
-      setIdx((prev) => (prev + 1) % frames.length);
-      setAnimKey((prev) => prev + 1);
-    }, 750);
-    return () => clearInterval(timer);
-  }, [frames]);
-
-  return (
-    <img
-      key={animKey}
-      src={frames[idx] || fallback}
-      alt={alt}
-      className="movie-poster gif-poster"
-      onError={(e) => {
-        e.currentTarget.src = fallback;
-      }}
-    />
-  );
-}
-
-function MovieGallery({ images = [], title = "" }) {
+function MovieGallery({
+  images = [],
+  title = "",
+  isSeries = false,
+  isWorld = false,
+}) {
   const [lightbox, setLightbox] = useState(null); // index | null
-
+  const stackImages = isWorld ? images.slice(0, 4) : [];
   const open = (i) => setLightbox(i);
   const close = () => setLightbox(null);
   const prev = (e) => { e.stopPropagation(); setLightbox((i) => (i - 1 + images.length) % images.length); };
@@ -2383,11 +2904,45 @@ function MovieGallery({ images = [], title = "" }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightbox, images.length]);
 
+  useEffect(() => {
+    if (images.length > 0) {
+      console.log("[MovieGallery] images:", images.slice(0, 3));
+    }
+  }, [images]);
+
   return (
-    <section className="movie-gallery-section">
+    <section
+      className={`movie-gallery-section${
+        isWorld ? " movie-gallery-section--world" : ""
+      }`}
+    >
       <div className="movie-section-head">
-        <h2>Ảnh ({images.length})</h2>
+        <h2>{isSeries ? "Ảnh seri" : "Ảnh"} ({images.length})</h2>
       </div>
+
+      {isWorld && stackImages.length > 0 && (
+        <button
+          type="button"
+          className="movie-gallery-stack"
+          onClick={() => open(0)}
+          aria-label="Mo bo anh the gioi"
+        >
+          <div className="movie-gallery-stack__cards">
+            {stackImages.map((src, index) => (
+              <span
+                key={`${src}-${index}`}
+                className={`movie-gallery-stack__card movie-gallery-stack__card--${index + 1}`}
+              >
+                <img
+                  src={src}
+                  alt={`${title} - stack ${index + 1}`}
+                  onError={(e) => { e.currentTarget.style.opacity = "0.2"; }}
+                />
+              </span>
+            ))}
+          </div>
+        </button>
+      )}
 
       <div className="movie-gallery-grid">
         {images.map((src, i) => (

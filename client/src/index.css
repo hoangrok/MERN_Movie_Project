@@ -1,13 +1,18 @@
+@keyframes vpnSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 :root {
-  --bg: #0b0b0f;
-  --panel: #121218;
-  --panel-2: #18181f;
-  --text: #f5f5f7;
-  --muted: #b8b8c2;
-  --line: rgba(255, 255, 255, 0.08);
+  --bg: #f0f1f5;
+  --panel: #ffffff;
+  --panel-2: #f7f8fa;
+  --text: #111118;
+  --muted: #6b7280;
+  --line: rgba(0, 0, 0, 0.08);
   --red: #e50914;
-  --red-hover: #f6121d;
-  --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --red-hover: #c8000c;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -28,9 +33,7 @@ html {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at top, rgba(229, 9, 20, 0.08), transparent 25%),
-    linear-gradient(180deg, #0b0b0f 0%, #09090c 100%);
+  background: var(--bg);
   color: var(--text);
   font-family: "Inter", sans-serif;
 }
@@ -51,26 +54,26 @@ select {
 }
 
 ::selection {
-  background: rgba(229, 9, 20, 0.28);
+  background: rgba(229, 9, 20, 0.18);
   color: #fff;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0d0d11;
+  background: #e8e9ed;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .container {
@@ -96,26 +99,22 @@ select {
 .poster-card {
   display: block;
   text-decoration: none;
-  color: #fff;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(255, 255, 255, 0.02)
-  );
+  color: var(--text);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
   overflow: hidden;
   transition:
-    transform 0.22s ease,
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  box-shadow: var(--shadow);
 }
 
 .poster-card:hover {
-  transform: translateY(-6px) scale(1.02);
-  border-color: rgba(229, 9, 20, 0.28);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.34);
+  transform: translateY(-4px);
+  border-color: rgba(229, 9, 20, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .poster-card img {
@@ -133,6 +132,7 @@ select {
   font-weight: 700;
   font-size: 0.95rem;
   line-height: 1.35;
+  color: var(--text);
 }
 
 .poster-card__meta {
@@ -167,32 +167,34 @@ select {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.12);
-  color: white;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text);
+  border: 1px solid var(--line);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.1);
 }
 
-/* PLAYER */
+/* PLAYER — stays dark */
 .hls-player-shell {
   position: relative;
   width: 100%;
   background: #000;
-  border-radius: 24px;
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 50px rgba(0, 0, 0, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
   user-select: none;
   isolation: isolate;
 }
 
 .hls-player-video {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--player-aspect-ratio, 16 / 9);
   display: block;
   background: #000;
+  object-fit: contain;
 }
 
 .hls-center-play {
@@ -211,9 +213,7 @@ select {
   cursor: pointer;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow:
-    0 16px 34px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
   transition:
     transform 0.18s ease,
     background 0.18s ease;
@@ -235,11 +235,7 @@ select {
   align-items: flex-start;
   gap: 14px;
   padding: 18px 18px 8px;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.58) 0%,
-    rgba(0, 0, 0, 0) 100%
-  );
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0) 100%);
   transition: opacity 0.22s ease;
 }
 
@@ -250,11 +246,7 @@ select {
   bottom: 0;
   z-index: 5;
   padding: 12px 16px 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.78) 100%
-  );
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.78) 100%);
   transition:
     opacity 0.22s ease,
     transform 0.22s ease;
@@ -310,9 +302,8 @@ select {
 
 .hls-quality-btn.active {
   color: #fff;
-  background: linear-gradient(180deg, #ff3131 0%, #d80d18 100%);
+  background: #e50914;
   border-color: rgba(255, 70, 70, 0.36);
-  box-shadow: 0 10px 24px rgba(229, 9, 20, 0.22);
 }
 
 .hls-timeline-wrap {
@@ -346,7 +337,7 @@ select {
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #ff3131 0%, #ff6a6a 100%);
+  background: #e50914;
 }
 
 .hls-timeline-input {
@@ -417,8 +408,6 @@ select {
   font-size: 15px;
   font-weight: 900;
   cursor: pointer;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   transition:
     transform 0.18s ease,
     background 0.18s ease;
@@ -430,13 +419,12 @@ select {
 }
 
 .hls-ctrl-btn.primary {
-  background: linear-gradient(180deg, #ff3131 0%, #d80d18 100%);
-  box-shadow: 0 10px 24px rgba(229, 9, 20, 0.2);
+  background: #e50914;
 }
 
 .hls-volume-input {
   width: 92px;
-  accent-color: #ff3131;
+  accent-color: #e50914;
   cursor: pointer;
 }
 
