@@ -21,7 +21,8 @@
       "Bash(python3 fix_admin.py)",
       "Bash(python3 fix_encoding.py)",
       "Bash(node -e ' *)",
-      "Bash(git commit -m 'fix: sitemap index dùng www domain qua proxy thay vì trỏ thẳng api *)"
+      "Bash(git commit -m 'fix: sitemap index dùng www domain qua proxy thay vì trỏ thẳng api *)",
+      "Bash(git commit -m 'fix: remove external script check causing false positive on production *)"
     ]
   }
 }
