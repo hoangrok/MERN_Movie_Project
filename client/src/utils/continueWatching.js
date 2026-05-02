@@ -39,6 +39,7 @@ function normalizeMovie(movie = {}, currentTime = 0, duration = 0) {
   return {
     _id: String(id),
     id: String(id),
+    slug: typeof movie?.slug === "string" && movie.slug.trim() ? movie.slug.trim() : "",
     title:
       typeof movie?.title === "string" && movie.title.trim()
         ? movie.title.trim()

@@ -12,8 +12,8 @@ const NotFound = () => {
 
   useEffect(() => {
     setSEO({
-      title: "Trang khong tim thay - Dam17+1",
-      description: "Trang ban tim khong ton tai hoac da bi xoa.",
+      title: "Không tìm thấy trang - Dam17+1",
+      description: "Trang bạn tìm không tồn tại hoặc đã bị gỡ.",
       url: "https://www.clipdam18.com/404",
       robots: "noindex, nofollow",
     });
@@ -28,16 +28,16 @@ const NotFound = () => {
   return (
     <div className="notFound">
       <h1 className="notFound__title">404</h1>
-      <h2 style={{ color: "#fff", marginBottom: 8 }}>Trang khong tim thay</h2>
+      <h2 style={{ color: "#fff", marginBottom: 8 }}>Lạc đường rồi!</h2>
       <p className="notFound__text">
-        Trang ban tim khong ton tai hoac da bi xoa.
+        Trang này không tồn tại hoặc đã bị gỡ.
       </p>
       <button
         className="notFound__link"
         onClick={() => navigate("/", { replace: true })}
       >
         <BiArrowBack />
-        Ve trang chu
+        Về trang chủ
       </button>
     </div>
   );

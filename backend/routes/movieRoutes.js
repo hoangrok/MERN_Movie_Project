@@ -15,6 +15,7 @@ const {
   getRelatedMovies,
   incrementView,
   getTrending,
+  getSeriesEpisodes,
 } = require("../controllers/movieController");
 
 const { protect, optionalAuth } = require("../middleware/authMiddleware");
@@ -29,6 +30,9 @@ router.get("/latest", getLatestMovies);
 router.get("/top-viewed", getTopViewedMovies);
 router.get("/genres", getGenres);
 router.get("/validate", validateMovieIds);
+
+// Series episodes
+router.get("/series/:seriesId", getSeriesEpisodes);
 
 // Admin CRUD
 router.post("/", protect, adminOnly, createMovie);

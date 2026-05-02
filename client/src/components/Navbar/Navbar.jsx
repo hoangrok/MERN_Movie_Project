@@ -34,9 +34,20 @@ const Navbar = ({ isScrolled }) => {
   const movies = useSelector((state) => state.movie.movies || []);
   const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
   const { user } = useSelector((state) => state.auth);
+  const linksWithWorld = [
+    ...links.slice(0, 2),
+    { name: "Thế giới", path: "/the-gioi" },
+    ...links.slice(2),
+  ];
   const visibleLinks = user?.isAdmin
-    ? [...links, { name: "Ads", path: "/admin/ads" }, { name: "Feedback", path: "/admin/feedback" }]
-    : links;
+    ? [
+        ...linksWithWorld,
+        { name: "Admin Up", path: "/admin/new-movie" },
+        { name: "Admin TG", path: "/admin/the-gioi" },
+        { name: "Ads", path: "/admin/ads" },
+        { name: "Feedback", path: "/admin/feedback" },
+      ]
+    : linksWithWorld;
 
   const [searchedInput, setSearchedInput] = useState("");
   const [debouncedInput, setDebouncedInput] = useState("");
@@ -401,7 +412,7 @@ const Navbar = ({ isScrolled }) => {
                       resultsToShow.map((movie) => (
                         <Link
                           key={movie._id}
-                          to={`/movie/${movie._id}`}
+                          to={`/movie/${movie.slug || movie._id}`}
                           className="navbar__search-item"
                           onClick={() => setShowSearchResult(false)}
                         >

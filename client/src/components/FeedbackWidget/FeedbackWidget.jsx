@@ -9,8 +9,8 @@ const TABS = [
 ];
 
 const PLACEHOLDER = {
-  request: "Yêu cầu clip hay người nào đó đi tao tìm cho...",
-  error: "Mô tả lỗi mày gặp phải (phim nào, lỗi gì)...",
+  request: "Clip hoặc diễn viên bạn muốn xem — mô tả ngắn để tụi mình tìm đúng...",
+  error: "Mô tả lỗi bạn gặp — phim nào bị lỗi, hiện thông báo gì...",
 };
 
 export default function FeedbackWidget() {

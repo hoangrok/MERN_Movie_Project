@@ -22,7 +22,7 @@ function signStreamToken({ videoId, expSeconds = 60 * 60 * 6, secret }) {
   return { token, exp };
 }
 
-function makeStreamUrl(hlsUrl, videoId, secret, expSeconds = 60 * 60 * 6) {
+function makeStreamUrl(hlsUrl, videoId, secret, expSeconds = 60 * 60 * 12) {
   if (!hlsUrl) {
     throw new Error("hlsUrl is required");
   }

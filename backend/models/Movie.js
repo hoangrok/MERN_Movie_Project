@@ -14,6 +14,12 @@ const movieSchema = new mongoose.Schema(
     hlsUrl: { type: String, default: "" },
     trailerUrl: { type: String, default: "" },
     type: { type: String, enum: ["movie", "tv"], default: "movie" },
+    contentArea: {
+      type: String,
+      enum: ["default", "world"],
+      default: "default",
+      index: true,
+    },
     isPublished: { type: Boolean, default: true },
     featured: { type: Boolean, default: false },
     newPopular: { type: Boolean, default: false },
@@ -37,8 +43,23 @@ const movieSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    videoWidth: {
+      type: Number,
+      default: 0,
+    },
+    videoHeight: {
+      type: Number,
+      default: 0,
+    },
 
     images: [{ type: String }],
+
+    seriesId:     { type: String, default: "", index: true },
+    seriesTitle:  { type: String, default: "" },
+    season:       { type: Number, default: 1 },
+    episode:      { type: Number, default: 1 },
+    episodeLabel: { type: String, default: "" },
+    episodeTitle: { type: String, default: "" },
 
     previewTimeline: {
       duration: { type: Number, default: 0 },

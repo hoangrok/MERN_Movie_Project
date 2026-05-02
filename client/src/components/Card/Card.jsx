@@ -50,6 +50,7 @@ function getTimelineFrames(movie, count = 3) {
 function getBestThumb(movie) {
   return (
     normalizeImage(movie?.backdrop) ||
+    normalizeImage(Array.isArray(movie?.images) ? movie.images[0] : "") ||
     getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.poster) ||
     FALLBACK_POSTER
@@ -98,7 +99,7 @@ function CardComponent({ movie }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className={`movieCard ${isHovered ? "is-hovered" : ""}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

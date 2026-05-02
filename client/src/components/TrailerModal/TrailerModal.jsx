@@ -75,7 +75,7 @@ export default function TrailerModal({ movie, handleModal, isLiked }) {
   };
 
   const playMovie = () => {
-    navigate(`/movie/${movie?._id}`);
+    navigate(`/movie/${movie?.slug || movie?._id}`);
   };
 
   const genres =

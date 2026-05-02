@@ -61,7 +61,7 @@ function TopViewedCard({ movie, index }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className="rank-card"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
@@ -92,7 +92,7 @@ function TopViewedCard({ movie, index }) {
         <span className="rank-card__badge">#{index + 1}</span>
 
         <div className="rank-card__overlay">
-          <span className="rank-card__watch">Xem chi tiet</span>
+          <span className="rank-card__watch">Xem chi tiết</span>
         </div>
       </div>
 
@@ -100,12 +100,12 @@ function TopViewedCard({ movie, index }) {
         <h3 className="rank-card__title">{movie.title}</h3>
 
         <div className="rank-card__meta">
-          <span>{movie.views || 0} luot xem</span>
+          <span>{movie.views || 0} lượt xem</span>
           {movie.year ? <span>{movie.year}</span> : null}
         </div>
 
         <div className="rank-card__submeta">
-          {(movie.genre || []).slice(0, 2).join(" - ") || "Phim noi bat"}
+          {(movie.genre || []).slice(0, 2).join(" - ") || "Phim nổi bật"}
         </div>
       </div>
     </Link>
@@ -164,10 +164,10 @@ export default function TopViewedMovies() {
 
       <div className="rank-shell">
         <div className="rank-hero">
-          <div className="rank-hero__badge">TOP VIEWED</div>
-          <h1 className="rank-hero__title">Top luot xem</h1>
+          <div className="rank-hero__badge">ĐANG HOT</div>
+          <h1 className="rank-hero__title">Top lượt xem</h1>
           <p className="rank-hero__desc">
-            Nhung phim dang duoc nguoi xem quan tam nhieu nhat tren he thong.
+            Cộng đồng đang xem gì nhiều nhất — bạn có bỏ lỡ không?
           </p>
         </div>
 
@@ -193,8 +193,8 @@ export default function TopViewedMovies() {
           </div>
         ) : (
           <div className="rank-empty">
-            <h2>Chua co du lieu</h2>
-            <p>Hien chua co phim noi bat theo luot xem.</p>
+            <h2>Chưa có dữ liệu xếp hạng</h2>
+            <p>Hiện chưa có phim nổi bật theo lượt xem.</p>
           </div>
         )}
       </div>

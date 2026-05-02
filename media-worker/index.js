@@ -32,56 +32,68 @@ async function verifySigned(request, env) {
   const exp = url.searchParams.get("exp");
   const sig = url.searchParams.get("sig");
 
-  console.log("STREAM_TOKEN_SECRET exists:", !!env.STREAM_TOKEN_SECRET);
-  console.log("pathname:", url.pathname);
-  console.log("exp:", exp);
-  console.log("sig:", sig);
-
   if (!env.STREAM_TOKEN_SECRET) {
     console.log("Missing STREAM_TOKEN_SECRET");
     return false;
   }
 
   if (!exp || !sig) {
-    console.log("Missing exp/sig");
+    console.log("Missing exp/sig params");
     return false;
   }
 
   const now = Math.floor(Date.now() / 1000);
   if (now > Number(exp)) {
-    console.log("Expired", { now, exp });
+    console.log("Token expired", { now, exp });
     return false;
   }
 
+  // payload = pathname_without_leading_slash + ":" + exp
   const key = url.pathname.slice(1);
   const payload = `${key}:${exp}`;
   const expected = await hmacSha256Hex(env.STREAM_TOKEN_SECRET, payload);
 
-  console.log("verify key:", key);
-  console.log("verify payload:", payload);
-  console.log("expected:", expected);
-  console.log("sig from url:", sig);
-
   return expected === sig;
+}
+
+async function serveR2(key, env) {
+  const object = await env.R2_BUCKET.get(key);
+
+  if (!object) {
+    return new Response("Not found", {
+      status: 404,
+      headers: corsHeaders(),
+    });
+  }
+
+  const headers = new Headers(corsHeaders());
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+
+  return new Response(object.body, { status: 200, headers });
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    console.log("Incoming:", request.method, url.pathname);
-
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(),
-      });
+      return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
     if (!url.pathname.startsWith("/videos/")) {
       return new Response("OK", { status: 200, headers: corsHeaders() });
     }
 
+    const key = url.pathname.slice(1); // "videos/..."
+
+    // Segment files (.ts) are non-guessable paths — serve without re-verifying.
+    // The signed manifest URL is the access gate; without it you can't discover segment names.
+    if (url.pathname.endsWith(".ts")) {
+      return serveR2(key, env);
+    }
+
+    // All other /videos/ requests (.m3u8 manifests, thumbnails, etc.) require a valid token.
     const valid = await verifySigned(request, env);
 
     if (!valid) {
@@ -91,24 +103,6 @@ export default {
       });
     }
 
-    const key = url.pathname.slice(1);
-
-    const object = await env.R2_BUCKET.get(key);
-
-    if (!object) {
-      return new Response("Not found", {
-        status: 404,
-        headers: corsHeaders(),
-      });
-    }
-
-    const headers = new Headers(corsHeaders());
-    object.writeHttpMetadata(headers);
-    headers.set("etag", object.httpEtag);
-
-    return new Response(object.body, {
-      status: 200,
-      headers,
-    });
+    return serveR2(key, env);
   },
 };

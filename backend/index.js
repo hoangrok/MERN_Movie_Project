@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const fileUpload = require("express-fileupload");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const Movie = require("./models/Movie");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 const movieRoutes = require("./routes/movieRoutes");
@@ -143,10 +144,47 @@ app.use((err, req, res, next) => {
 
 mongoose.set("strictQuery", false);
 
+const SERVER_BOOT_AT = new Date();
+
+async function recoverInterruptedVideoJobs() {
+  const interruptedStates = ["queued", "processing"];
+  const interruptedJobs = await Movie.find({
+    status: { $in: interruptedStates },
+  }).select("_id status updatedAt");
+
+  if (!interruptedJobs.length) return;
+
+  const interruptedIds = interruptedJobs.map((item) => item._id);
+  const recoveryMessage = `Server restarted at ${SERVER_BOOT_AT.toISOString()} while this video job was running. Please upload again.`;
+
+  const result = await Movie.updateMany(
+    {
+      _id: { $in: interruptedIds },
+      status: { $in: interruptedStates },
+    },
+    {
+      $set: {
+        status: "failed",
+        processingError: recoveryMessage,
+      },
+    }
+  );
+
+  const recoveredCount =
+    result.modifiedCount ?? result.nModified ?? interruptedIds.length;
+
+  if (recoveredCount > 0) {
+    console.warn(
+      `[RECOVERY] Marked ${recoveredCount} interrupted video job(s) as failed after restart`
+    );
+  }
+}
+
 const startServer = async () => {
   try {
     await mongoose.connect(process.env.DB_CONNECT);
     console.log("MongoDB connected");
+    await recoverInterruptedVideoJobs();
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, "0.0.0.0", () => {

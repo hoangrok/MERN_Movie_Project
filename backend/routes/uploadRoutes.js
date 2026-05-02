@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const router = express.Router();
 const path = require("path");
@@ -49,6 +50,24 @@ const cleanFileBaseName = (name = "") => {
     .toLowerCase();
 };
 
+const createSlug = (text = "") => {
+  return String(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+};
+
+const buildSegmentTitle = (movie, episodeNumber, totalSegments) => {
+  const seriesBaseTitle = String(movie?.seriesTitle || movie?.title || "merged-video").trim();
+  if (totalSegments <= 1) return seriesBaseTitle;
+  return `${seriesBaseTitle} - Tap ${episodeNumber}`;
+};
+
 const uploadFileToR2 = async (key, body, contentType) => {
   await r2.send(
     new PutObjectCommand({
@@ -90,6 +109,14 @@ const withTimeout = (promise, ms, label) =>
   ]);
 
 const { buildWatermarkFilter } = require("../utils/watermark");
+const {
+  mergeVideos,
+  getVideoInfo,
+  groupVideosByDuration,
+  sortVideos,
+  findVideoFiles,
+  cleanOldTmpFiles,
+} = require("../utils/mergeVideoSegments");
 
 const canUseCopyMode = async (videoPath) => {
   try {
@@ -112,7 +139,7 @@ const canUseCopyMode = async (videoPath) => {
   }
 };
 
-async function processVideoInBackground({ movieId, tempVideo }) {
+async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = false }) {
   let outputDir = null;
   let previewDir = null;
 
@@ -150,9 +177,19 @@ async function processVideoInBackground({ movieId, tempVideo }) {
       console.warn("probe dimensions failed, using defaults:", e.message);
     }
 
-    console.log("copy mode:", canCopy);
+    const copyModeStatus = watermarkEnabled
+      ? "disabled (watermark burn-in is enabled)"
+      : canCopy
+        ? "enabled"
+        : "disabled (source codecs are not copy-safe)";
+
+    console.log("stream copy optimization:", copyModeStatus);
     console.log("watermark burn-in:", watermarkEnabled);
     console.log("video dimensions:", `${videoWidth}x${videoHeight}`);
+    console.log("preview profile:", isBatchUpload ? "batch-lite" : "full");
+
+    movie.videoWidth = Number(videoWidth) || 0;
+    movie.videoHeight = Number(videoHeight) || 0;
 
     const masterPath = path.join(outputDir, "master.m3u8");
 
@@ -313,8 +350,10 @@ async function processVideoInBackground({ movieId, tempVideo }) {
     [previewResult, backdropResult] = await Promise.all([
       generatePreviewTimeline(tempVideo, previewDir, {
         movieId,
-        previewWidth: 640,
-        previewHeight: 360,
+        previewWidth: isBatchUpload ? 480 : 640,
+        previewHeight: isBatchUpload ? 270 : 360,
+        previewCount: isBatchUpload ? 3 : undefined,
+        candidateCount: isBatchUpload ? 8 : undefined,
       }).then((r) => {
         console.log("✅ Preview generated:", r?.items?.length || 0, "items");
         return r;
@@ -323,9 +362,9 @@ async function processVideoInBackground({ movieId, tempVideo }) {
         return null;
       }),
       generateVideoBackdrop(tempVideo, movieId, {
-        candidateCount: 12,
-        width: 1920,
-        height: 1080,
+        candidateCount: isBatchUpload ? 6 : 12,
+        width: isBatchUpload ? 1280 : 1920,
+        height: isBatchUpload ? 720 : 1080,
       }).then((r) => {
         console.log("✅ Backdrop generated");
         return r;
@@ -420,7 +459,7 @@ router.get("/status/:movieId", protect, adminOnly, async (req, res) => {
     }
 
     const movie = await Movie.findById(movieId).select(
-      "_id title status hlsUrl poster backdrop previewTimeline processingError thumbnailPickedAt"
+      "_id title status hlsUrl poster backdrop previewTimeline processingError thumbnailPickedAt updatedAt"
     );
 
     if (!movie) {
@@ -465,7 +504,10 @@ router.post("/image", protect, adminOnly, async (req, res) => {
     const fileName = `${Date.now()}-${safeName || "image"}${ext}`;
     const key = `images/${fileName}`;
 
-    await uploadFileToR2(key, file.data, getContentType(fileName));
+    const imageBody = file.tempFilePath
+      ? fs.readFileSync(file.tempFilePath)
+      : file.data;
+    await uploadFileToR2(key, imageBody, getContentType(fileName));
 
     const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
     const url = `${publicBase}/${key}`;
@@ -520,7 +562,10 @@ router.post("/movie-images/:movieId", protect, adminOnly, async (req, res) => {
     for (const file of toUpload) {
       const ext = path.extname(file.name || "image.jpg").toLowerCase() || ".jpg";
       const key = `videos/${movieId}/gallery/${Date.now()}-${crypto.randomBytes(4).toString("hex")}${ext}`;
-      await uploadFileToR2(key, file.data, getContentType(key));
+      const galleryBody = file.tempFilePath
+        ? fs.readFileSync(file.tempFilePath)
+        : file.data;
+      await uploadFileToR2(key, galleryBody, getContentType(key));
       uploadedUrls.push(`${publicBase}/${key}`);
     }
 
@@ -558,6 +603,240 @@ router.delete("/movie-images/:movieId", protect, adminOnly, async (req, res) => 
 });
 
 // ==========================
+// UPLOAD MULTIPLE VIDEOS (AUTO MERGE)
+// ==========================
+
+router.post("/videos/:movieId", protect, adminOnly, async (req, res) => {
+  let tempVideos = [];
+  let mergedVideo = null;
+  let mergedArtifacts = [];
+  let uploadDir = null;
+
+  try {
+    const { movieId } = req.params;
+    const files = req.files?.videos;
+    const targetDuration = parseInt(req.query.targetDuration) || 900; // 15 phút mặc định
+    const sortBy = req.query.sortBy || 'name'; // 'name' hoặc 'time'
+
+    console.log("========== MULTIPLE VIDEO UPLOAD REQUEST ==========");
+    console.log("movieId:", movieId);
+    console.log("files count:", Array.isArray(files) ? files.length : 1);
+    console.log("targetDuration:", targetDuration, "seconds");
+    console.log("sortBy:", sortBy);
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    if (!files) {
+      return res.status(400).json({
+        success: false,
+        message: "No videos uploaded",
+      });
+    }
+
+    const videoFiles = Array.isArray(files) ? files : [files];
+    
+    if (videoFiles.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Cần ít nhất 2 video để ghép. Nếu chỉ có 1 video, dùng endpoint /video/:movieId",
+      });
+    }
+
+    console.log(`1️⃣ Nhận ${videoFiles.length} video files`);
+
+    const tmpDir = path.join(__dirname, "../tmp");
+    ensureDir(tmpDir);
+    uploadDir = path.join(tmpDir, `${movieId}-uploads`);
+    ensureDir(uploadDir);
+
+    // Lưu tất cả video vào thư mục tạm
+    for (const file of videoFiles) {
+      const ext = path.extname(file.name || "video.mp4").toLowerCase() || ".mp4";
+      const baseName = path.parse(file.name || "video").name;
+      const safeBaseName = cleanFileBaseName(baseName);
+      const safeLocalName = `${Date.now()}-${safeBaseName || "video"}${ext}`;
+      const videoPath = path.join(uploadDir, safeLocalName);
+      
+      await file.mv(videoPath);
+      tempVideos.push(videoPath);
+      console.log(`   ✅ Saved: ${videoPath}`);
+    }
+
+    console.log(`2️⃣ Đã lưu ${tempVideos.length} videos vào thư mục tạm`);
+
+    // Sắp xếp video theo thứ tự
+    tempVideos = sortVideos(tempVideos, sortBy);
+    console.log(`3️⃣ Đã sắp xếp videos theo: ${sortBy}`);
+
+    // Lấy thông tin video (duration) để phân nhóm
+    const videosWithInfo = await Promise.all(
+      tempVideos.map(async (videoPath) => {
+        try {
+          const info = await getVideoInfo(videoPath);
+          console.log(`   📹 ${path.basename(videoPath)}: ${info.duration}s, ${info.width}x${info.height}`);
+          return { path: videoPath, duration: info.duration, info };
+        } catch (err) {
+          console.warn(`   ⚠️ Failed to get info for ${path.basename(videoPath)}:`, err.message);
+          return { path: videoPath, duration: 0, info: null };
+        }
+      })
+    );
+
+    // Phân nhóm các video thành các segment có thời lượng xấp xỉ targetDuration
+    const videoGroups = groupVideosByDuration(videosWithInfo, targetDuration);
+    console.log(`4️⃣ Đã phân nhóm thành ${videoGroups.length} segments:`);
+    videoGroups.forEach((group, i) => {
+      console.log(`   Segment ${i + 1}: ${group.length} videos`);
+    });
+
+    const baseEpisode = Math.max(Number(movie.episode) || 1, 1);
+    const segmentMovies = [];
+    const totalSegments = videoGroups.length;
+
+    movie.status = "queued";
+    movie.processingError = "";
+    movie.episode = baseEpisode;
+    if (totalSegments > 1) {
+      movie.title = buildSegmentTitle(movie, baseEpisode, totalSegments);
+      movie.episodeLabel = movie.episodeLabel || `Tap ${baseEpisode}`;
+    }
+    await movie.save();
+    segmentMovies.push(movie);
+
+    for (let i = 1; i < totalSegments; i++) {
+      const episodeNumber = baseEpisode + i;
+      const title = buildSegmentTitle(movie, episodeNumber, totalSegments);
+      const segmentPayload = {
+        title,
+        slug: `${createSlug(title) || "merged-video"}-${Date.now()}-${episodeNumber}`,
+        description: movie.description || "",
+        poster: movie.poster || "",
+        backdrop: movie.backdrop || "",
+        genre: Array.isArray(movie.genre) ? [...movie.genre] : [],
+        year: movie.year || null,
+        rating: movie.rating || 0,
+        duration: 0,
+        hlsUrl: "",
+        trailerUrl: movie.trailerUrl || "",
+        type: movie.type || "movie",
+        contentArea: movie.contentArea || "default",
+        isPublished: movie.isPublished !== false,
+        featured: false,
+        newPopular: false,
+        cast: Array.isArray(movie.cast) ? [...movie.cast] : [],
+        director: movie.director || "",
+        language: movie.language || "English",
+        country: movie.country || "",
+        subtitles: Array.isArray(movie.subtitles) ? [...movie.subtitles] : [],
+        status: "queued",
+        processingError: "",
+        thumbnailPickedAt: null,
+        images: Array.isArray(movie.images) ? [...movie.images] : [],
+        seriesId: movie.seriesId || "",
+        seriesTitle: movie.seriesTitle || "",
+        season: movie.season || 1,
+        episode: episodeNumber,
+        episodeLabel: `Tap ${episodeNumber}`,
+        episodeTitle: "",
+      };
+
+      const segmentMovie = await Movie.create(segmentPayload);
+      segmentMovies.push(segmentMovie);
+    }
+
+    addJob(async () => {
+      console.log("========== VIDEO MERGE & PROCESS START ==========");
+      cleanOldTmpFiles(tmpDir, 6);
+
+      for (let i = 0; i < videoGroups.length; i++) {
+        const group = videoGroups[i];
+        const segmentMovie = segmentMovies[i];
+        let segmentMergedPath = null;
+
+        try {
+          segmentMergedPath = path.join(tmpDir, `${segmentMovie._id}-merged-${i}.mp4`);
+          mergedArtifacts.push(segmentMergedPath);
+
+          console.log(
+            `[SEGMENT ${i + 1}/${videoGroups.length}] Movie ${segmentMovie._id} - merge ${group.length} videos`
+          );
+
+          const mergeResult = await mergeVideos(group, segmentMergedPath, {
+            copyMode: true,
+          });
+
+          console.log(`[SEGMENT ${i + 1}] Merge done: ${mergeResult.duration}s`);
+
+          await processVideoInBackground({
+            movieId: segmentMovie._id,
+            tempVideo: segmentMergedPath,
+            isBatchUpload: true,
+          });
+        } catch (err) {
+          console.error(`[SEGMENT ${i + 1}] MERGE & PROCESS ERROR:`, err);
+          try {
+            const failedMovie = await Movie.findById(segmentMovie._id);
+            if (failedMovie) {
+              failedMovie.status = "failed";
+              failedMovie.processingError =
+                err.message || "Video merge and processing failed";
+              await failedMovie.save();
+            }
+          } catch (saveErr) {
+            console.error("Save failed status error:", saveErr);
+          }
+        } finally {
+          cleanup(...group, segmentMergedPath);
+        }
+      }
+
+      cleanup(uploadDir, ...mergedArtifacts, mergedVideo);
+      console.log("========== VIDEO MERGE & PROCESS DONE ==========");
+    });
+
+    return res.json({
+      success: true,
+      queued: true,
+      movieId,
+      status: "queued",
+      message: `Da nhan ${videoFiles.length} videos. Dang ghep thanh ${videoGroups.length} tap va xu ly nen.`,
+      mergeInfo: {
+        totalVideos: videoFiles.length,
+        segments: videoGroups.length,
+        targetDuration,
+      },
+      segments: videoGroups.map((group, index) => ({
+        movieId: String(segmentMovies[index]._id),
+        episode: segmentMovies[index].episode || baseEpisode + index,
+        clipCount: group.length,
+        title: segmentMovies[index].title,
+      })),
+    });
+  } catch (err) {
+    console.error("upload multiple videos enqueue error:", err);
+    cleanup(uploadDir, ...tempVideos, ...mergedArtifacts, mergedVideo);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Upload multiple videos failed",
+    });
+  }
+});
+
+// ==========================
 // UPLOAD VIDEO BACKGROUND
 // ==========================
 
@@ -567,6 +846,9 @@ router.post("/video/:movieId", protect, adminOnly, async (req, res) => {
   try {
     const { movieId } = req.params;
     const file = req.files?.video;
+    const isBatchUpload =
+      req.query.batch === "1" ||
+      String(req.headers["x-upload-mode"] || "").toLowerCase() === "batch";
 
     console.log("========== VIDEO UPLOAD REQUEST ==========");
     console.log("movieId:", movieId);
@@ -618,6 +900,7 @@ router.post("/video/:movieId", protect, adminOnly, async (req, res) => {
       await processVideoInBackground({
         movieId,
         tempVideo,
+        isBatchUpload,
       });
     });
 

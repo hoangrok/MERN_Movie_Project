@@ -23,6 +23,7 @@ export default function HlsPlayer({
   poster = "",
   title = "Video",
   autoPlay = false,
+  aspectRatio = "16 / 9",
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -279,6 +280,7 @@ export default function HlsPlayer({
       className={`hls-player-shell ${
         showControls ? "controls-visible" : "controls-hidden"
       }`}
+      style={{ "--player-aspect-ratio": aspectRatio }}
       onMouseMove={resetHideTimer}
       onMouseEnter={resetHideTimer}
       onMouseLeave={() => isPlaying && setShowControls(false)}

@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
+import VpnNotice from "./components/VpnNotice/VpnNotice";
 
 const Home = lazy(() => import("./pages/Home"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -11,6 +12,7 @@ const AdminAds = lazy(() => import("./pages/AdminAds"));
 const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
 const LatestMovies = lazy(() => import("./pages/LatestMovies"));
 const TopViewedMovies = lazy(() => import("./pages/TopViewedMovies"));
+const WorldHub = lazy(() => import("./pages/WorldHub"));
 const GenreMovies = lazy(() => import("./pages/GenreMovies"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
@@ -45,12 +47,24 @@ function App() {
         />
         <Route path="/latest" element={<LatestMovies />} />
         <Route path="/top-viewed" element={<TopViewedMovies />} />
+        <Route path="/the-gioi" element={<WorldHub />} />
         <Route path="/genres" element={<GenreMovies />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/my-list" element={<MyList />} />
         <Route path="/continue-watching" element={<ContinueWatching />} />
+        <Route
+          path="/admin/the-gioi"
+          element={
+            user?.isAdmin ? (
+              <AdminNewMovie forcedContentArea="world" />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
       </Routes>
+      <VpnNotice />
       {showDeferredChrome ? (
         <>
           <AdSlot placement="floating_bottom" variant="floating" defer />

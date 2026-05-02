@@ -13,11 +13,11 @@ const FALLBACK_BACKDROP =
   "https://dummyimage.com/1600x900/111/ffffff&text=Backdrop";
 
 function formatDate(dateString) {
-  if (!dateString) return "Moi cap nhat";
+  if (!dateString) return "Vừa cập nhật";
   try {
     return new Date(dateString).toLocaleDateString("vi-VN");
   } catch {
-    return "Moi cap nhat";
+    return "Vừa cập nhật";
   }
 }
 
@@ -70,7 +70,7 @@ function LatestMovieCard({ movie, index }) {
 
   return (
     <Link
-      to={`/movie/${movie._id}`}
+      to={`/movie/${movie.slug || movie._id}`}
       className="latest-card"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
@@ -101,7 +101,7 @@ function LatestMovieCard({ movie, index }) {
         {index < 4 ? <span className="latest-card__badge">NEW</span> : null}
 
         <div className="latest-card__overlay">
-          <span className="latest-card__watch">Xem chi tiet</span>
+          <span className="latest-card__watch">Xem chi tiết</span>
         </div>
       </div>
 
@@ -115,7 +115,7 @@ function LatestMovieCard({ movie, index }) {
 
         <div className="latest-card__submeta">
           {(movie.genre || []).slice(0, 2).join(" - ") ||
-            `${movie.views || 0} luot xem`}
+            `${movie.views || 0} lượt xem`}
         </div>
       </div>
     </Link>
@@ -174,11 +174,10 @@ export default function LatestMovies() {
 
       <div className="latest-shell">
         <div className="latest-hero">
-          <div className="latest-hero__badge">MOI CAP NHAT</div>
-          <h1 className="latest-hero__title">Phim moi cap nhat</h1>
+          <div className="latest-hero__badge">MỚI CẬP NHẬT</div>
+          <h1 className="latest-hero__title">Phim mới cập nhật</h1>
           <p className="latest-hero__desc">
-            Danh sach video moi duoc them vao he thong, tai nhanh va ho tro
-            preview khi hover nhu YouTube.
+            Những clip vừa lên sóng — xem ngay trước khi ai kịp spoil cho bạn.
           </p>
         </div>
 
@@ -204,8 +203,8 @@ export default function LatestMovies() {
           </div>
         ) : (
           <div className="latest-empty">
-            <h2>Chua co phim moi</h2>
-            <p>Hien chua co noi dung moi duoc cap nhat.</p>
+            <h2>Chưa có clip nào</h2>
+            <p>Hệ thống đang cập nhật, quay lại sau nhé.</p>
           </div>
         )}
       </div>

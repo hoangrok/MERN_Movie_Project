@@ -99,7 +99,7 @@ export default function ContinueWatching() {
 
               return (
                 <div className="cwCard" key={movie._id}>
-                  <Link to={`/movie/${movie._id}`} className="cwCard__thumb">
+                  <Link to={`/movie/${movie.slug || movie._id}`} className="cwCard__thumb">
                     <img
                       src={thumb}
                       alt={movie.title || "movie"}
@@ -122,7 +122,7 @@ export default function ContinueWatching() {
 
                   <div className="cwCard__body">
                     <Link
-                      to={`/movie/${movie._id}`}
+                      to={`/movie/${movie.slug || movie._id}`}
                       className="cwCard__title"
                       title={movie.title}
                     >
@@ -137,7 +137,7 @@ export default function ContinueWatching() {
 
                     <div className="cwCard__actions">
                       <Link
-                        to={`/movie/${movie._id}`}
+                        to={`/movie/${movie.slug || movie._id}`}
                         className="cwCard__btn cwCard__btn--primary"
                       >
                         Phát tiếp

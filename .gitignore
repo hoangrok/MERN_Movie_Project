@@ -1,0 +1,10 @@
+/.claude/
+/.playwright-mcp/
+/backend/tmp/
+/backend-local.log
+/backend-local.err.log
+/client-local.log
+/client-local.err.log
+/notepad .claudeignore
+/notepad CLAUDE.md
+/preview_watermarked.mp4
