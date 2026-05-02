@@ -13,6 +13,7 @@ import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import Navbar from "../components/Navbar/Navbar";
 import AdSlot from "../components/Ads/AdSlot";
+import ExoBanner from "../components/Ads/ExoBanner";
 import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import { fetchMovies, getTrending } from "../store/Slice/movie-slice";
 import { updateLikedMovies } from "../store/Slice/auth-slice";
@@ -453,6 +454,7 @@ export default function Home() {
 
       <main className="homeLayout homeShell">
         <AdSlot placement="home_top" variant="banner" defer />
+        <ExoBanner />
 
         <div className="homeBoard">
           <aside className="homeBoard__left">

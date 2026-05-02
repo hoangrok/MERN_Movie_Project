@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import Navbar from "../components/Navbar/Navbar";
 import AdSlot from "../components/Ads/AdSlot";
+import ExoBanner from "../components/Ads/ExoBanner";
 import EpisodeList from "../components/EpisodeList/EpisodeList";
 import "../assets/styles/MovieDetailPlayer.css";
 import { setSEO } from "../utils/seo";
@@ -2345,7 +2346,10 @@ export default function MovieDetail() {
             )}
 
             {!isWorldMovie && (
-              <AdSlot placement="movie_detail_below_player" variant="banner" />
+              <>
+                <AdSlot placement="movie_detail_below_player" variant="banner" />
+                <ExoBanner />
+              </>
             )}
 
             <EpisodeList
