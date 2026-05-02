@@ -3,8 +3,9 @@ import "./SiteSupport.scss";
 
 const SESSION_KEY = "sp_ok";
 
-// Method 1: bait element (catches extension-based blockers like uBlock, AdBlock Plus)
-function checkByElement() {
+// Bait element: catches extension-based blockers (uBlock Origin, AdBlock Plus, AdGuard...)
+// These inject CSS to hide elements with ad-related class names
+function checkBlocker() {
   return new Promise((resolve) => {
     const bait = document.createElement("div");
     bait.className = "ads ad adsbox doubleclick ad-placement carbon-ads textad";
@@ -36,33 +37,6 @@ function checkByElement() {
       resolve(blocked);
     }, 300);
   });
-}
-
-// Method 2: load external ad script — catches network-level blockers (CốcCốc, Brave Shields)
-// Script tags bypass CORS: onerror fires when blocked, onload when allowed through
-function checkByExternal() {
-  return new Promise((resolve) => {
-    const s = document.createElement("script");
-    let settled = false;
-    const done = (blocked) => {
-      if (settled) return;
-      settled = true;
-      try { document.head.removeChild(s); } catch {}
-      resolve(blocked);
-    };
-    s.onload = () => done(false);
-    s.onerror = () => done(true);
-    // pagead2.googlesyndication.com is blocked by all ad blockers including CốcCốc
-    s.src = "https://pagead2.googlesyndication.com/pagead/show_ads.js?t=" + Date.now();
-    document.head.appendChild(s);
-    // Timeout: if neither fires in 4s assume not blocked (slow network)
-    setTimeout(() => done(false), 4000);
-  });
-}
-
-async function checkBlocker() {
-  const [byEl, byExt] = await Promise.all([checkByElement(), checkByExternal()]);
-  return byEl || byExt;
 }
 
 export default function SiteSupport() {
