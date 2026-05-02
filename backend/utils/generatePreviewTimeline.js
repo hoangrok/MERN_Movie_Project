@@ -144,8 +144,8 @@ module.exports = async function generatePreviewTimeline(
   const requestedCandidateCount = Number(options.candidateCount) || 0;
   const prefix = options.prefix || "preview";
   const movieId = sanitizeKeyPart(options.movieId || "movie");
-  const previewWidth = Number(options.previewWidth) || 640;
-  const previewHeight = Number(options.previewHeight) || 360;
+  const previewWidth = Number(options.previewWidth) || 960;
+  const previewHeight = Number(options.previewHeight) || 540;
   const posterWidth = Number(options.posterWidth) || 900;
   const posterHeight = Number(options.posterHeight) || 1350;
   const genres = Array.isArray(options.genres) ? options.genres : [];
@@ -271,7 +271,7 @@ module.exports = async function generatePreviewTimeline(
         frame.path,
         previewWidth,
         previewHeight,
-        84,
+        92,
         "contain"
       );
 

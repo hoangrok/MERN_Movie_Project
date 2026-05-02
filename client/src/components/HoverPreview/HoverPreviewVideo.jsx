@@ -258,12 +258,15 @@ export default function HoverPreviewVideo({
           }
 
           const hls = new Hls({
-            capLevelToPlayerSize: true,
+            capLevelToPlayerSize: false,
+            startLevel: -1,
+            autoStartLoad: true,
             startFragPrefetch: true,
-            maxBufferLength: 12,
-            maxMaxBufferLength: 18,
+            maxBufferLength: 20,
+            maxMaxBufferLength: 30,
             fragLoadingMaxRetry: 2,
             manifestLoadingMaxRetry: 2,
+            abrEwmaDefaultEstimate: 2000000,
           });
 
           hlsRef.current = hls;
