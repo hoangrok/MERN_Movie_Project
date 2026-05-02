@@ -213,99 +213,17 @@ async function analyzeFrame(filePath) {
   };
 }
 
-async function buildTileBuffer(filePath, width, height) {
-  return sharp(filePath)
-    .resize(width, height, {
+async function createSingleFrameBackdrop(framePath, outWidth = 1280, outHeight = 720) {
+  return sharp(framePath)
+    .resize(outWidth, outHeight, {
       fit: "cover",
-      position: "centre",
+      position: "attention",
       withoutEnlargement: false,
     })
-    .jpeg({ quality: 84, mozjpeg: true })
+    .modulate({ brightness: 1.04, saturation: 1.08 })
+    .sharpen({ sigma: 0.6 })
+    .jpeg({ quality: 90, mozjpeg: true })
     .toBuffer();
-}
-
-async function createBackdropFromFrames(framePaths, outWidth = 1920, outHeight = 1080) {
-  const gap = 18;
-  const leftWidth = Math.round(outWidth * 0.34);
-  const centerWidth = Math.round(outWidth * 0.32);
-  const rightWidth = outWidth - leftWidth - centerWidth - gap * 2;
-
-  const tiles = await Promise.all([
-    buildTileBuffer(framePaths[0], leftWidth, outHeight),
-    buildTileBuffer(framePaths[1], centerWidth, outHeight),
-    buildTileBuffer(framePaths[2], rightWidth, outHeight),
-  ]);
-
-  const collage = await sharp({
-    create: {
-      width: outWidth,
-      height: outHeight,
-      channels: 3,
-      background: { r: 6, g: 8, b: 12 },
-    },
-  })
-    .composite([
-      { input: tiles[0], left: 0, top: 0 },
-      { input: tiles[1], left: leftWidth + gap, top: 0 },
-      { input: tiles[2], left: leftWidth + centerWidth + gap * 2, top: 0 },
-    ])
-    .jpeg({ quality: 88, mozjpeg: true })
-    .toBuffer();
-
-  const blurred = await sharp(collage)
-    .resize(Math.round(outWidth * 1.08), Math.round(outHeight * 1.08), {
-      fit: "cover",
-    })
-    .blur(18)
-    .modulate({ brightness: 0.86, saturation: 1.08 })
-    .toBuffer();
-
-  const overlaySvg = Buffer.from(
-    `<svg width="${outWidth}" height="${outHeight}">
-      <defs>
-        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="rgba(4,6,12,0.88)" />
-          <stop offset="22%" stop-color="rgba(4,6,12,0.58)" />
-          <stop offset="52%" stop-color="rgba(4,6,12,0.18)" />
-          <stop offset="100%" stop-color="rgba(4,6,12,0.80)" />
-        </linearGradient>
-        <radialGradient id="g2" cx="78%" cy="14%" r="26%">
-          <stop offset="0%" stop-color="rgba(255,70,90,0.16)" />
-          <stop offset="100%" stop-color="rgba(255,70,90,0)" />
-        </radialGradient>
-        <radialGradient id="g3" cx="12%" cy="16%" r="20%">
-          <stop offset="0%" stop-color="rgba(0,110,255,0.14)" />
-          <stop offset="100%" stop-color="rgba(0,110,255,0)" />
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#g1)" />
-      <rect width="100%" height="100%" fill="url(#g2)" />
-      <rect width="100%" height="100%" fill="url(#g3)" />
-    </svg>`
-  );
-
-  const finalBuffer = await sharp(blurred)
-    .resize(outWidth, outHeight, { fit: "cover" })
-    .composite([
-      {
-        input: await sharp(collage)
-          .modulate({ brightness: 1.02, saturation: 1.06 })
-          .toBuffer(),
-        left: 0,
-        top: 0,
-        blend: "over",
-      },
-      {
-        input: await sharp(overlaySvg).png().toBuffer(),
-        left: 0,
-        top: 0,
-        blend: "over",
-      },
-    ])
-    .jpeg({ quality: 88, mozjpeg: true })
-    .toBuffer();
-
-  return finalBuffer;
 }
 
 async function generateVideoBackdrop(videoPath, movieId = "movie", options = {}) {
@@ -355,43 +273,18 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
       }
     }
 
-    if (candidates.length < 3) {
-      throw new Error("Not enough good frames to build backdrop");
+    if (candidates.length < 1) {
+      throw new Error("No usable frames found in video");
     }
 
+    // Pick single best frame by quality score
     candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0];
 
-    const picked = [];
-    const sortedByTime = [...candidates].sort((a, b) => a.second - b.second);
-    const minGap = Math.max(3, duration / 6);
-
-    for (const frame of sortedByTime) {
-      if (picked.length >= 3) break;
-
-      const isFarEnough = picked.every(
-        (item) => Math.abs(item.second - frame.second) >= minGap
-      );
-
-      if (isFarEnough) {
-        picked.push(frame);
-      }
-    }
-
-    if (picked.length < 3) {
-      for (const frame of candidates) {
-        if (picked.length >= 3) break;
-        if (!picked.find((x) => x.path === frame.path)) {
-          picked.push(frame);
-        }
-      }
-    }
-
-    picked.sort((a, b) => a.second - b.second);
-
-    const finalBuffer = await createBackdropFromFrames(
-      picked.slice(0, 3).map((x) => x.path),
-      Number(options.width) || 1920,
-      Number(options.height) || 1080
+    const finalBuffer = await createSingleFrameBackdrop(
+      best.path,
+      Number(options.width) || 1280,
+      Number(options.height) || 720
     );
 
     const r2Key = `backdrops/${safeMovieId}/${Date.now()}-${randomId(6)}.jpg`;
@@ -403,8 +296,8 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
       backdropUrl,
       r2Key,
       duration: Number(duration.toFixed(2)),
-      capturedAt: picked.slice(0, 3).map((x) => x.second),
-      bestFrames: picked.slice(0, 3).map((x) => ({
+      capturedAt: [best.second],
+      bestFrames: candidates.slice(0, 3).map((x) => ({
         second: x.second,
         score: Number(x.score.toFixed(2)),
         avgBrightness: Number(x.avgBrightness.toFixed(2)),

@@ -67,28 +67,28 @@
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 20px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #9ca3af;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
 
 .movie-detail-breadcrumbs a {
-  color: rgba(255, 255, 255, 0.72);
+  color: #6b7280;
   text-decoration: none;
   transition: color 0.18s;
 }
 
 .movie-detail-breadcrumbs a:hover {
-  color: #ff4545;
+  color: #e50914;
 }
 
 /* ─── Admin message ─────────────────────────────────── */
 .movie-admin-message {
   margin-bottom: 16px;
-  background: rgba(0, 255, 163, 0.07);
-  color: #c9ffe8;
-  border: 1px solid rgba(0, 255, 163, 0.16);
+  background: rgba(16, 185, 129, 0.07);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.2);
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 13px;
@@ -613,10 +613,7 @@
   font-weight: 800;
   letter-spacing: -0.03em;
   word-break: break-word;
-  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.82) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #111118;
 }
 
 /* ─── Meta tags (năm, rating, HD…) ─────────────────── */
@@ -636,16 +633,16 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.88);
+  background: #f0f1f5;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #4b5563;
   transition: background 0.18s;
 }
 
 .movie-tags span:first-child {
-  background: rgba(229, 9, 20, 0.12);
-  border-color: rgba(229, 9, 20, 0.22);
-  color: #ff8080;
+  background: rgba(229, 9, 20, 0.08);
+  border-color: rgba(229, 9, 20, 0.2);
+  color: #e50914;
 }
 
 /* ─── Action buttons ────────────────────────────────── */
@@ -667,18 +664,18 @@
   font-size: 13px;
   font-weight: 700;
   font-family: inherit;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #374151;
+  background: #f0f1f5;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
   letter-spacing: 0.01em;
   white-space: nowrap;
 }
 
 .movie-action:hover {
-  background: rgba(255, 255, 255, 0.13);
+  background: #e5e7eb;
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 .movie-action--primary {
@@ -1214,8 +1211,8 @@
   aspect-ratio: 16/9;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: #0b0d14;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #e5e7eb;
   cursor: pointer;
   padding: 0;
   transition: transform 0.22s ease, border-color 0.2s ease, box-shadow 0.22s ease;
@@ -1223,8 +1220,8 @@
 
 .movie-gallery-thumb:hover {
   transform: scale(1.04);
-  border-color: rgba(255,255,255,0.22);
-  box-shadow: 0 14px 30px rgba(0,0,0,0.4);
+  border-color: rgba(0,0,0,0.14);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
 }
 
 .movie-gallery-thumb img {

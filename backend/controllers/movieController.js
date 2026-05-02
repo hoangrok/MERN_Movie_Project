@@ -23,6 +23,15 @@ const createSlug = (text = "") => {
     .replace(/-+/g, "-");
 };
 
+// Accept both MongoDB ObjectId and slug string
+const buildIdOrSlugFilter = (id, extra = {}) => {
+  const conditions = [{ slug: id, ...extra }];
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    conditions.push({ _id: id, ...extra });
+  }
+  return { $or: conditions };
+};
+
 const LIST_PROJECTION = [
   "title",
   "slug",
@@ -32,13 +41,23 @@ const LIST_PROJECTION = [
   "year",
   "rating",
   "duration",
+  "videoWidth",
+  "videoHeight",
   "trailerUrl",
   "type",
+  "contentArea",
+  "seriesId",
+  "seriesTitle",
+  "season",
+  "episode",
+  "episodeLabel",
+  "episodeTitle",
   "featured",
   "newPopular",
   "views",
   "language",
   "country",
+  "images",
   "previewTimeline",
   "createdAt",
   "updatedAt",
@@ -54,8 +73,11 @@ const PUBLIC_DETAIL_PROJECTION = [
   "year",
   "rating",
   "duration",
+  "videoWidth",
+  "videoHeight",
   "trailerUrl",
   "type",
+  "contentArea",
   "featured",
   "newPopular",
   "views",
@@ -67,6 +89,12 @@ const PUBLIC_DETAIL_PROJECTION = [
   "thumbnailPickedAt",
   "previewTimeline",
   "images",
+  "seriesId",
+  "seriesTitle",
+  "season",
+  "episode",
+  "episodeLabel",
+  "episodeTitle",
   "createdAt",
   "updatedAt",
 ].join(" ");
@@ -101,6 +129,16 @@ const normalizeImage = (value = "") => {
   return next || "";
 };
 
+const resolveContentAreaFilter = (area, { fallback = "default" } = {}) => {
+  const current = cleanString(area).toLowerCase();
+
+  if (current === "all") return {};
+  if (current === "world") return { contentArea: "world" };
+  if (current === "default") return { contentArea: { $ne: "world" } };
+
+  return fallback === "all" ? {} : { contentArea: { $ne: "world" } };
+};
+
 const pickEvenly = (items = [], limit = 10) => {
   if (!Array.isArray(items) || items.length <= limit) return items;
 
@@ -130,6 +168,17 @@ const compactListMovie = (movie) => {
 
 const compactListMovies = (items = []) => items.map(compactListMovie);
 
+// Keep only the first-encountered episode per seriesId, let standalone movies through
+const deduplicateBySeries = (items = []) => {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item.seriesId) return true;
+    if (seen.has(item.seriesId)) return false;
+    seen.add(item.seriesId);
+    return true;
+  });
+};
+
 // ==========================
 // GET MOVIES
 // ==========================
@@ -137,10 +186,14 @@ const getMovies = async (req, res) => {
   try {
     setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
-    const { q, genre, limit = 24, page = 1 } = req.query;
+    const { q, genre, limit = 24, page = 1, area } = req.query;
     const includeTotal = req.query.includeTotal !== "false";
 
-    const filter = { isPublished: true };
+    const fallbackArea = cleanString(q) ? "all" : "default";
+    const filter = {
+      isPublished: true,
+      ...resolveContentAreaFilter(area, { fallback: fallbackArea }),
+    };
 
     if (genre) {
       const genreList = String(genre)
@@ -158,7 +211,6 @@ const getMovies = async (req, res) => {
     const query = cleanString(q).slice(0, 80);
     if (query) {
       const pattern = escapeRegex(query);
-
       filter.$or = [
         { title: { $regex: pattern, $options: "i" } },
         { description: { $regex: pattern, $options: "i" } },
@@ -169,15 +221,37 @@ const getMovies = async (req, res) => {
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 24, 1), 48);
     const skip = (pageNum - 1) * limitNum;
 
-    const [items, total] = await Promise.all([
-      Movie.find(filter)
-        .select(LIST_PROJECTION)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      includeTotal ? Movie.countDocuments(filter) : Promise.resolve(0),
+    // Group by seriesId so each series shows as one card (most recent episode first)
+    const groupKey = {
+      $cond: [{ $gt: ["$seriesId", ""] }, "$seriesId", { $toString: "$_id" }],
+    };
+
+    const selectFields = LIST_PROJECTION.split(" ").reduce((acc, f) => {
+      acc[f] = 1;
+      return acc;
+    }, {});
+
+    const [items, totalResult] = await Promise.all([
+      Movie.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $group: { _id: groupKey, doc: { $first: "$$ROOT" } } },
+        { $replaceRoot: { newRoot: "$doc" } },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limitNum },
+        { $project: selectFields },
+      ]),
+      includeTotal
+        ? Movie.aggregate([
+            { $match: filter },
+            { $group: { _id: groupKey } },
+            { $count: "total" },
+          ])
+        : Promise.resolve([{ total: 0 }]),
     ]);
+
+    const total = totalResult[0]?.total ?? 0;
 
     return res.json({
       success: true,
@@ -205,10 +279,13 @@ const getLatestMovies = async (req, res) => {
   try {
     setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
-    const { limit = 30 } = req.query;
+    const { limit = 30, area } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
 
-    const items = await Movie.find({ isPublished: true })
+    const items = await Movie.find({
+      isPublished: true,
+      ...resolveContentAreaFilter(area),
+    })
       .select(LIST_PROJECTION)
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(limitNum)
@@ -216,7 +293,7 @@ const getLatestMovies = async (req, res) => {
 
     return res.json({
       success: true,
-      items: compactListMovies(items),
+      items: compactListMovies(deduplicateBySeries(items)),
     });
   } catch (err) {
     console.error("getLatestMovies error:", err);
@@ -234,10 +311,13 @@ const getTopViewedMovies = async (req, res) => {
   try {
     setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
-    const { limit = 30 } = req.query;
+    const { limit = 30, area } = req.query;
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 48);
 
-    const items = await Movie.find({ isPublished: true })
+    const items = await Movie.find({
+      isPublished: true,
+      ...resolveContentAreaFilter(area),
+    })
       .select(LIST_PROJECTION)
       .sort({ views: -1, updatedAt: -1, createdAt: -1 })
       .limit(limitNum)
@@ -245,7 +325,7 @@ const getTopViewedMovies = async (req, res) => {
 
     return res.json({
       success: true,
-      items: compactListMovies(items),
+      items: compactListMovies(deduplicateBySeries(items)),
     });
   } catch (err) {
     console.error("getTopViewedMovies error:", err);
@@ -266,7 +346,10 @@ const getGenres = async (req, res) => {
       "public, max-age=300, s-maxage=600, stale-while-revalidate=1200"
     );
 
-    const movies = await Movie.find({ isPublished: true }).select("genre").lean();
+    const movies = await Movie.find({
+      isPublished: true,
+      ...resolveContentAreaFilter(req.query.area),
+    }).select("genre").lean();
     const genreSet = new Set();
 
     for (const movie of movies) {
@@ -298,12 +381,9 @@ const getMovieById = async (req, res) => {
 
     const { id } = req.params;
 
-    const orConditions = [{ slug: id, isPublished: true }];
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      orConditions.push({ _id: id, isPublished: true });
-    }
+    const extra = req.user?.isAdmin ? {} : { isPublished: true };
 
-    const movie = await Movie.findOne({ $or: orConditions })
+    const movie = await Movie.findOne(buildIdOrSlugFilter(id, extra))
       .select(req.user?.isAdmin ? ADMIN_DETAIL_PROJECTION : PUBLIC_DETAIL_PROJECTION)
       .lean();
 
@@ -405,6 +485,29 @@ const createMovie = async (req, res) => {
         .split(",")
         .map((x) => x.trim())
         .filter(Boolean);
+    }
+
+    if (payload.seriesId !== undefined) {
+      payload.seriesId = cleanString(payload.seriesId);
+    }
+
+    if (payload.seriesTitle !== undefined) {
+      payload.seriesTitle = cleanString(payload.seriesTitle);
+    }
+
+    if (payload.episodeLabel !== undefined) {
+      payload.episodeLabel = cleanString(payload.episodeLabel);
+    }
+
+    if (payload.episodeTitle !== undefined) {
+      payload.episodeTitle = cleanString(payload.episodeTitle);
+    }
+
+    if (payload.contentArea !== undefined) {
+      payload.contentArea =
+        cleanString(payload.contentArea).toLowerCase() === "world"
+          ? "world"
+          : "default";
     }
 
     payload.poster = normalizeImage(payload.poster);
@@ -517,6 +620,29 @@ const updateMovie = async (req, res) => {
         .filter(Boolean);
     }
 
+    if (payload.seriesId !== undefined) {
+      payload.seriesId = cleanString(payload.seriesId);
+    }
+
+    if (payload.seriesTitle !== undefined) {
+      payload.seriesTitle = cleanString(payload.seriesTitle);
+    }
+
+    if (payload.episodeLabel !== undefined) {
+      payload.episodeLabel = cleanString(payload.episodeLabel);
+    }
+
+    if (payload.episodeTitle !== undefined) {
+      payload.episodeTitle = cleanString(payload.episodeTitle);
+    }
+
+    if (payload.contentArea !== undefined) {
+      payload.contentArea =
+        cleanString(payload.contentArea).toLowerCase() === "world"
+          ? "world"
+          : "default";
+    }
+
     if (payload.poster !== undefined) {
       payload.poster = normalizeImage(payload.poster);
     }
@@ -619,19 +745,8 @@ const getStreamUrl = async (req, res) => {
 
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid movie id",
-      });
-    }
-
-    const filter = { _id: id };
-    if (!req.user?.isAdmin) {
-      filter.isPublished = true;
-    }
-
-    const movie = await Movie.findOne(filter).select("_id");
+    const extra = req.user?.isAdmin ? {} : { isPublished: true };
+    const movie = await Movie.findOne(buildIdOrSlugFilter(id, extra)).select("_id");
 
     if (!movie) {
       return res.status(404).json({
@@ -689,14 +804,7 @@ const getRelatedMovies = async (req, res) => {
 
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid movie id",
-      });
-    }
-
-    const movie = await Movie.findOne({ _id: id, isPublished: true }).select("genre");
+    const movie = await Movie.findOne(buildIdOrSlugFilter(id, { isPublished: true })).select("_id genre seriesId contentArea");
 
     if (!movie) {
       return res.status(404).json({
@@ -707,9 +815,14 @@ const getRelatedMovies = async (req, res) => {
 
     const firstGenre = movie.genre?.[0];
 
+    // Exclude the current movie; also exclude all episodes of the same series
+    const exclusions = [{ _id: movie._id }];
+    if (movie.seriesId) exclusions.push({ seriesId: movie.seriesId });
+
     const related = await Movie.find({
-      _id: { $ne: movie._id },
+      $nor: exclusions,
       isPublished: true,
+      ...resolveContentAreaFilter(movie.contentArea || "default"),
       ...(firstGenre ? { genre: firstGenre } : {}),
     })
       .select(LIST_PROJECTION)
@@ -719,7 +832,7 @@ const getRelatedMovies = async (req, res) => {
 
     return res.json({
       success: true,
-      items: related,
+      items: compactListMovies(deduplicateBySeries(related)),
     });
   } catch (err) {
     console.error("getRelatedMovies error:", err);
@@ -739,15 +852,9 @@ const incrementView = async (req, res) => {
 
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid movie id",
-      });
-    }
-
+    const filter = buildIdOrSlugFilter(id, { isPublished: true });
     const updated = await Movie.findOneAndUpdate(
-      { _id: id, isPublished: true },
+      filter,
       { $inc: { views: 1 } },
       { new: true }
     ).select("views");
@@ -779,7 +886,10 @@ const getTrending = async (req, res) => {
   try {
     setPublicCache(res, "public, max-age=30, s-maxage=120, stale-while-revalidate=300");
 
-    const movies = await Movie.find({ isPublished: true })
+    const movies = await Movie.find({
+      isPublished: true,
+      ...resolveContentAreaFilter(req.query.area),
+    })
       .select(LIST_PROJECTION)
       .sort({ views: -1, createdAt: -1 })
       .limit(10)
@@ -787,7 +897,7 @@ const getTrending = async (req, res) => {
 
     return res.json({
       success: true,
-      items: compactListMovies(movies),
+      items: compactListMovies(deduplicateBySeries(movies)),
     });
   } catch (err) {
     console.error("getTrending error:", err);
@@ -795,6 +905,32 @@ const getTrending = async (req, res) => {
       success: false,
       message: err.message,
     });
+  }
+};
+
+// ==========================
+// GET SERIES EPISODES
+// ==========================
+const getSeriesEpisodes = async (req, res) => {
+  try {
+    setPublicCache(res);
+    const { seriesId } = req.params;
+
+    if (!seriesId || !seriesId.trim()) {
+      return res.status(400).json({ success: false, message: "seriesId is required" });
+    }
+
+    const episodes = await Movie.find({ seriesId: seriesId.trim(), isPublished: true })
+      .select(
+        "title slug poster backdrop season episode episodeLabel episodeTitle duration views images videoWidth videoHeight previewTimeline"
+      )
+      .sort({ season: 1, episode: 1 })
+      .lean();
+
+    return res.json({ success: true, episodes });
+  } catch (err) {
+    console.error("getSeriesEpisodes error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -812,4 +948,5 @@ module.exports = {
   getRelatedMovies,
   incrementView,
   getTrending,
+  getSeriesEpisodes,
 };

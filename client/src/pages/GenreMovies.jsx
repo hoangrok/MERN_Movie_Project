@@ -28,14 +28,11 @@ function getTimelineFrames(movie, count = 3) {
     .slice(0, count);
 }
 
-function getCardImages(movie) {
+function getBestImage(movie) {
   const backdrop = normalizeImage(movie?.backdrop);
+  const frames = getTimelineFrames(movie, 1);
   const poster = normalizeImage(movie?.poster);
-  const frames = getTimelineFrames(movie, 2);
-  const primary = backdrop || frames[0] || poster || FALLBACK_POSTER;
-  const secondary = frames[1] || poster || primary;
-  const tertiary = frames[0] || backdrop || poster || primary;
-  return [primary, secondary, tertiary];
+  return backdrop || frames[0] || poster || FALLBACK_POSTER;
 }
 
 export default function GenreMovies() {
@@ -168,39 +165,43 @@ export default function GenreMovies() {
             {movies.map((movie, index) => (
               <Link
                 key={movie._id}
-                to={`/movie/${movie._id}`}
+                to={`/movie/${movie.slug || movie._id}`}
                 className="genre-card"
               >
                 <div className="genre-card__image-wrap">
-                  <div className="genre-card__strip">
-                    {getCardImages(movie).map((src, i) => (
-                      <div key={i} className={`genre-card__pane genre-card__pane--${i + 1}`}>
-                        <img
-                          src={src}
-                          alt={i === 1 ? movie.title : ""}
-                          loading={index < 4 ? "eager" : "lazy"}
-                          decoding="async"
-                          onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  <img
+                    className="genre-card__image"
+                    src={getBestImage(movie)}
+                    alt={movie.title}
+                    loading={index < 6 ? "eager" : "lazy"}
+                    decoding="async"
+                    onError={(e) => { e.currentTarget.src = FALLBACK_POSTER; }}
+                  />
 
                   <div className="genre-card__overlay">
-                    <span className="genre-card__watch">Xem chi tiết</span>
+                    <span className="genre-card__watch">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      Xem ngay
+                    </span>
                   </div>
+
+                  {(movie.genre || []).length > 0 && (
+                    <div className="genre-card__badge">
+                      {movie.genre[0]}
+                    </div>
+                  )}
                 </div>
 
                 <div className="genre-card__body">
                   <h3 className="genre-card__title">{movie.title}</h3>
-
                   <div className="genre-card__meta">
                     {(movie.genre || []).slice(0, 2).join(" • ") || "N/A"}
                   </div>
-
                   <div className="genre-card__submeta">
                     {movie.year ? `${movie.year} • ` : ""}
-                    {movie.views || 0} lượt xem
+                    {(movie.views || 0).toLocaleString()} lượt xem
                   </div>
                 </div>
               </Link>
