@@ -2,14 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
+const {
+  getVideoGeometryFromProbe,
+  buildGeometryFilter,
+  toEvenNumber,
+} = require('./videoGeometry');
 
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
-}
-
-function toEvenNumber(value, fallback) {
-  const num = Math.max(2, parseInt(value, 10) || fallback);
-  return num % 2 === 0 ? num : num - 1;
 }
 
 function pickMergeCanvas(videoInfos = []) {
@@ -40,16 +40,13 @@ function pickMergeCanvas(videoInfos = []) {
 }
 
 function buildAspectPadFilter(width, height, { allowUpscale = false } = {}) {
-  const safeWidth = toEvenNumber(width, 1080);
-  const safeHeight = toEvenNumber(height, 1920);
-  const scaleWidth = allowUpscale ? `${safeWidth}` : `min(${safeWidth},iw)`;
-  const scaleHeight = allowUpscale ? `${safeHeight}` : `min(${safeHeight},ih)`;
-
-  return [
-    `scale=w='${scaleWidth}':h='${scaleHeight}':force_original_aspect_ratio=decrease`,
-    `pad=${safeWidth}:${safeHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    'setsar=1',
-  ].join(',');
+  return buildGeometryFilter({
+    targetWidth: toEvenNumber(width, 1080),
+    targetHeight: toEvenNumber(height, 1920),
+    pad: true,
+    allowUpscale,
+    includeFormat: false,
+  });
 }
 
 /**
@@ -241,11 +238,13 @@ function getVideoInfo(videoPath) {
 
       const videoStream = metadata.streams.find(s => s.codec_type === 'video');
       const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+      const geometry = getVideoGeometryFromProbe(metadata);
 
       resolve({
         duration: metadata.format.duration || 0,
-        width: videoStream?.width || 0,
-        height: videoStream?.height || 0,
+        width: geometry.displayWidth || videoStream?.width || 0,
+        height: geometry.displayHeight || videoStream?.height || 0,
+        rotation: geometry.rotation || 0,
         fps: videoStream?.r_frame_rate ?
           parseFloat(videoStream.r_frame_rate.split('/')[0]) /
           parseFloat(videoStream.r_frame_rate.split('/')[1]) : 0,

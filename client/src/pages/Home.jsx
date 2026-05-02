@@ -33,6 +33,40 @@ const FALLBACK_POSTER =
 const PREF_KEY = "dam18_preferred_genres";
 const HOME_MOVIE_LIMIT = 18;
 
+function getQualityPixels(width = 0, height = 0) {
+  const values = [Number(width) || 0, Number(height) || 0].filter(
+    (value) => value > 0
+  );
+
+  if (!values.length) return 0;
+  return Math.min(...values);
+}
+
+function getQualityBadgeLabel(movie) {
+  const pixels = getQualityPixels(
+    Number(movie?.videoWidth) || 0,
+    Number(movie?.videoHeight) || 0
+  );
+
+  if (pixels >= 2160) return "4K";
+  if (pixels >= 1440) return "1440p";
+  if (pixels >= 1080) return "1080p";
+  if (pixels >= 720) return "720p";
+  if (pixels >= 480) return "480p";
+  if (pixels > 0) return `${pixels}p`;
+
+  return "HD";
+}
+
+function getQualityBadgeTone(movie) {
+  const pixels = getQualityPixels(
+    Number(movie?.videoWidth) || 0,
+    Number(movie?.videoHeight) || 0
+  );
+
+  return pixels >= 1080 ? "high" : "low";
+}
+
 function scheduleDeferredTask(callback, timeout = 1200) {
   if (typeof window === "undefined") return () => {};
 
@@ -121,9 +155,6 @@ function getDirectPreviewUrl(movie) {
 
   return "";
 }
-
-
-
 
 export default function Home() {
   const dispatch = useDispatch();
@@ -274,15 +305,98 @@ export default function Home() {
     });
   }, [movies]);
 
-  const suggestedMovies = useMemo(() => {
-    if (recommendationGenres.length === 0) return dedupedMovies.slice(0, 6);
+  const watchedMovieIds = useMemo(() => {
+    const ids = new Set();
+    continueWatching.forEach((item) => {
+      if (item?._id) ids.add(String(item._id));
+    });
+    return ids;
+  }, [continueWatching]);
 
-    const rec = dedupedMovies.filter((movie) =>
+  const resumeMovies = useMemo(
+    () =>
+      continueWatching
+        .filter((item) => {
+          const progress = Number(item.progressPercent || item.progress || 0);
+          const duration = Number(item.duration || 0);
+          const currentTime = Number(item.currentTime || 0);
+
+          if (
+            duration > 0 &&
+            currentTime >= Math.max(duration - 20, duration * 0.96)
+          ) {
+            return false;
+          }
+
+          return progress < 96;
+        })
+        .slice(0, 6),
+    [continueWatching]
+  );
+
+  const suggestedMovies = useMemo(() => {
+    const unseenMovies = dedupedMovies.filter(
+      (movie) => !watchedMovieIds.has(String(movie?._id || ""))
+    );
+
+    if (recommendationGenres.length === 0) return unseenMovies.slice(0, 6);
+
+    const rec = unseenMovies.filter((movie) =>
       (movie.genre || []).some((g) => recommendationGenres.includes(g))
     );
 
-    return (rec.length ? rec : dedupedMovies).slice(0, 6);
-  }, [dedupedMovies, recommendationGenres]);
+    return (rec.length ? rec : unseenMovies).slice(0, 6);
+  }, [dedupedMovies, recommendationGenres, watchedMovieIds]);
+
+  const becauseYouWatchedMovies = useMemo(() => {
+    if (continueWatching.length === 0) return [];
+
+    const seedGenres = new Set();
+    continueWatching.slice(0, 3).forEach((item) => {
+      (item.genre || []).forEach((genre) => {
+        const value = String(genre || "").trim();
+        if (value) seedGenres.add(value);
+      });
+    });
+
+    return dedupedMovies
+      .filter((movie) => {
+        const movieId = String(movie?._id || "");
+        if (!movieId || watchedMovieIds.has(movieId)) return false;
+        return (movie.genre || []).some((genre) => seedGenres.has(genre));
+      })
+      .slice(0, 6);
+  }, [continueWatching, dedupedMovies, watchedMovieIds]);
+
+  const recentGenrePicks = useMemo(() => {
+    const blockedIds = new Set(
+      [...resumeMovies, ...becauseYouWatchedMovies].map((movie) =>
+        String(movie?._id || "")
+      )
+    );
+
+    return dedupedMovies
+      .filter((movie) => {
+        const movieId = String(movie?._id || "");
+
+        if (!movieId || watchedMovieIds.has(movieId) || blockedIds.has(movieId)) {
+          return false;
+        }
+
+        if (recommendationGenres.length === 0) return true;
+
+        return (movie.genre || []).some((genre) =>
+          recommendationGenres.includes(genre)
+        );
+      })
+      .slice(0, 6);
+  }, [
+    becauseYouWatchedMovies,
+    dedupedMovies,
+    recommendationGenres,
+    resumeMovies,
+    watchedMovieIds,
+  ]);
 
   const latestMovies = useMemo(() => dedupedMovies.slice(0, 6), [dedupedMovies]);
   const topMovies = useMemo(() => {
@@ -294,10 +408,7 @@ export default function Home() {
       return true;
     }).slice(0, 3);
   }, [trendingMovies]);
-  const cwMovies = useMemo(
-    () => continueWatching.slice(0, 6),
-    [continueWatching]
-  );
+  const cwMovies = useMemo(() => resumeMovies, [resumeMovies]);
   const isMoviesLoading = moviesStatus === "loading" && movies.length === 0;
   const isTrendingLoading =
     trendingStatus === "loading" && trendingMovies.length === 0;
@@ -411,6 +522,69 @@ export default function Home() {
                   ))
                 ) : (
                   <EmptyBox text="Chưa có phim mới" />
+                )}
+              </div>
+            </div>
+            <div className="homePanel">
+              <SectionHeadButton
+                title="Vi ban da xem..."
+                onClick={handleRecommendedMore}
+              />
+              <div className="posterRow">
+                {isMoviesLoading && becauseYouWatchedMovies.length === 0 ? (
+                  <>
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                  </>
+                ) : becauseYouWatchedMovies.length > 0 ? (
+                  becauseYouWatchedMovies.map((movie, index) => (
+                    <PosterCard
+                      key={movie._id || index}
+                      movie={movie}
+                      badge={index === 0 ? "Tiep gu cua ban" : ""}
+                    />
+                  ))
+                ) : (
+                  <EmptyBox text="Chua du du lieu xem de goi y sau hon" />
+                )}
+              </div>
+            </div>
+
+            <div className="homePanel">
+              <SectionHeadButton
+                title="Theo genre ban xem gan day"
+                onClick={handleRecommendedMore}
+              />
+              <div className="posterRow">
+                {isMoviesLoading && recentGenrePicks.length === 0 ? (
+                  <>
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                    <PosterSkeleton />
+                  </>
+                ) : recentGenrePicks.length > 0 ? (
+                  recentGenrePicks.map((movie, index) => (
+                    <PosterCard
+                      key={movie._id || index}
+                      movie={movie}
+                      badge={
+                        index === 0 && recommendationGenres[0]
+                          ? recommendationGenres[0]
+                          : ""
+                      }
+                    />
+                  ))
+                ) : suggestedMovies.length > 0 ? (
+                  suggestedMovies.map((movie, index) => (
+                    <PosterCard
+                      key={movie._id || index}
+                      movie={movie}
+                      badge={index === 0 ? "De xuat" : ""}
+                    />
+                  ))
+                ) : (
+                  <EmptyBox text="Xem them vai video de he thong hieu gu hon" />
                 )}
               </div>
             </div>
@@ -559,6 +733,8 @@ function PosterCard({ movie, badge = "" }) {
     normalizeImage(movie?.backdrop) || frames[0] || poster || FALLBACK_POSTER;
   const secondary = frames[1] || poster || primary;
   const previewUrl = getDirectPreviewUrl(movie);
+  const qualityBadge = getQualityBadgeLabel(movie);
+  const qualityTone = getQualityBadgeTone(movie);
 
   const cardImages = [primary, secondary, primary]
     .filter(Boolean)
@@ -712,7 +888,18 @@ function PosterCard({ movie, badge = "" }) {
 
         <div className="posterCard__cinematicShade" />
 
-        {badge ? <span className="posterCard__badge">{badge}</span> : null}
+        {(qualityBadge || badge) ? (
+          <div className="posterCard__topRightStack">
+            {qualityBadge ? (
+              <span
+                className={`posterCard__qualityBadge posterCard__qualityBadge--${qualityTone}`}
+              >
+                {qualityBadge}
+              </span>
+            ) : null}
+            {badge ? <span className="posterCard__badge">{badge}</span> : null}
+          </div>
+        ) : null}
 
         <div className="posterCard__hover">
           <span className="posterCard__play">

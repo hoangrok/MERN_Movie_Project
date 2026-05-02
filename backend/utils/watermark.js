@@ -14,6 +14,7 @@
 
 const path = require("path");
 const fs   = require("fs");
+const { buildGeometryFilter } = require("./videoGeometry");
 
 const SITE_TEXT   = process.env.WATERMARK_TEXT         || "clipdam18.com";
 const JUMP_SECS   = Math.max(2, Number(process.env.WATERMARK_JUMP_SECONDS) || 4);
@@ -65,10 +66,13 @@ function getLogoPath() {
  * If logoPath is non-empty, the caller must add the PNG as a second input BEFORE
  * the output so it becomes [1:v].
  */
-function buildWatermarkFilter(videoWidth = 1920, videoHeight = 1080) {
+function buildWatermarkFilter(videoWidth = 1920, videoHeight = 1080, options = {}) {
   const w = videoWidth;
   const h = videoHeight;
   const short = Math.min(w, h);
+  const baseVideoFilter = buildGeometryFilter({
+    rotation: options.rotation || 0,
+  });
 
   // ── sizes ──────────────────────────────────────────────────
   const logoW = Math.max(80, Math.round(short * 0.145));
@@ -141,7 +145,7 @@ function buildWatermarkFilter(videoWidth = 1920, videoHeight = 1080) {
     const logoY = `H-overlay_h-${myb}`;
 
     const filterComplex = [
-      `[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[base]`,
+      `[0:v]${baseVideoFilter}[base]`,
       `[1:v]format=rgba,colorchannelmixer=aa=${LOGO_OPACITY},scale=${logoW}:-2[logo]`,
       `[base]${glowLayer},${mainText},${ghostText}[vtxt]`,
       `[vtxt][logo]overlay=x='${logoX}':y='${logoY}'[v]`,
@@ -182,7 +186,7 @@ function buildWatermarkFilter(videoWidth = 1920, videoHeight = 1080) {
   ].join(":");
 
   const filterComplex = [
-    `[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p[base]`,
+    `[0:v]${baseVideoFilter}[base]`,
     `[base]${glowLayer4},${mainText4},${ghostText}[v]`,
   ].join(";");
 

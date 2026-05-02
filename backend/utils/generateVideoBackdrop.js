@@ -6,6 +6,10 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const sharp = require("sharp");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  analyzeFrameCandidate,
+  buildBackdropBuffer,
+} = require("./posterGeneratorV2");
 
 if (ffmpegPath) {
   ffmpeg.setFfmpegPath(ffmpegPath);
@@ -127,105 +131,6 @@ async function cleanupFiles(files = [], dirs = []) {
   }
 }
 
-async function analyzeFrame(filePath) {
-  const { data, info } = await sharp(filePath)
-    .resize(96, 54, { fit: "fill" })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const totalPixels = info.width * info.height;
-
-  let brightnessSum = 0;
-  let brightnessSqSum = 0;
-  let edgeScore = 0;
-  let saturationSum = 0;
-
-  for (let i = 0; i < data.length; i += 3) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const sat = max === 0 ? 0 : (max - min) / max;
-    saturationSum += sat;
-
-    const y = 0.299 * r + 0.587 * g + 0.114 * b;
-    brightnessSum += y;
-    brightnessSqSum += y * y;
-  }
-
-  for (let y = 0; y < info.height - 1; y++) {
-    for (let x = 0; x < info.width - 1; x++) {
-      const idx = (y * info.width + x) * 3;
-      const idxRight = (y * info.width + (x + 1)) * 3;
-      const idxBottom = ((y + 1) * info.width + x) * 3;
-
-      const l1 = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      const l2 =
-        0.299 * data[idxRight] +
-        0.587 * data[idxRight + 1] +
-        0.114 * data[idxRight + 2];
-      const l3 =
-        0.299 * data[idxBottom] +
-        0.587 * data[idxBottom + 1] +
-        0.114 * data[idxBottom + 2];
-
-      edgeScore += Math.abs(l1 - l2) + Math.abs(l1 - l3);
-    }
-  }
-
-  const avgBrightness = brightnessSum / totalPixels;
-  const variance = brightnessSqSum / totalPixels - avgBrightness * avgBrightness;
-  const contrast = Math.sqrt(Math.max(0, variance));
-  const avgSaturation = saturationSum / totalPixels;
-  const normalizedEdge = edgeScore / totalPixels;
-
-  let score = 0;
-
-  if (avgBrightness >= 50 && avgBrightness <= 200) score += 28;
-  else if (avgBrightness >= 30 && avgBrightness <= 220) score += 14;
-  else score -= 22;
-
-  if (contrast >= 22) score += 24;
-  else if (contrast >= 14) score += 12;
-  else score -= 18;
-
-  if (avgSaturation >= 0.14) score += 18;
-  else if (avgSaturation >= 0.08) score += 8;
-  else score -= 8;
-
-  if (normalizedEdge >= 18) score += 22;
-  else if (normalizedEdge >= 12) score += 12;
-  else if (normalizedEdge >= 8) score += 4;
-  else score -= 14;
-
-  if (avgBrightness < 18 || avgBrightness > 235) score -= 28;
-  if (contrast < 8) score -= 18;
-
-  return {
-    score,
-    avgBrightness,
-    contrast,
-    avgSaturation,
-    edgeScore: normalizedEdge,
-  };
-}
-
-async function createSingleFrameBackdrop(framePath, outWidth = 1280, outHeight = 720) {
-  return sharp(framePath)
-    .resize(outWidth, outHeight, {
-      fit: "cover",
-      position: "attention",
-      withoutEnlargement: false,
-    })
-    .modulate({ brightness: 1.04, saturation: 1.08 })
-    .sharpen({ sigma: 0.6 })
-    .jpeg({ quality: 90, mozjpeg: true })
-    .toBuffer();
-}
-
 async function generateVideoBackdrop(videoPath, movieId = "movie", options = {}) {
   if (!videoPath) {
     throw new Error("Missing videoPath");
@@ -239,6 +144,7 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
   ensureDir(jobDir);
 
   const tempFiles = [];
+  const genres = Array.isArray(options.genres) ? options.genres : [];
 
   try {
     const duration = await getVideoDuration(videoPath);
@@ -262,7 +168,7 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
         const stat = fs.statSync(framePath);
         if (!stat.size || stat.size < 1200) continue;
 
-        const metrics = await analyzeFrame(framePath);
+        const metrics = await analyzeFrameCandidate(framePath, { genres });
         candidates.push({
           second,
           path: framePath,
@@ -278,14 +184,15 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
     }
 
     // Pick single best frame by quality score
-    candidates.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => b.backdropScore - a.backdropScore);
     const best = candidates[0];
 
-    const finalBuffer = await createSingleFrameBackdrop(
-      best.path,
-      Number(options.width) || 1280,
-      Number(options.height) || 720
-    );
+    const finalBuffer = await buildBackdropBuffer(best.path, {
+      width: Number(options.width) || 1280,
+      height: Number(options.height) || 720,
+      genres,
+      analysis: best,
+    });
 
     const r2Key = `backdrops/${safeMovieId}/${Date.now()}-${randomId(6)}.jpg`;
     const backdropUrl = await uploadBufferToR2(finalBuffer, r2Key, "image/jpeg");
@@ -299,11 +206,16 @@ async function generateVideoBackdrop(videoPath, movieId = "movie", options = {})
       capturedAt: [best.second],
       bestFrames: candidates.slice(0, 3).map((x) => ({
         second: x.second,
-        score: Number(x.score.toFixed(2)),
+        score: Number(x.backdropScore.toFixed(2)),
+        frameScore: Number(x.frameScore.toFixed(2)),
         avgBrightness: Number(x.avgBrightness.toFixed(2)),
         contrast: Number(x.contrast.toFixed(2)),
         avgSaturation: Number(x.avgSaturation.toFixed(4)),
         edgeScore: Number(x.edgeScore.toFixed(2)),
+        subjectX: Number(x.subjectX.toFixed(4)),
+        subjectY: Number(x.subjectY.toFixed(4)),
+        skinRatio: Number(x.skinRatio.toFixed(4)),
+        colorStory: x.colorStory,
       })),
     };
   } catch (error) {

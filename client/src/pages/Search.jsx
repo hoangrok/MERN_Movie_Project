@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import Card from "../components/Card/Card";
 import "../assets/styles/Search.scss";
@@ -15,6 +15,7 @@ const normalizeText = (text = "") =>
     .replace(/[\u0300-\u036f]/g, "");
 
 export default function Search() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
 
@@ -22,11 +23,21 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [activeGenre, setActiveGenre] = useState("all");
   const [sortBy, setSortBy] = useState("relevance");
+  const [searchMeta, setSearchMeta] = useState({
+    didYouMean: "",
+    suggestions: [],
+  });
+
+  useEffect(() => {
+    setActiveGenre("all");
+    setSortBy("relevance");
+  }, [query]);
 
   useEffect(() => {
     const loadSearch = async () => {
       if (!query.trim()) {
         setMovies([]);
+        setSearchMeta({ didYouMean: "", suggestions: [] });
         return;
       }
 
@@ -40,12 +51,20 @@ export default function Search() {
 
         if (data.success) {
           setMovies(data.items || []);
+          setSearchMeta({
+            didYouMean: data.searchMeta?.didYouMean || "",
+            suggestions: Array.isArray(data.searchMeta?.suggestions)
+              ? data.searchMeta.suggestions
+              : [],
+          });
         } else {
           setMovies([]);
+          setSearchMeta({ didYouMean: "", suggestions: [] });
         }
       } catch (err) {
         console.error("Search error:", err);
         setMovies([]);
+        setSearchMeta({ didYouMean: "", suggestions: [] });
       } finally {
         setLoading(false);
       }
@@ -59,7 +78,7 @@ export default function Search() {
 
     movies.forEach((movie) => {
       const genres = movie.genre || movie.genres || [];
-      genres.forEach((g) => map.add(g));
+      genres.forEach((genre) => map.add(genre));
     });
 
     return ["all", ...Array.from(map)];
@@ -72,7 +91,7 @@ export default function Search() {
       result = result.filter((movie) => {
         const genres = movie.genre || movie.genres || [];
         return genres.some(
-          (g) => normalizeText(g) === normalizeText(activeGenre)
+          (genre) => normalizeText(genre) === normalizeText(activeGenre)
         );
       });
     }
@@ -88,10 +107,24 @@ export default function Search() {
     return result;
   }, [movies, activeGenre, sortBy]);
 
+  const suggestionList = useMemo(
+    () =>
+      (searchMeta.suggestions || []).filter(
+        (item) => normalizeText(item) !== normalizeText(query)
+      ),
+    [query, searchMeta.suggestions]
+  );
+
   const heroImage =
     filteredMovies?.[0]?.backdrop ||
     filteredMovies?.[0]?.poster ||
     FALLBACK_BACKDROP;
+
+  const runSuggestedSearch = (nextQuery) => {
+    const value = String(nextQuery || "").trim();
+    if (!value) return;
+    navigate(`/search?q=${encodeURIComponent(value)}`);
+  };
 
   return (
     <div className="search-page">
@@ -110,43 +143,75 @@ export default function Search() {
       <div className="search-shell">
         <div className="search-hero">
           <div className="search-hero__badge">SEARCH</div>
-          <h1 className="search-hero__title">Kết quả tìm kiếm</h1>
+          <h1 className="search-hero__title">Ket qua tim kiem</h1>
           <p className="search-hero__desc">
             {query.trim()
-              ? `Bạn đang tìm: "${query}"`
-              : "Nhập từ khóa để tìm phim, thể loại hoặc mô tả."}
+              ? `Ban dang tim: "${query}"`
+              : "Nhap tu khoa de tim phim, series, genre hoac noi dung gan dung."}
           </p>
         </div>
 
         {query.trim() && (
-          <div className="search-toolbar">
-            <div className="search-toolbar__genres">
-              {allGenres.map((genre) => (
-                <button
-                  key={genre}
-                  className={`search-chip ${
-                    activeGenre === genre ? "active" : ""
-                  }`}
-                  onClick={() => setActiveGenre(genre)}
-                >
-                  {genre === "all" ? "Tất cả" : genre}
-                </button>
-              ))}
-            </div>
+          <>
+            {(searchMeta.didYouMean || suggestionList.length > 0) && (
+              <div className="search-suggest">
+                {searchMeta.didYouMean &&
+                normalizeText(searchMeta.didYouMean) !== normalizeText(query) ? (
+                  <button
+                    type="button"
+                    className="search-suggest__primary"
+                    onClick={() => runSuggestedSearch(searchMeta.didYouMean)}
+                  >
+                    Co phai ban muon tim: <strong>{searchMeta.didYouMean}</strong>
+                  </button>
+                ) : null}
 
-            <div className="search-toolbar__sort">
-              <label>Sắp xếp</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="relevance">Liên quan</option>
-                <option value="views">Lượt xem</option>
-                <option value="year">Năm mới nhất</option>
-                <option value="rating">Đánh giá</option>
-              </select>
+                {suggestionList.length > 0 ? (
+                  <div className="search-suggest__chips">
+                    {suggestionList.slice(0, 5).map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        className="search-chip"
+                        onClick={() => runSuggestedSearch(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            <div className="search-toolbar">
+              <div className="search-toolbar__genres">
+                {allGenres.map((genre) => (
+                  <button
+                    key={genre}
+                    className={`search-chip ${
+                      activeGenre === genre ? "active" : ""
+                    }`}
+                    onClick={() => setActiveGenre(genre)}
+                  >
+                    {genre === "all" ? "Tat ca" : genre}
+                  </button>
+                ))}
+              </div>
+
+              <div className="search-toolbar__sort">
+                <label>Sap xep</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="relevance">Lien quan</option>
+                  <option value="views">Luot xem</option>
+                  <option value="year">Nam moi nhat</option>
+                  <option value="rating">Danh gia</option>
+                </select>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {loading ? (
@@ -157,18 +222,21 @@ export default function Search() {
           </div>
         ) : !query.trim() ? (
           <div className="search-empty">
-            <h2>Chưa có từ khóa</h2>
-            <p>Hãy nhập nội dung bạn muốn tìm từ thanh tìm kiếm.</p>
+            <h2>Chua co tu khoa</h2>
+            <p>Hay nhap noi dung ban muon tim vao thanh tim kiem.</p>
           </div>
         ) : filteredMovies.length === 0 ? (
           <div className="search-empty">
-            <h2>Không tìm thấy kết quả</h2>
-            <p>Thử từ khóa khác hoặc bỏ bớt bộ lọc thể loại.</p>
+            <h2>Khong tim thay ket qua phu hop</h2>
+            <p>
+              Thu tu khoa khac, bo loc the loai, hoac bam vao cac goi y gan dung
+              o tren.
+            </p>
           </div>
         ) : (
           <>
             <div className="search-summary">
-              Tìm thấy <strong>{filteredMovies.length}</strong> kết quả
+              Tim thay <strong>{filteredMovies.length}</strong> ket qua
             </div>
 
             <div className="search-grid">

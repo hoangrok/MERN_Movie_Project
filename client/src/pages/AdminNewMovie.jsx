@@ -20,6 +20,7 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     poster: "",
     backdrop: "",
     genre: "",
+    country: "",
     year: "",
     rating: "",
     duration: "",
@@ -47,6 +48,13 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
   const [uploadPercent, setUploadPercent] = useState(0);
   const [movieId, setMovieId] = useState("");
   const [jobStatus, setJobStatus] = useState("");
+  const [queueSnapshot, setQueueSnapshot] = useState(null);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [manualReprocessId, setManualReprocessId] = useState("");
+  const [reprocessState, setReprocessState] = useState({
+    loading: false,
+    message: "",
+  });
   const pollRef = useRef(null);
   const batchPollRef = useRef(null);
   const batchFilesRef = useRef([]);
@@ -74,6 +82,16 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
 
   const VIDEO_EXTENSIONS = [".mp4", ".mkv", ".webm", ".mov", ".m4v"];
   const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+  const posterPreviewSrc = useMemo(() => {
+    if (posterFile) return URL.createObjectURL(posterFile);
+    return form.poster.trim();
+  }, [form.poster, posterFile]);
+
+  const backdropPreviewSrc = useMemo(() => {
+    if (backdropFile) return URL.createObjectURL(backdropFile);
+    return form.backdrop.trim();
+  }, [backdropFile, form.backdrop]);
 
   const handleGalleryFileChange = (e) => {
     const files = Array.from(e.target.files || []);
@@ -441,6 +459,76 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     return data.movie;
   };
 
+  const fetchQueueSnapshot = async ({ silent = false } = {}) => {
+    if (!authToken) return null;
+    if (!silent) setQueueLoading(true);
+
+    try {
+      const res = await fetch(`${API_URL}/upload/queue`, {
+        headers: { ...getAuthHeaders() },
+      });
+      const data = await parseJsonSafe(res);
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Khong lay duoc queue");
+      }
+
+      setQueueSnapshot(data);
+      return data;
+    } catch (err) {
+      console.error("fetchQueueSnapshot error:", err);
+      return null;
+    } finally {
+      if (!silent) setQueueLoading(false);
+    }
+  };
+
+  const handleReprocessMedia = async (targetMovieId, options = {}) => {
+    const resolvedMovieId = String(targetMovieId || movieId || "").trim();
+    if (!resolvedMovieId) {
+      setReprocessState({
+        loading: false,
+        message: "Nhap movie ID de reprocess media",
+      });
+      return;
+    }
+
+    setReprocessState({
+      loading: true,
+      message: "Dang reprocess poster/backdrop/preview...",
+    });
+
+    try {
+      const res = await fetch(
+        `${API_URL}/upload/reprocess-media/${resolvedMovieId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify(options),
+        }
+      );
+
+      const data = await parseJsonSafe(res);
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Reprocess that bai");
+      }
+
+      setReprocessState({
+        loading: false,
+        message: "Reprocess xong. Poster/backdrop/preview da duoc cap nhat.",
+      });
+    } catch (err) {
+      setReprocessState({
+        loading: false,
+        message: err.message || "Reprocess that bai",
+      });
+    }
+  };
+
   const startPolling = (targetMovieId) => {
     if (pollRef.current) clearInterval(pollRef.current);
 
@@ -499,11 +587,33 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
   }, [forcedContentArea]);
 
   useEffect(() => {
+    if (movieId) {
+      setManualReprocessId(movieId);
+    }
+  }, [movieId]);
+
+  useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (batchPollRef.current) clearInterval(batchPollRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (posterFile && posterPreviewSrc?.startsWith("blob:")) {
+        URL.revokeObjectURL(posterPreviewSrc);
+      }
+    };
+  }, [posterFile, posterPreviewSrc]);
+
+  useEffect(() => {
+    return () => {
+      if (backdropFile && backdropPreviewSrc?.startsWith("blob:")) {
+        URL.revokeObjectURL(backdropPreviewSrc);
+      }
+    };
+  }, [backdropFile, backdropPreviewSrc]);
 
   const getBatchEpisodeLabel = (item, index) => {
     const customLabel =
@@ -547,6 +657,7 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
         poster: posterUrl,
         backdrop: backdropUrl,
         genre: form.genre.split(",").map((x) => x.trim()).filter(Boolean),
+        country: form.country.trim(),
         year: form.year ? Number(form.year) : null,
         rating: form.rating ? Number(form.rating) : 0,
         duration: form.duration ? Number(form.duration) : 0,
@@ -767,6 +878,18 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     }
   }, [batchFiles, batchLoading]);
 
+  useEffect(() => {
+    if (!authToken) return undefined;
+
+    fetchQueueSnapshot({ silent: false });
+
+    const intervalId = setInterval(() => {
+      fetchQueueSnapshot({ silent: true });
+    }, 8000);
+
+    return () => clearInterval(intervalId);
+  }, [authToken]);
+
   const handleBatchUpload = async () => {
     if (!batchSeries.seriesId.trim()) { alert("Nhập Series ID trước"); return; }
     if (!batchSeries.seriesTitle.trim()) { alert("Nhập Tên seri trước"); return; }
@@ -947,6 +1070,70 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
             Video upload tại đây sẽ hiện trong mục Thế giới, phù hợp cho nội dung rất nhiều tập và nhiều ảnh.
           </p>
         )}
+
+        <div
+          style={{
+            display: "grid",
+            gap: 10,
+            marginBottom: 18,
+            padding: "14px 16px",
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <strong style={{ fontSize: 14 }}>Background queue</strong>
+            <button
+              type="button"
+              onClick={() => fetchQueueSnapshot({ silent: false })}
+              disabled={queueLoading}
+              style={miniButtonStyle(queueLoading)}
+            >
+              {queueLoading ? "Dang tai..." : "Lam moi"}
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+            <div style={statusTileStyle}>
+              <span style={statusTileLabelStyle}>Dang chay</span>
+              <strong>{queueSnapshot?.running ? "Co" : "Khong"}</strong>
+            </div>
+            <div style={statusTileStyle}>
+              <span style={statusTileLabelStyle}>Dang doi</span>
+              <strong>{queueSnapshot?.waiting ?? 0}</strong>
+            </div>
+            <div style={statusTileStyle}>
+              <span style={statusTileLabelStyle}>Job hien tai</span>
+              <strong style={{ fontSize: 12 }}>
+                {queueSnapshot?.activeJob?.title || queueSnapshot?.activeJob?.movieId || "--"}
+              </strong>
+            </div>
+          </div>
+
+          {Array.isArray(queueSnapshot?.waitingJobs) && queueSnapshot.waitingJobs.length > 0 && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {queueSnapshot.waitingJobs.slice(0, 5).map((job, index) => (
+                <div
+                  key={`${job.movieId || "job"}-${index}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.72)",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <span>{job.title || job.movieId || `Job ${index + 1}`}</span>
+                  <span style={{ color: "rgba(255,255,255,0.5)" }}>{job.type || "video-process"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Mode tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
@@ -1375,6 +1562,41 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
           <input name="backdrop" placeholder="Backdrop URL" value={form.backdrop} onChange={handleChange} style={inputStyle} />
           <input type="file" accept="image/*" onChange={(e) => setBackdropFile(e.target.files?.[0] || null)} style={inputStyle} />
 
+          {(posterPreviewSrc || backdropPreviewSrc) && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1.35fr",
+                gap: 12,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <div>
+                <p style={previewLabelStyle}>Poster preview</p>
+                <div style={{ ...previewFrameStyle, aspectRatio: "2 / 3" }}>
+                  {posterPreviewSrc ? (
+                    <img src={posterPreviewSrc} alt="poster preview" style={previewImageStyle} />
+                  ) : (
+                    <span style={previewHintStyle}>Chua co poster</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p style={previewLabelStyle}>Backdrop preview</p>
+                <div style={{ ...previewFrameStyle, aspectRatio: "16 / 9" }}>
+                  {backdropPreviewSrc ? (
+                    <img src={backdropPreviewSrc} alt="backdrop preview" style={previewImageStyle} />
+                  ) : (
+                    <span style={previewHintStyle}>Chua co backdrop</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Seri */}
           <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: 14 }}>
             <p style={{ fontSize: 13, color: "#aaa", marginBottom: 10 }}>
@@ -1401,6 +1623,7 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
           </div>
 
           <input name="genre" placeholder="Genre (ví dụ Action, Drama)" value={form.genre} onChange={handleChange} style={inputStyle} />
+          <input name="country" placeholder="Country / Khu vuc" value={form.country} onChange={handleChange} style={inputStyle} />
           <input name="year" placeholder="Year" value={form.year} onChange={handleChange} style={inputStyle} />
           <input name="rating" placeholder="Rating" value={form.rating} onChange={handleChange} style={inputStyle} />
           <input name="duration" placeholder="Duration" value={form.duration} onChange={handleChange} style={inputStyle} />
@@ -1429,6 +1652,66 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
             {loading ? "Đang tạo..." : "Tạo Movie"}
           </button>
         </form>
+
+        <div
+          style={{
+            marginTop: 22,
+            paddingTop: 20,
+            borderTop: "1px solid #2a2a2a",
+            display: "grid",
+            gap: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "#fff" }}>
+            Reprocess poster/backdrop cho video cu
+          </h2>
+          <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: 13 }}>
+            Dung lai engine poster generator v2 va backdrop generator cho movie da co HLS.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto auto", gap: 10 }}>
+            <input
+              value={manualReprocessId}
+              onChange={(e) => setManualReprocessId(e.target.value)}
+              placeholder="Movie ID can reprocess"
+              style={inputStyle}
+            />
+            <button
+              type="button"
+              disabled={reprocessState.loading}
+              onClick={() => handleReprocessMedia(manualReprocessId, { poster: true, backdrop: false, preview: true })}
+              style={miniButtonStyle(reprocessState.loading)}
+            >
+              Poster
+            </button>
+            <button
+              type="button"
+              disabled={reprocessState.loading}
+              onClick={() => handleReprocessMedia(manualReprocessId, { poster: false, backdrop: true, preview: false })}
+              style={miniButtonStyle(reprocessState.loading)}
+            >
+              Backdrop
+            </button>
+            <button
+              type="button"
+              disabled={reprocessState.loading}
+              onClick={() => handleReprocessMedia(manualReprocessId, { poster: true, backdrop: true, preview: true })}
+              style={{
+                ...miniButtonStyle(reprocessState.loading),
+                background: reprocessState.loading ? "rgba(255,255,255,0.06)" : "rgba(229,9,20,0.18)",
+                border: reprocessState.loading ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(229,9,20,0.3)",
+              }}
+            >
+              Full
+            </button>
+          </div>
+
+          {reprocessState.message ? (
+            <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.78)" }}>
+              {reprocessState.message}
+            </p>
+          ) : null}
+        </div>
 
         {!!movieId && (
           <div style={{ marginTop: 28, borderTop: "1px solid #2a2a2a", paddingTop: 22 }}>
@@ -1516,3 +1799,49 @@ const miniDangerButtonStyle = (disabled) => ({
   background: disabled ? "rgba(255,255,255,0.06)" : "rgba(229,9,20,0.18)",
   border: disabled ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(229,9,20,0.32)",
 });
+
+const statusTileStyle = {
+  display: "grid",
+  gap: 6,
+  padding: "10px 12px",
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.06)",
+};
+
+const statusTileLabelStyle = {
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "rgba(255,255,255,0.45)",
+};
+
+const previewLabelStyle = {
+  margin: "0 0 8px",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "rgba(255,255,255,0.72)",
+};
+
+const previewFrameStyle = {
+  width: "100%",
+  borderRadius: 10,
+  overflow: "hidden",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const previewImageStyle = {
+  width: "100%",
+  height: "100%",
+  display: "block",
+  objectFit: "cover",
+};
+
+const previewHintStyle = {
+  color: "rgba(255,255,255,0.4)",
+  fontSize: 12,
+};

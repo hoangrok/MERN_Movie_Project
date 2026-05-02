@@ -37,6 +37,32 @@ function normalizeImage(url, fallback = "") {
   return typeof url === "string" && url.trim() ? url.trim() : fallback;
 }
 
+function getQualityPixels(width = 0, height = 0) {
+  const values = [Number(width) || 0, Number(height) || 0].filter(
+    (value) => value > 0
+  );
+
+  if (!values.length) return 0;
+  return Math.min(...values);
+}
+
+function formatQualityLabel(pixels = 0, fallback = "HD") {
+  const safePixels = Number(pixels) || 0;
+
+  if (safePixels >= 2160) return "4K";
+  if (safePixels >= 1440) return "1440p";
+  if (safePixels >= 1080) return "1080p";
+  if (safePixels >= 720) return "720p";
+  if (safePixels >= 480) return "480p";
+  if (safePixels > 0) return `${safePixels}p`;
+
+  return fallback;
+}
+
+function getQualityTone(pixels = 0) {
+  return Number(pixels) >= 1080 ? "high" : "low";
+}
+
 function getVideoFrameMode(width, height) {
   const w = Number(width) || 0;
   const h = Number(height) || 0;
@@ -157,6 +183,7 @@ export default function MovieDetail() {
   const streamUrlRef = useRef("");
   const isMountedRef = useRef(false);
   const isSeekingRef = useRef(false);
+  const adminStatusPollRef = useRef(null);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -252,7 +279,11 @@ export default function MovieDetail() {
   }, [movie]);
 
   useEffect(() => {
-    setVideoFrameMode(getVideoFrameMode(movie?.videoWidth, movie?.videoHeight));
+    const width = Number(movie?.videoWidth) || 0;
+    const height = Number(movie?.videoHeight) || 0;
+    if (!width || !height) return;
+
+    setVideoFrameMode(getVideoFrameMode(width, height));
   }, [movie?.videoWidth, movie?.videoHeight, movie?._id]);
 
   useEffect(() => {
@@ -362,6 +393,13 @@ export default function MovieDetail() {
       FALLBACK_POSTER
     );
   }, [movie]);
+
+  const initialPlayerArtwork = useMemo(() => {
+    if (videoFrameMode === "portrait" || videoFrameMode === "square") {
+      return posterImage || backdropSrc || FALLBACK_POSTER;
+    }
+    return backdropSrc || posterImage || FALLBACK_POSTER;
+  }, [backdropSrc, posterImage, videoFrameMode]);
 
   // Auto-select best thumbnail: backdrop (cinematic) > timeline 30% > poster
   const cardThumbImage = useMemo(() => {
@@ -526,9 +564,17 @@ export default function MovieDetail() {
 
           hls.on(Hls.Events.MANIFEST_PARSED, async () => {
             const levels = hls.levels
-              .map((level, i) => ({ index: i, height: level.height || 0 }))
-              .sort((a, b) => b.height - a.height);
-            setHlsLevels(levels.length > 0 ? levels : [{ index: 0, height: 0 }]);
+              .map((level, i) => {
+                const width = Number(level.width) || 0;
+                const height = Number(level.height) || 0;
+                const pixels = getQualityPixels(width, height);
+
+                return { index: i, width, height, pixels };
+              })
+              .sort((a, b) => b.pixels - a.pixels);
+            setHlsLevels(
+              levels.length > 0 ? levels : [{ index: 0, width: 0, height: 0, pixels: 0 }]
+            );
             setCurrentQuality(-1);
             await markReady();
           });
@@ -996,7 +1042,9 @@ export default function MovieDetail() {
       setDuration(video.duration || 0);
       setVolume(video.volume ?? 1);
       setIsMuted(video.muted);
-      setVideoFrameMode(getVideoFrameMode(video.videoWidth, video.videoHeight));
+      if (video.videoWidth && video.videoHeight) {
+        setVideoFrameMode(getVideoFrameMode(video.videoWidth, video.videoHeight));
+      }
       setIsReady(true);
       setIsBuffering(false);
     };
@@ -1065,6 +1113,13 @@ export default function MovieDetail() {
       lastKnownTimeRef.current = nextTime;
       syncBuffered();
 
+      // Force a lightweight repaint after seek so the browser doesn't keep
+      // a stale composited video frame with the wrong crop/scale.
+      video.style.opacity = "0.999";
+      requestAnimationFrame(() => {
+        video.style.opacity = "1";
+      });
+
       if (!video.paused) {
         kickAutoHide(true);
       }
@@ -1072,6 +1127,11 @@ export default function MovieDetail() {
 
     const onDurationChange = () => {
       setDuration(video.duration || 0);
+    };
+
+    const onResize = () => {
+      if (!video.videoWidth || !video.videoHeight) return;
+      setVideoFrameMode(getVideoFrameMode(video.videoWidth, video.videoHeight));
     };
 
     const onPlay = () => {
@@ -1133,6 +1193,7 @@ export default function MovieDetail() {
     video.addEventListener("seeking", onSeeking);
     video.addEventListener("seeked", onSeeked);
     video.addEventListener("durationchange", onDurationChange);
+    video.addEventListener("resize", onResize);
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("volumechange", onVolumeChange);
@@ -1157,6 +1218,7 @@ export default function MovieDetail() {
       video.removeEventListener("seeking", onSeeking);
       video.removeEventListener("seeked", onSeeked);
       video.removeEventListener("durationchange", onDurationChange);
+      video.removeEventListener("resize", onResize);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       video.removeEventListener("volumechange", onVolumeChange);
@@ -1760,6 +1822,113 @@ export default function MovieDetail() {
     }
   };
 
+  const handleReencodeHls = async () => {
+    if (!user?.isAdmin || !user?.token || !movie?._id) return;
+
+    const confirmed = window.confirm(
+      `Re-encode lai HLS cho phim "${movie.title}"? Viec nay se dua phim vao hang cho xu ly nen.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setAdminLoading(true);
+      setAdminMessage("");
+
+      const { data } = await axios.post(
+        `${API_URL}/upload/reencode-hls/${movie._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        }
+      );
+
+      if (data?.success) {
+        setMovie((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: data.status || "queued",
+                processingError: "",
+              }
+            : prev
+        );
+        setAdminMessage("Da dua job re-encode HLS vao hang cho.");
+      } else {
+        setAdminMessage(data?.message || "Khong the queue re-encode HLS.");
+      }
+    } catch (err) {
+      console.error("handleReencodeHls error:", err.response?.data || err.message);
+      setAdminMessage(err.response?.data?.message || "Queue re-encode HLS that bai.");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.isAdmin || !user?.token || !movie?._id) return undefined;
+
+    const status = String(movie.status || "").toLowerCase();
+    if (!["queued", "processing"].includes(status)) return undefined;
+
+    let cancelled = false;
+
+    const pollStatus = async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/upload/status/${movie._id}`, {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        });
+
+        const nextMovie = data?.movie;
+        if (!data?.success || !nextMovie || cancelled) return;
+
+        setMovie((prev) => (prev ? { ...prev, ...nextMovie } : nextMovie));
+
+        const nextStatus = String(nextMovie.status || "").toLowerCase();
+        if (nextStatus === "failed") {
+          setAdminMessage(nextMovie.processingError || "Xu ly video that bai.");
+          return;
+        }
+
+        if (nextStatus === "ready" && !isWorldMovie) {
+          setAdminMessage("Re-encode HLS hoan tat.");
+
+          try {
+            const streamRes = await fetch(`${API_URL}/movies/${movie._id}/stream?ts=${Date.now()}`, {
+              headers: user?.token ? { Authorization: `Bearer ${user.token}` } : {},
+              cache: "no-store",
+            });
+            const streamData = await streamRes.json();
+
+            if (!cancelled && streamRes.ok && streamData?.success && streamData?.signedUrl) {
+              const nextUrl = cachePrefetchedStream(movie._id, streamData.signedUrl);
+              activeStreamUrlRef.current = nextUrl;
+              setStreamUrl(nextUrl);
+            }
+          } catch (streamErr) {
+            console.error("refresh stream after status ready error:", streamErr);
+          }
+        }
+      } catch (err) {
+        console.error("poll movie status error:", err.response?.data || err.message);
+      }
+    };
+
+    pollStatus();
+    adminStatusPollRef.current = window.setInterval(pollStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      if (adminStatusPollRef.current) {
+        window.clearInterval(adminStatusPollRef.current);
+        adminStatusPollRef.current = null;
+      }
+    };
+  }, [isWorldMovie, movie?._id, movie?.status, user?.isAdmin, user?.token]);
+
   useEffect(() => {
     if (isWorldMovie) return undefined;
 
@@ -1799,13 +1968,23 @@ export default function MovieDetail() {
     return () => window.removeEventListener("keydown", onKey);
   }, [duration, isWorldMovie]);
 
-  const multipleQualities = hlsLevels.filter((l) => l.height > 0).length > 1;
-  const qualityLabel =
+  const qualityLevels = hlsLevels.filter((l) => l.pixels > 0);
+  const fallbackQualityPixels = getQualityPixels(
+    Number(movie?.videoWidth) || 0,
+    Number(movie?.videoHeight) || 0
+  );
+  const multipleQualities = qualityLevels.length > 1;
+  const hasQualityBadge = hlsLevels.length > 0 || fallbackQualityPixels > 0;
+  const selectedQualityPixels =
     currentQuality === -1
-      ? hlsLevels[0]?.height > 0
-        ? `${hlsLevels[0].height}p`
-        : "Auto"
-      : `${hlsLevels.find((l) => l.index === currentQuality)?.height || ""}p`;
+      ? qualityLevels[0]?.pixels || fallbackQualityPixels
+      : hlsLevels.find((l) => l.index === currentQuality)?.pixels ||
+        fallbackQualityPixels;
+  const qualityLabel = formatQualityLabel(
+    selectedQualityPixels,
+    currentQuality === -1 ? "Auto" : "HD"
+  );
+  const qualityTone = getQualityTone(selectedQualityPixels);
 
   const safeDuration = Number.isFinite(duration) ? duration : 0;
   const safeCurrentTime = Math.min(currentTime || 0, safeDuration || 0);
@@ -1862,6 +2041,7 @@ export default function MovieDetail() {
               className={`nf-player nf-player--${videoFrameMode}${
                 isWorldMovie ? " nf-player--world" : ""
               }`}
+              style={{ "--player-frame-ratio": "16 / 9" }}
               onMouseMove={() => kickAutoHide()}
               onMouseEnter={() => kickAutoHide()}
               onMouseLeave={() => {
@@ -1872,17 +2052,19 @@ export default function MovieDetail() {
                 }
               }}
             >
-              <video
-                ref={videoRef}
-                className="nf-video"
-                playsInline
-                preload="metadata"
-                poster={posterImage || backdropSrc || FALLBACK_POSTER}
-              />
+              <div className="nf-video-stage">
+                <video
+                  ref={videoRef}
+                  className="nf-video"
+                  playsInline
+                  preload="metadata"
+                  poster={initialPlayerArtwork}
+                />
+              </div>
 
               <div className={`nf-poster-layer${posterHidden ? " nf-poster-layer--hidden" : ""}`}>
                 <img
-                  src={backdropSrc || posterImage || FALLBACK_POSTER}
+                  src={initialPlayerArtwork}
                   alt=""
                   draggable="false"
                 />
@@ -1963,6 +2145,7 @@ export default function MovieDetail() {
                       </div>
                     )}
 
+                    <div className="nf-progress__rail" />
                     <div
                       className="nf-progress__buffered"
                       style={{ width: `${bufferedPercent}%` }}
@@ -1975,7 +2158,7 @@ export default function MovieDetail() {
                       className="nf-progress"
                       type="range"
                       min="0"
-                      max={safeDuration || 0}
+                      max={safeDuration || 1}
                       step="0.1"
                       value={safeCurrentTime}
                       onMouseDown={(e) => {
@@ -2056,36 +2239,57 @@ export default function MovieDetail() {
                         {formatTime(safeCurrentTime)} / {formatTime(safeDuration)}
                       </span>
 
-                      {hlsLevels.length > 0 && (
+                      {hasQualityBadge && (
                         <div className="nf-quality-wrap">
-                          {showQualityMenu && multipleQualities && (
-                            <div className="nf-quality-menu">
+                          {showQualityMenu && (
+                            <div
+                              className="nf-quality-menu"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="nf-quality-menu__header">
+                                <span>Quality</span>
+                                <strong>{qualityLabel}</strong>
+                              </div>
                               <button
                                 className={`nf-quality-option${currentQuality === -1 ? " active" : ""}`}
                                 onClick={() => handleQualityChange(-1)}
                               >
-                                Auto
+                                <span>Auto</span>
+                                <span className="nf-quality-option__meta">
+                                  {currentQuality === -1 ? "Selected" : "Adaptive"}
+                                </span>
                               </button>
-                              {hlsLevels.filter((l) => l.height > 0).map((level) => (
+                              {qualityLevels.map((level) => (
                                 <button
                                   key={level.index}
-                                  className={`nf-quality-option${currentQuality === level.index ? " active" : ""}`}
+                                  className={`nf-quality-option nf-quality-option--${getQualityTone(
+                                    level.pixels
+                                  )}${currentQuality === level.index ? " active" : ""}`}
                                   onClick={() => handleQualityChange(level.index)}
                                 >
-                                  {level.height}p
+                                  <span>{formatQualityLabel(level.pixels)}</span>
+                                  <span className="nf-quality-option__meta">
+                                    {currentQuality === level.index ? "Selected" : "Manual"}
+                                  </span>
                                 </button>
                               ))}
+                              {!multipleQualities && (
+                                <div className="nf-quality-hint">
+                                  This video currently has one stream level only.
+                                </div>
+                              )}
                             </div>
                           )}
                           <button
-                            className="nf-quality-btn"
+                            className={`nf-quality-btn nf-quality-btn--${qualityTone}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (multipleQualities) setShowQualityMenu((prev) => !prev);
+                              clearHideTimer();
+                              setShowControls(true);
+                              setShowQualityMenu((prev) => !prev);
                             }}
-                            style={{ cursor: multipleQualities ? "pointer" : "default" }}
                           >
-                            {qualityLabel}
+                            Quality {qualityLabel} ▾
                           </button>
                         </div>
                       )}
@@ -2152,6 +2356,14 @@ export default function MovieDetail() {
 
                   {user?.isAdmin && (
                     <>
+                      <button
+                        className="movie-action"
+                        onClick={handleReencodeHls}
+                        disabled={adminLoading}
+                      >
+                        {adminLoading ? "Dang xu ly..." : "Re-encode HLS"}
+                      </button>
+
                       <button
                         className="movie-action movie-action--blue"
                         onClick={handleOpenAdminModal}

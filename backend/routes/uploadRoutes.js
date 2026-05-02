@@ -110,6 +110,12 @@ const withTimeout = (promise, ms, label) =>
 
 const { buildWatermarkFilter } = require("../utils/watermark");
 const {
+  getVideoGeometryFromProbe,
+  buildGeometryFilter,
+} = require("../utils/videoGeometry");
+const { encodeMultiBitrateHls } = require("../utils/encodeMultiBitrateHls");
+const { uploadHlsFolderToR2 } = require("../utils/uploadHlsFolderToR2");
+const {
   mergeVideos,
   getVideoInfo,
   groupVideosByDuration,
@@ -128,11 +134,13 @@ const canUseCopyMode = async (videoPath) => {
 
     const videoCodec = String(videoStream?.codec_name || "").toLowerCase();
     const audioCodec = String(audioStream?.codec_name || "").toLowerCase();
+    const rotation = getVideoGeometryFromProbe(probe).rotation;
 
     const okVideo = ["h264"].includes(videoCodec);
     const okAudio = !audioStream || ["aac", "mp3"].includes(audioCodec);
+    const safeRotation = rotation === 0;
 
-    return okVideo && okAudio;
+    return okVideo && okAudio && safeRotation;
   } catch (err) {
     console.error("canUseCopyMode ffprobe error:", err.message);
     return false;
@@ -161,31 +169,33 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
     ensureDir(outputDir);
 
     const watermarkEnabled = process.env.WATERMARK_ENABLED !== "false";
-    const canCopy = watermarkEnabled ? false : await canUseCopyMode(tempVideo);
+    const sourceCopySafe = await canUseCopyMode(tempVideo);
 
     // Probe video dimensions for dimension-aware filters
     let videoWidth = 1920;
     let videoHeight = 1080;
+    let videoRotation = 0;
     try {
       const probe = await ffprobeAsync(tempVideo);
-      const vs = probe?.streams?.find((s) => s.codec_type === "video");
-      if (vs?.width && vs?.height) {
-        videoWidth = vs.width;
-        videoHeight = vs.height;
+      const geometry = getVideoGeometryFromProbe(probe);
+      if (geometry.displayWidth && geometry.displayHeight) {
+        videoWidth = geometry.displayWidth;
+        videoHeight = geometry.displayHeight;
+        videoRotation = geometry.rotation;
       }
     } catch (e) {
       console.warn("probe dimensions failed, using defaults:", e.message);
     }
 
-    const copyModeStatus = watermarkEnabled
-      ? "disabled (watermark burn-in is enabled)"
-      : canCopy
-        ? "enabled"
-        : "disabled (source codecs are not copy-safe)";
+    const adaptiveStatus = watermarkEnabled
+      ? "enabled (burn-in watermark)"
+      : "enabled";
 
-    console.log("stream copy optimization:", copyModeStatus);
+    console.log("adaptive multi-bitrate HLS:", adaptiveStatus);
+    console.log("source copy-safe:", sourceCopySafe ? "yes" : "no");
     console.log("watermark burn-in:", watermarkEnabled);
     console.log("video dimensions:", `${videoWidth}x${videoHeight}`);
+    console.log("video rotation:", videoRotation);
     console.log("preview profile:", isBatchUpload ? "batch-lite" : "full");
 
     movie.videoWidth = Number(videoWidth) || 0;
@@ -193,15 +203,38 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
 
     const masterPath = path.join(outputDir, "master.m3u8");
 
-    if (watermarkEnabled) {
+    console.log("3 - Convert adaptive multi-bitrate HLS");
+
+    const adaptiveResult = await withTimeout(
+      encodeMultiBitrateHls({
+        inputPath: tempVideo,
+        outputDir,
+        srcWidth: videoWidth,
+        srcHeight: videoHeight,
+        rotation: videoRotation,
+        withAudio: true,
+      }),
+      1000 * 60 * 30,
+      "Adaptive HLS convert"
+    );
+
+    console.log(
+      "adaptive variants:",
+      (adaptiveResult?.variants || []).map((variant) => variant.name).join(", ") || "none"
+    );
+
+    if (false && watermarkEnabled) {
       console.log("3 - Convert HLS WATERMARK MODE");
 
-      const { filterComplex, logoPath } = buildWatermarkFilter(videoWidth, videoHeight);
+      const { filterComplex, logoPath } = buildWatermarkFilter(videoWidth, videoHeight, {
+        rotation: videoRotation,
+      });
       console.log("watermark filter:", logoPath ? `text+logo (${logoPath})` : "text-only");
 
       await withTimeout(
         new Promise((resolve, reject) => {
           const command = ffmpeg(tempVideo);
+          command.inputOptions(["-noautorotate"]);
 
           if (logoPath) command.input(logoPath);
 
@@ -240,12 +273,13 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
         1000 * 60 * 30,
         "HLS watermark convert"
       );
-    } else if (canCopy) {
+    } else if (false && canCopy) {
       console.log("3️⃣ Bắt đầu convert HLS COPY MODE");
 
       await withTimeout(
         new Promise((resolve, reject) => {
           ffmpeg(tempVideo)
+            .inputOptions(["-noautorotate"])
             .outputOptions([
               "-c copy",
               "-bsf:v h264_mp4toannexb",
@@ -269,12 +303,17 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
         1000 * 60 * 8,
         "HLS copy convert"
       );
-    } else {
+    } else if (false) {
       console.log("3️⃣ Bắt đầu convert HLS SAFE MODE");
 
       await withTimeout(
         new Promise((resolve, reject) => {
+          const safeVideoFilter = buildGeometryFilter({
+            rotation: videoRotation,
+          });
+
           ffmpeg(tempVideo)
+            .inputOptions(["-noautorotate"])
             .videoCodec("libx264")
             .audioCodec("aac")
             .outputOptions([
@@ -291,7 +330,7 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
               "-hls_list_size 0",
               "-hls_playlist_type vod",
               "-hls_flags independent_segments",
-              "-vf scale=854:-2",
+              `-vf ${safeVideoFilter}`,
               `-hls_segment_filename ${path.join(outputDir, "seg_%03d.ts")}`,
               "-f hls",
             ])
@@ -317,9 +356,13 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
 
     console.log("5️⃣ Upload R2 bắt đầu");
 
-    const uploadFiles = files.filter((f) =>
-      fs.statSync(path.join(outputDir, f)).isFile()
-    );
+    await uploadHlsFolderToR2({
+      movieId,
+      localHlsDir: outputDir,
+      bucket: process.env.R2_BUCKET,
+    });
+
+    const uploadFiles = [];
 
     const BATCH = 6;
     for (let i = 0; i < uploadFiles.length; i += BATCH) {
@@ -350,6 +393,7 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
     [previewResult, backdropResult] = await Promise.all([
       generatePreviewTimeline(tempVideo, previewDir, {
         movieId,
+        genres: movie.genre || [],
         previewWidth: isBatchUpload ? 480 : 640,
         previewHeight: isBatchUpload ? 270 : 360,
         previewCount: isBatchUpload ? 3 : undefined,
@@ -362,6 +406,7 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
         return null;
       }),
       generateVideoBackdrop(tempVideo, movieId, {
+        genres: movie.genre || [],
         candidateCount: isBatchUpload ? 6 : 12,
         width: isBatchUpload ? 1280 : 1920,
         height: isBatchUpload ? 720 : 1080,
@@ -423,6 +468,88 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
   }
 }
 
+const resolveProcessingSourceUrl = (movie) => {
+  const raw = String(movie?.hlsUrl || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const streamBase = String(process.env.STREAM_BASE_URL || "").replace(/\/+$/, "");
+  if (streamBase && raw.startsWith("/")) {
+    return `${streamBase}${raw}`;
+  }
+  if (streamBase) {
+    return `${streamBase}/${raw.replace(/^\/+/, "")}`;
+  }
+
+  return "";
+};
+
+async function reprocessMovieMedia({
+  movieId,
+  refreshPoster = true,
+  refreshBackdrop = true,
+  refreshPreview = true,
+}) {
+  const movie = await Movie.findById(movieId);
+  if (!movie) {
+    throw new Error("Movie not found");
+  }
+
+  const inputSource = resolveProcessingSourceUrl(movie);
+  if (!inputSource) {
+    throw new Error("Movie has no playable HLS source to reprocess");
+  }
+
+  const tmpDir = path.join(__dirname, "../tmp");
+  const previewDir = path.join(tmpDir, `${movieId}-reprocess-preview`);
+  ensureDir(previewDir);
+
+  try {
+    let previewResult = null;
+    let backdropResult = null;
+
+    if (refreshPreview || refreshPoster) {
+      previewResult = await generatePreviewTimeline(inputSource, previewDir, {
+        movieId,
+        genres: movie.genre || [],
+      });
+    }
+
+    if (refreshBackdrop) {
+      backdropResult = await generateVideoBackdrop(inputSource, movieId, {
+        genres: movie.genre || [],
+      });
+    }
+
+    if (refreshPreview && previewResult?.items?.length) {
+      movie.previewTimeline = {
+        duration: previewResult.duration || 0,
+        interval: previewResult.interval || 0,
+        items: previewResult.items || [],
+      };
+      movie.thumbnailPickedAt = previewResult.bestFrame?.second || null;
+    }
+
+    if (refreshPoster && previewResult?.posterUrl) {
+      movie.poster = previewResult.posterUrl;
+    }
+
+    if (refreshBackdrop && backdropResult?.backdropUrl) {
+      movie.backdrop = backdropResult.backdropUrl;
+    }
+
+    await movie.save();
+
+    return {
+      movie,
+      previewResult,
+      backdropResult,
+    };
+  } finally {
+    cleanup(previewDir);
+  }
+}
+
 // ==========================
 // PRE-FLIGHT
 // ==========================
@@ -441,6 +568,113 @@ router.get("/queue", protect, adminOnly, (req, res) => {
     success: true,
     ...getQueueSnapshot(),
   });
+});
+
+router.post("/reprocess-media/:movieId", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const refreshPoster = req.body?.poster !== false;
+    const refreshBackdrop = req.body?.backdrop !== false;
+    const refreshPreview = req.body?.preview !== false;
+
+    const result = await reprocessMovieMedia({
+      movieId,
+      refreshPoster,
+      refreshBackdrop,
+      refreshPreview,
+    });
+
+    return res.json({
+      success: true,
+      movie: result.movie,
+      message: "Reprocessed poster/backdrop/preview successfully",
+      updated: {
+        poster: Boolean(refreshPoster && result.previewResult?.posterUrl),
+        backdrop: Boolean(refreshBackdrop && result.backdropResult?.backdropUrl),
+        preview: Boolean(refreshPreview && result.previewResult?.items?.length),
+      },
+    });
+  } catch (err) {
+    console.error("reprocess media error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to reprocess movie media",
+    });
+  }
+});
+
+router.post("/reencode-hls/:movieId", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid movie id",
+      });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({
+        success: false,
+        message: "Movie not found",
+      });
+    }
+
+    if (["queued", "processing"].includes(String(movie.status || "").toLowerCase())) {
+      return res.status(409).json({
+        success: false,
+        message: "Movie is already queued or processing",
+      });
+    }
+
+    const inputSource = resolveProcessingSourceUrl(movie);
+    if (!inputSource) {
+      return res.status(400).json({
+        success: false,
+        message: "Movie has no playable HLS source to re-encode",
+      });
+    }
+
+    movie.status = "queued";
+    movie.processingError = "";
+    await movie.save();
+
+    addJob(async () => {
+      await processVideoInBackground({
+        movieId,
+        tempVideo: inputSource,
+        isBatchUpload: false,
+      });
+    }, {
+      movieId,
+      title: movie.title || movie.seriesTitle || "HLS re-encode",
+      type: "reencode-hls",
+    });
+
+    return res.json({
+      success: true,
+      queued: true,
+      movieId,
+      status: "queued",
+      message: "Queued HLS re-encode job successfully",
+    });
+  } catch (err) {
+    console.error("reencode hls error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to queue HLS re-encode",
+    });
+  }
 });
 
 // ==========================
@@ -805,6 +1039,10 @@ router.post("/videos/:movieId", protect, adminOnly, async (req, res) => {
 
       cleanup(uploadDir, ...mergedArtifacts, mergedVideo);
       console.log("========== VIDEO MERGE & PROCESS DONE ==========");
+    }, {
+      movieId,
+      title: movie.title || movie.seriesTitle || "Merged upload",
+      type: "merge-process",
     });
 
     return res.json({
@@ -902,6 +1140,10 @@ router.post("/video/:movieId", protect, adminOnly, async (req, res) => {
         tempVideo,
         isBatchUpload,
       });
+    }, {
+      movieId,
+      title: movie.title || path.parse(originalName).name || "Video upload",
+      type: "video-process",
     });
 
     return res.json({

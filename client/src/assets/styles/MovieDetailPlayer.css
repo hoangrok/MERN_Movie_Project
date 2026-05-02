@@ -126,9 +126,11 @@
 ════════════════════════════════════════════════════ */
 .nf-player {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   background: #000;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--player-frame-ratio, 16 / 9);
   margin-bottom: 16px;
   border-radius: 20px;
   box-shadow:
@@ -137,25 +139,9 @@
 }
 
 .nf-player--portrait {
-  aspect-ratio: 9 / 16;
 }
 
 .nf-player--square {
-  aspect-ratio: 1 / 1;
-}
-
-.nf-player--world.nf-player--portrait,
-.nf-player--world.nf-player--square {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.nf-player--world.nf-player--portrait {
-  width: min(100%, 420px);
-}
-
-.nf-player--world.nf-player--square {
-  width: min(100%, 720px);
 }
 
 .nf-player:fullscreen {
@@ -165,16 +151,26 @@
   aspect-ratio: auto;
 }
 
+.nf-video-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+
 .nf-video {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   display: block;
   background: #000;
   object-fit: contain;
   object-position: center;
   cursor: pointer;
-  backface-visibility: hidden;
-  transform: translateZ(0);
 }
 
 /* ─── Poster overlay (fades out when video plays) ───── */
@@ -190,10 +186,9 @@
 .nf-poster-layer img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
-  transform: scale(1.01);
 }
 
 .nf-poster-layer__vignette {
@@ -315,6 +310,7 @@
   overflow: visible;
 }
 
+.nf-progress__rail,
 .nf-progress__buffered,
 .nf-progress__played {
   position: absolute;
@@ -327,6 +323,11 @@
   transition: width 0.1s linear;
 }
 
+.nf-progress__rail {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .nf-progress__buffered {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -335,6 +336,12 @@
   background: #e50914;
   box-shadow: 0 0 10px rgba(229, 9, 20, 0.5);
   z-index: 2;
+}
+
+.nf-progress-wrap:hover .nf-progress__rail,
+.nf-progress-wrap:hover .nf-progress__buffered,
+.nf-progress-wrap:hover .nf-progress__played {
+  height: 5px;
 }
 
 .nf-progress {
@@ -351,13 +358,13 @@
 
 .nf-progress::-webkit-slider-runnable-track {
   height: 4px;
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
   border-radius: 999px;
 }
 
 .nf-progress:hover::-webkit-slider-runnable-track {
   height: 5px;
-  background: rgba(255, 255, 255, 0.22);
+  background: transparent;
 }
 
 .nf-progress::-webkit-slider-thumb {
@@ -377,8 +384,9 @@
 
 .nf-progress::-moz-range-track {
   height: 4px;
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
   border-radius: 999px;
+  border: none;
 }
 
 .nf-progress::-moz-range-thumb {
@@ -522,43 +530,78 @@
 }
 
 .nf-quality-btn {
-  background: rgba(229, 9, 20, 0.88) !important;
-  border: 1px solid rgba(255, 100, 100, 0.5) !important;
   color: #fff !important;
   border-radius: 999px !important;
-  padding: 0 10px !important;
+  padding: 0 12px !important;
   font-size: 10px !important;
   font-weight: 800 !important;
-  min-width: 46px !important;
+  min-width: 88px !important;
   width: auto !important;
-  height: 22px !important;
+  height: 26px !important;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
+.nf-quality-btn--high {
+  background: rgba(229, 9, 20, 0.88) !important;
+  border: 1px solid rgba(255, 100, 100, 0.5) !important;
+}
+
+.nf-quality-btn--low {
+  background: rgba(76, 85, 102, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
 .nf-quality-btn:hover {
-  background: rgba(229, 9, 20, 1) !important;
   transform: none !important;
+}
+
+.nf-quality-btn--high:hover {
+  background: rgba(229, 9, 20, 1) !important;
+}
+
+.nf-quality-btn--low:hover {
+  background: rgba(94, 104, 124, 0.96) !important;
 }
 
 .nf-quality-menu {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0;
   background: rgba(12, 14, 22, 0.98);
   border: 1px solid rgba(229, 9, 20, 0.3);
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
-  min-width: 82px;
+  min-width: 220px;
   z-index: 100;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
 }
 
+.nf-quality-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.nf-quality-menu__header strong {
+  color: #fff;
+  font-size: 12px;
+}
+
 .nf-quality-option {
-  display: block !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100% !important;
-  padding: 8px 14px !important;
+  padding: 10px 12px !important;
   background: none !important;
   border: none !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -573,6 +616,13 @@
   transition: background 0.14s !important;
 }
 
+.nf-quality-option__meta {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
 .nf-quality-option:last-child { border-bottom: none !important; }
 
 .nf-quality-option:hover {
@@ -585,6 +635,23 @@
   background: rgba(229, 9, 20, 0.2) !important;
   color: #ff7070 !important;
   font-weight: 800 !important;
+}
+
+.nf-quality-option.active .nf-quality-option__meta {
+  color: inherit;
+}
+
+.nf-quality-option--low.active {
+  background: rgba(148, 163, 184, 0.16) !important;
+  color: #e5e7eb !important;
+}
+
+.nf-quality-hint {
+  padding: 10px 12px 12px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 10px;
+  line-height: 1.45;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* ════════════════════════════════════════════════════

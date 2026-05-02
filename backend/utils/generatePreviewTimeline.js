@@ -5,6 +5,10 @@ const path = require("path");
 const sharp = require("sharp");
 const crypto = require("crypto");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  analyzeFrameCandidate,
+  buildPosterBuffer,
+} = require("./posterGeneratorV2");
 
 const s3 = new S3Client({
   region: "auto",
@@ -119,93 +123,6 @@ function getAutoPreviewCount(duration) {
   return 10;
 }
 
-async function analyzeFrame(filePath) {
-  const image = sharp(filePath);
-  const { data, info } = await image
-    .clone()
-    .resize(96, 54, { fit: "fill" })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const totalPixels = info.width * info.height;
-  let brightnessSum = 0;
-  let brightnessSqSum = 0;
-  let edgeScore = 0;
-  let saturationSum = 0;
-
-  for (let i = 0; i < data.length; i += 3) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const sat = max === 0 ? 0 : (max - min) / max;
-    saturationSum += sat;
-
-    const y = 0.299 * r + 0.587 * g + 0.114 * b;
-    brightnessSum += y;
-    brightnessSqSum += y * y;
-  }
-
-  for (let y = 0; y < info.height - 1; y++) {
-    for (let x = 0; x < info.width - 1; x++) {
-      const idx = (y * info.width + x) * 3;
-      const idxRight = (y * info.width + (x + 1)) * 3;
-      const idxBottom = ((y + 1) * info.width + x) * 3;
-
-      const l1 = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      const l2 =
-        0.299 * data[idxRight] +
-        0.587 * data[idxRight + 1] +
-        0.114 * data[idxRight + 2];
-      const l3 =
-        0.299 * data[idxBottom] +
-        0.587 * data[idxBottom + 1] +
-        0.114 * data[idxBottom + 2];
-
-      edgeScore += Math.abs(l1 - l2) + Math.abs(l1 - l3);
-    }
-  }
-
-  const avgBrightness = brightnessSum / totalPixels;
-  const variance = brightnessSqSum / totalPixels - avgBrightness * avgBrightness;
-  const contrast = Math.sqrt(Math.max(0, variance));
-  const avgSaturation = saturationSum / totalPixels;
-  const normalizedEdge = edgeScore / totalPixels;
-
-  let score = 0;
-
-  if (avgBrightness >= 45 && avgBrightness <= 205) score += 25;
-  else if (avgBrightness >= 28 && avgBrightness <= 225) score += 12;
-  else score -= 18;
-
-  if (contrast >= 22) score += 25;
-  else if (contrast >= 14) score += 14;
-  else score -= 15;
-
-  if (avgSaturation >= 0.14) score += 18;
-  else if (avgSaturation >= 0.08) score += 8;
-  else score -= 8;
-
-  if (normalizedEdge >= 18) score += 24;
-  else if (normalizedEdge >= 12) score += 14;
-  else if (normalizedEdge >= 8) score += 6;
-  else score -= 12;
-
-  if (avgBrightness < 20 || avgBrightness > 235) score -= 25;
-  if (contrast < 8) score -= 20;
-
-  return {
-    score,
-    avgBrightness: Number(avgBrightness.toFixed(2)),
-    contrast: Number(contrast.toFixed(2)),
-    avgSaturation: Number(avgSaturation.toFixed(4)),
-    edgeScore: Number(normalizedEdge.toFixed(2)),
-  };
-}
-
 async function buildJpegBuffer(filePath, width, height, quality = 84, fit = "cover") {
   return sharp(filePath)
     .resize(width, height, {
@@ -231,6 +148,7 @@ module.exports = async function generatePreviewTimeline(
   const previewHeight = Number(options.previewHeight) || 360;
   const posterWidth = Number(options.posterWidth) || 900;
   const posterHeight = Number(options.posterHeight) || 1350;
+  const genres = Array.isArray(options.genres) ? options.genres : [];
 
   const tempFiles = [];
 
@@ -288,7 +206,7 @@ module.exports = async function generatePreviewTimeline(
           continue;
         }
 
-        const metrics = await analyzeFrame(filePath);
+        const metrics = await analyzeFrameCandidate(filePath, { genres });
 
         candidates.push({
           second,
@@ -315,7 +233,7 @@ module.exports = async function generatePreviewTimeline(
       };
     }
 
-    candidates.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => b.posterScore - a.posterScore);
 
     const bestFrame = candidates[0];
     const sortedByTime = [...candidates].sort((a, b) => a.second - b.second);
@@ -360,20 +278,20 @@ module.exports = async function generatePreviewTimeline(
       const key = `previews/${movieId}/${Date.now()}-${i + 1}-${randomId(4)}.jpg`;
       const url = await uploadBufferToR2(previewBuffer, key, "image/jpeg");
 
-      previewItems.push({
+        previewItems.push({
         second: frame.second,
         url,
         key,
-        score: frame.score,
+        score: frame.frameScore,
       });
     }
 
-    const posterBuffer = await buildJpegBuffer(
-      bestFrame.path,
-      posterWidth,
-      posterHeight,
-      86
-    );
+    const posterBuffer = await buildPosterBuffer(bestFrame.path, {
+      width: posterWidth,
+      height: posterHeight,
+      genres,
+      analysis: bestFrame,
+    });
     const posterKey = `posters/${movieId}/${Date.now()}-${randomId(6)}.jpg`;
     const posterUrl = await uploadBufferToR2(posterBuffer, posterKey, "image/jpeg");
 
@@ -396,21 +314,31 @@ module.exports = async function generatePreviewTimeline(
       posterKey,
       bestFrame: {
         second: bestFrame.second,
-        score: bestFrame.score,
+        score: bestFrame.posterScore,
+        frameScore: bestFrame.frameScore,
         avgBrightness: bestFrame.avgBrightness,
         contrast: bestFrame.contrast,
         avgSaturation: bestFrame.avgSaturation,
         edgeScore: bestFrame.edgeScore,
+        subjectX: bestFrame.subjectX,
+        subjectY: bestFrame.subjectY,
+        skinRatio: bestFrame.skinRatio,
+        colorStory: bestFrame.colorStory,
       },
       candidates: candidates
         .slice(0, 8)
-        .map(({ second, score, avgBrightness, contrast, avgSaturation, edgeScore }) => ({
+        .map(({ second, posterScore, frameScore, avgBrightness, contrast, avgSaturation, edgeScore, subjectX, subjectY, skinRatio, colorStory }) => ({
           second,
-          score,
+          score: posterScore,
+          frameScore,
           avgBrightness,
           contrast,
           avgSaturation,
           edgeScore,
+          subjectX,
+          subjectY,
+          skinRatio,
+          colorStory,
         })),
     };
   } catch (err) {

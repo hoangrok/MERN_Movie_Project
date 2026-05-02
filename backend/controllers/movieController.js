@@ -120,6 +120,12 @@ const setNoStore = (res) => {
 const cleanString = (value = "") =>
   typeof value === "string" ? value.trim() : "";
 
+const normalizeSearchText = (value = "") =>
+  cleanString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 const escapeRegex = (value = "") => {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
@@ -179,6 +185,129 @@ const deduplicateBySeries = (items = []) => {
   });
 };
 
+const levenshteinDistance = (source = "", target = "") => {
+  const a = normalizeSearchText(source);
+  const b = normalizeSearchText(target);
+
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const previous = Array.from({ length: b.length + 1 }, (_item, index) => index);
+  const current = new Array(b.length + 1).fill(0);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i;
+
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + cost
+      );
+    }
+
+    for (let j = 0; j <= b.length; j += 1) {
+      previous[j] = current[j];
+    }
+  }
+
+  return previous[b.length];
+};
+
+const similarityScore = (source = "", target = "") => {
+  const a = normalizeSearchText(source);
+  const b = normalizeSearchText(target);
+  if (!a || !b) return 0;
+
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) {
+    return Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  }
+
+  const distance = levenshteinDistance(a, b);
+  return 1 - distance / Math.max(a.length, b.length, 1);
+};
+
+const tokenizeSearchText = (value = "") =>
+  normalizeSearchText(value)
+    .split(/[^a-z0-9]+/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const buildFuzzySearchSuggestions = async (query, options = {}) => {
+  const normalizedQuery = normalizeSearchText(query);
+  const queryTokens = tokenizeSearchText(query);
+
+  if (!normalizedQuery) {
+    return { didYouMean: "", suggestions: [] };
+  }
+
+  const sampleItems = await Movie.find({
+    isPublished: true,
+    ...resolveContentAreaFilter(options.area || "all", { fallback: "all" }),
+  })
+    .select("title seriesTitle episodeTitle genre country")
+    .sort({ updatedAt: -1, views: -1, createdAt: -1 })
+    .limit(180)
+    .lean();
+
+  const suggestionMap = new Map();
+
+  sampleItems.forEach((movie) => {
+    const candidates = [
+      movie.title,
+      movie.seriesTitle,
+      movie.episodeTitle,
+      movie.country,
+      ...(Array.isArray(movie.genre) ? movie.genre : []),
+    ]
+      .map((item) => cleanString(item))
+      .filter(Boolean);
+
+    candidates.forEach((candidate) => {
+      const key = normalizeSearchText(candidate);
+      if (!key || key.length < 2 || suggestionMap.has(key)) return;
+      suggestionMap.set(key, candidate);
+    });
+  });
+
+  const scored = Array.from(suggestionMap.values())
+    .map((candidate) => {
+      const normalizedCandidate = normalizeSearchText(candidate);
+      const candidateTokens = tokenizeSearchText(candidate);
+      const baseScore = similarityScore(normalizedQuery, normalizedCandidate);
+      const tokenBoost = queryTokens.some((token) =>
+        candidateTokens.some(
+          (candidateToken) =>
+            candidateToken.includes(token) ||
+            token.includes(candidateToken) ||
+            similarityScore(token, candidateToken) >= 0.68
+        )
+      )
+        ? 0.16
+        : 0;
+      const prefixBoost =
+        normalizedCandidate.startsWith(normalizedQuery) ||
+        normalizedQuery.startsWith(normalizedCandidate)
+          ? 0.12
+          : 0;
+
+      return {
+        value: candidate,
+        score: baseScore + tokenBoost + prefixBoost,
+      };
+    })
+    .filter((item) => item.score >= 0.48)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  return {
+    didYouMean: scored[0]?.value || "",
+    suggestions: scored.map((item) => item.value),
+  };
+};
+
 // ==========================
 // GET MOVIES
 // ==========================
@@ -214,6 +343,10 @@ const getMovies = async (req, res) => {
       filter.$or = [
         { title: { $regex: pattern, $options: "i" } },
         { description: { $regex: pattern, $options: "i" } },
+        { seriesTitle: { $regex: pattern, $options: "i" } },
+        { episodeTitle: { $regex: pattern, $options: "i" } },
+        { genre: { $regex: pattern, $options: "i" } },
+        { country: { $regex: pattern, $options: "i" } },
       ];
     }
 
@@ -231,7 +364,7 @@ const getMovies = async (req, res) => {
       return acc;
     }, {});
 
-    const [items, totalResult] = await Promise.all([
+    const [items, totalResult, searchSuggestions] = await Promise.all([
       Movie.aggregate([
         { $match: filter },
         { $sort: { createdAt: -1 } },
@@ -249,6 +382,11 @@ const getMovies = async (req, res) => {
             { $count: "total" },
           ])
         : Promise.resolve([{ total: 0 }]),
+      query
+        ? buildFuzzySearchSuggestions(query, {
+            area: area || fallbackArea,
+          })
+        : Promise.resolve({ didYouMean: "", suggestions: [] }),
     ]);
 
     const total = totalResult[0]?.total ?? 0;
@@ -262,6 +400,21 @@ const getMovies = async (req, res) => {
         total,
         totalPages: includeTotal ? Math.ceil(total / limitNum) : 0,
       },
+      searchMeta: query
+        ? {
+            query,
+            normalizedQuery: normalizeSearchText(query),
+            didYouMean:
+              total === 0 ||
+              normalizeSearchText(searchSuggestions.didYouMean) !==
+                normalizeSearchText(query)
+                ? searchSuggestions.didYouMean
+                : "",
+            suggestions: (searchSuggestions.suggestions || []).filter(
+              (item) => normalizeSearchText(item) !== normalizeSearchText(query)
+            ),
+          }
+        : undefined,
     });
   } catch (err) {
     console.error("getMovies error:", err);
@@ -536,7 +689,9 @@ const createMovie = async (req, res) => {
       // Chỉ auto generate backdrop khi chưa có backdrop do admin/user nhập tay
       if (!payload.backdrop) {
         try {
-          const generated = await generateVideoBackdrop(tempVideoPath, payload.slug);
+          const generated = await generateVideoBackdrop(tempVideoPath, payload.slug, {
+            genres: payload.genre || [],
+          });
           if (generated?.backdropUrl) {
             payload.backdrop = generated.backdropUrl;
             if (generated?.capturedAt?.[1] != null) {

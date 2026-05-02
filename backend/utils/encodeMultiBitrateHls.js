@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const { buildWatermarkFilter } = require("./watermark");
+const { buildGeometryFilter } = require("./videoGeometry");
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -57,17 +58,29 @@ function buildMasterPlaylist(variants) {
   return content;
 }
 
-function encodeVariantHls(inputPath, outputDir, variant, withAudio) {
+function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}) {
   return new Promise((resolve, reject) => {
-    const { filterComplex, logoPath } = buildWatermarkFilter(
+    const baseVideoFilter = buildGeometryFilter({
+      rotation: options.rotation || 0,
+      targetWidth: variant.width,
+      targetHeight: variant.height,
+      allowUpscale: false,
+      includeFormat: true,
+    });
+    const { filterComplex: watermarkFilterComplex, logoPath } = buildWatermarkFilter(
       variant.width,
-      variant.height
+      variant.height,
+      { rotation: 0 }
+    );
+    const filterComplex = watermarkFilterComplex.replace(
+      "[0:v]",
+      `[0:v]${baseVideoFilter}[scaled];[scaled]`
     );
 
     const playlistPath = path.join(outputDir, "index.m3u8");
     const segmentPattern = path.join(outputDir, "seg_%03d.ts");
 
-    const command = ffmpeg(inputPath);
+    const command = ffmpeg(inputPath).inputOptions(["-noautorotate"]);
 
     if (logoPath) {
       command.input(logoPath);
@@ -122,6 +135,7 @@ async function encodeMultiBitrateHls({
   outputDir,
   srcWidth,
   srcHeight,
+  rotation = 0,
   withAudio = true,
 }) {
   if (!inputPath) throw new Error("inputPath is required");
@@ -136,7 +150,9 @@ async function encodeMultiBitrateHls({
   for (const variant of variants) {
     const variantDir = path.join(outputDir, variant.name);
     ensureDir(variantDir);
-    await encodeVariantHls(inputPath, variantDir, variant, withAudio);
+    await encodeVariantHls(inputPath, variantDir, variant, withAudio, {
+      rotation,
+    });
   }
 
   const masterContent = buildMasterPlaylist(variants);
