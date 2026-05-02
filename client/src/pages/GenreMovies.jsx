@@ -115,7 +115,7 @@ export default function GenreMovies() {
           src={heroImage}
           alt={heroMovie?.title || "genre-backdrop"}
           decoding="async"
-          fetchPriority="high"
+          fetchpriority="high"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_BACKDROP;
           }}

@@ -863,7 +863,7 @@ function PosterCard({ movie, badge = "" }) {
                 alt={movie.title || "movie"}
                 loading={badge ? "eager" : "lazy"}
                 decoding="async"
-                fetchPriority={badge ? "high" : "auto"}
+                fetchpriority={badge ? "high" : "auto"}
                 onError={(e) => {
                   e.currentTarget.src = FALLBACK_POSTER;
                 }}
