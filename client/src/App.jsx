@@ -20,6 +20,7 @@ const MyList = lazy(() => import("./pages/MyList"));
 const ContinueWatching = lazy(() => import("./pages/ContinueWatching"));
 const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
+const TelegramWidget = lazy(() => import("./components/TelegramWidget/TelegramWidget"));
 
 function App() {
   const { user } = useSelector((state) => state.auth);
@@ -69,6 +70,7 @@ function App() {
         <>
           <AdSlot placement="floating_bottom" variant="floating" defer />
           <FeedbackWidget />
+          <TelegramWidget />
         </>
       ) : null}
     </Suspense>
