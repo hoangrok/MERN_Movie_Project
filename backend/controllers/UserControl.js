@@ -1,8 +1,10 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const User = require("../models/UserModel");
 const Movie = require("../models/Movie");
+const { sendMail } = require("../utils/mailer");
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -152,6 +154,108 @@ module.exports.loginUser = async (req, res) => {
       success: false,
       message: "Server error",
     });
+  }
+};
+
+// FORGOT PASSWORD
+module.exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email là bắt buộc" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({ success: true, message: "Nếu email tồn tại, bạn sẽ nhận được hướng dẫn trong vòng vài phút." });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    user.resetToken = hashedToken;
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save();
+
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
+
+    await sendMail({
+      to: user.email,
+      subject: "Đặt lại mật khẩu - clipdam18.com",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff">
+          <h2 style="margin:0 0 16px;color:#e50914;font-size:22px">Đặt lại mật khẩu</h2>
+          <p style="margin:0 0 8px;color:#374151">Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản <strong>${user.email}</strong>.</p>
+          <p style="margin:0 0 24px;color:#374151">Click vào nút bên dưới để đặt lại. Link có hiệu lực trong <strong>1 giờ</strong>.</p>
+          <a href="${resetUrl}" style="display:inline-block;padding:13px 28px;background:#e50914;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">Đặt lại mật khẩu</a>
+          <p style="margin:24px 0 0;color:#9ca3af;font-size:13px">Nếu bạn không yêu cầu điều này, hãy bỏ qua email này. Mật khẩu sẽ không thay đổi.</p>
+        </div>
+      `,
+    });
+
+    return res.json({ success: true, message: "Nếu email tồn tại, bạn sẽ nhận được hướng dẫn trong vòng vài phút." });
+  } catch (err) {
+    console.error("forgotPassword error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// RESET PASSWORD
+module.exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "Mật khẩu phải ít nhất 6 ký tự" });
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      resetToken: hashedToken,
+      resetTokenExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    return res.json({ success: true, message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập." });
+  } catch (err) {
+    console.error("resetPassword error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// UPDATE PROFILE (display name)
+module.exports.updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: "Tên không được để trống" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { name: name.trim() },
+      { new: true, select: "-password -resetToken -resetTokenExpiry" }
+    );
+
+    return res.json({
+      success: true,
+      message: "Cập nhật tên thành công",
+      user: { _id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin },
+    });
+  } catch (err) {
+    console.error("updateProfile error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 

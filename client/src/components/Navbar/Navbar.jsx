@@ -8,6 +8,7 @@ import {
   FaTimes,
   FaUserCircle,
   FaKey,
+  FaUser,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { logoutReducer } from "../../store/Slice/auth-slice";
@@ -465,6 +466,14 @@ const Navbar = ({ isScrolled }) => {
               </button>
               {showUserMenu && (
                 <div className="navbar__user-dropdown">
+                  <Link
+                    to="/profile"
+                    className="navbar__user-item"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <FaUser />
+                    <span>Hồ sơ</span>
+                  </Link>
                   <Link
                     to="/change-password"
                     className="navbar__user-item"

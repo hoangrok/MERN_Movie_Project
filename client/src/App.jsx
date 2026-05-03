@@ -21,6 +21,9 @@ const Register = lazy(() => import("./pages/Register"));
 const MyList = lazy(() => import("./pages/MyList"));
 const ContinueWatching = lazy(() => import("./pages/ContinueWatching"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Profile = lazy(() => import("./pages/Profile"));
 const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
 const TelegramWidget = lazy(() => import("./components/TelegramWidget/TelegramWidget"));
@@ -61,6 +64,12 @@ function App() {
           path="/change-password"
           element={user ? <ChangePassword /> : <Navigate to="/login" replace />}
         />
+        <Route
+          path="/profile"
+          element={user ? <Profile /> : <Navigate to="/login" replace />}
+        />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route
           path="/admin/the-gioi"
           element={

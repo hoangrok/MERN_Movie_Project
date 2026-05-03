@@ -64,6 +64,58 @@ export const register = async ({ name, email, password }) => {
 };
 
 // ==============================
+// FORGOT PASSWORD
+// ==============================
+export const forgotPassword = async (email) => {
+  try {
+    const { data } = await axios.post(`${API_URL}/users/forgot-password`, { email });
+    if (data?.success) toast.success(data.message);
+    else toast.error(data?.message || "Có lỗi xảy ra");
+    return data;
+  } catch (error) {
+    const message = error?.response?.data?.message || "Có lỗi xảy ra";
+    toast.error(message);
+    return { success: false, message };
+  }
+};
+
+// ==============================
+// RESET PASSWORD
+// ==============================
+export const resetPassword = async ({ token, newPassword }) => {
+  try {
+    const { data } = await axios.post(`${API_URL}/users/reset-password/${token}`, { newPassword });
+    if (data?.success) toast.success(data.message);
+    else toast.error(data?.message || "Có lỗi xảy ra");
+    return data;
+  } catch (error) {
+    const message = error?.response?.data?.message || "Có lỗi xảy ra";
+    toast.error(message);
+    return { success: false, message };
+  }
+};
+
+// ==============================
+// UPDATE PROFILE (name)
+// ==============================
+export const updateProfile = async ({ name, token }) => {
+  try {
+    const { data } = await axios.put(
+      `${API_URL}/users/profile`,
+      { name },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (data?.success) toast.success(data.message || "Đã cập nhật tên");
+    else toast.error(data?.message || "Cập nhật thất bại");
+    return data;
+  } catch (error) {
+    const message = error?.response?.data?.message || "Cập nhật thất bại";
+    toast.error(message);
+    return { success: false, message };
+  }
+};
+
+// ==============================
 // CHANGE PASSWORD
 // ==============================
 export const changePassword = async ({ currentPassword, newPassword, token }) => {

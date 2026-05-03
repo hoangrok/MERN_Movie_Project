@@ -148,6 +148,9 @@ export default function Login() {
           </form>
 
           <p className="authSwitch">
+            <Link to="/forgot-password">Quên mật khẩu?</Link>
+          </p>
+          <p className="authSwitch">
             Chưa có tài khoản? <Link to="/register">Tạo tài khoản</Link>
           </p>
         </div>

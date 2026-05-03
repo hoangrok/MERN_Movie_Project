@@ -6,6 +6,8 @@ import Navbar from "../components/Navbar/Navbar";
 import AdSlot from "../components/Ads/AdSlot";
 import ExoBanner from "../components/Ads/ExoBanner";
 import EpisodeList from "../components/EpisodeList/EpisodeList";
+import StarRating from "../components/StarRating/StarRating";
+import CommentSection from "../components/Comments/CommentSection";
 import "../assets/styles/MovieDetailPlayer.css";
 import { setSEO } from "../utils/seo";
 import {
@@ -2478,8 +2480,18 @@ export default function MovieDetail() {
                   <div className="movie-desc">
                     {movie.description || "Chưa có mô tả."}
                   </div>
+
+                  {!isWorldMovie && (
+                    <div style={{ marginTop: 16 }}>
+                      <StarRating movieId={movie._id} />
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {!isWorldMovie && (
+                <CommentSection movieId={movie._id} />
+              )}
             </section>
 
             <section className="movie-recommend-card">

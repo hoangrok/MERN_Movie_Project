@@ -115,6 +115,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/ads", adRoutes);
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
+app.use("/api/comments", require("./routes/commentRoutes"));
+app.use("/api/ratings", require("./routes/ratingRoutes"));
 app.use("/sitemap.xml", require("./routes/sitemapRoutes"));
 
 app.get("/", (req, res) => res.send("API is running"));
