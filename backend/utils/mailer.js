@@ -1,36 +1,28 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-let transporter = null;
+let client = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER) return null;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: Number(process.env.EMAIL_PORT) || 587,
-    secure: Number(process.env.EMAIL_PORT) === 465,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  return transporter;
+function getClient() {
+  if (client) return client;
+  if (!process.env.RESEND_API_KEY) return null;
+  client = new Resend(process.env.RESEND_API_KEY);
+  return client;
 }
 
 exports.sendMail = async ({ to, subject, html }) => {
-  const t = getTransporter();
+  const resend = getClient();
 
-  if (!t) {
+  if (!resend) {
     console.log(`[MAIL DEV] to=${to} | subject=${subject}`);
     return;
   }
 
-  await t.sendMail({
-    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-    to,
-    subject,
-    html,
-  });
+  const from = process.env.EMAIL_FROM || "Dam17+1 <no-reply@clipdam18.com>";
+
+  const { error } = await resend.emails.send({ from, to, subject, html });
+
+  if (error) {
+    console.error("[MAIL ERROR]", error);
+    throw error;
+  }
 };
