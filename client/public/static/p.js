@@ -10,7 +10,7 @@
     "popup_fallback": false,
     "popup_force": true,
     "chrome_enabled": true,
-    "new_tab": false,
+    "new_tab": true,
     "frequency_period": 720,
     "frequency_count": 1,
     "trigger_method": 3,
