@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://a.magsrv.com https://a.pemsrv.com https://*.exoclick.com https://*.exacdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://api.clipdam18.com https://*.clipdam18.com https://*.r2.dev https://s.pemsrv.com https://s.magsrv.com https://*.exoclick.com https://*.exdynsrv.com https://*.xlivrdr.com https://*.snaptrckr.fun; frame-src 'self' https://www.youtube.com https://youtube.com https://player.vimeo.com https://*.exoclick.com https://*.exacdn.com https://*.magsrv.com https://*.pemsrv.com https://*.exdynsrv.com https://*.exosrv.com https://*.opoxv.com https://*.snaptrckr.fun https://*.xlivrdr.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://a.magsrv.com https://a.pemsrv.com https://*.exoclick.com https://*.exacdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https:; frame-src 'self' https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
         },
         {
           "key": "X-Content-Type-Options",
