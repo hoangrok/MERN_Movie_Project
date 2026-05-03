@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
 import SiteSupport from "./components/SiteSupport/SiteSupport";
+import ExoInterstitial from "./components/Ads/ExoInterstitial";
 
 const Home = lazy(() => import("./pages/Home"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -68,6 +69,7 @@ function App() {
       </Routes>
       <VpnNotice />
       <SiteSupport />
+      <ExoInterstitial />
       {showDeferredChrome ? (
         <>
           <AdSlot placement="floating_bottom" variant="floating" defer />
