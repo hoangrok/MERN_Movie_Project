@@ -83,6 +83,11 @@ export default function SiteSupport() {
           để tiếp tục xem phim.
         </p>
 
+        <div className="ssp__promise">
+          <span className="ssp__promise-icon">💚</span>
+          <span>Chúng tôi cam kết quảng cáo <strong>không làm phiền</strong> — không tự phát âm thanh, không che nội dung, không pop-up liên tục. Nếu thấy phù hợp, bạn có thể <strong>click vào quảng cáo</strong> để ủng hộ chúng tôi duy trì web.</span>
+        </div>
+
         <ol className="ssp__steps">
           <li>Nhấn biểu tượng extension adblock trên thanh trình duyệt</li>
           <li>Chọn <strong>"Tắt trên trang này"</strong> hoặc <strong>"Pause on this site"</strong></li>
