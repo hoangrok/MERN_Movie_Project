@@ -616,6 +616,18 @@
   position: relative;
 }
 
+.navbar__footer--user {
+  overflow: hidden;
+}
+
+.navbar__user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 .navbar__user-dropdown {
   position: absolute;
   right: 0;

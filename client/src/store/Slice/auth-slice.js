@@ -69,6 +69,12 @@ export const authSlice = createSlice({
         localStorage.setItem("user", JSON.stringify(state.user));
       }
     },
+    updateUserAvatar: (state, action) => {
+      if (state.user) {
+        state.user.avatar = action.payload;
+        localStorage.setItem("user", JSON.stringify(state.user));
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -116,6 +122,7 @@ export const {
   resetAuthState,
   updateLikedMovies,
   updateUserName,
+  updateUserAvatar,
 } = authSlice.actions;
 
 export default authSlice.reducer;

@@ -458,11 +458,15 @@ const Navbar = ({ isScrolled }) => {
           {user && user.token ? (
             <div className="navbar__user-menu" ref={userMenuRef}>
               <button
-                className="navbar__footer--logout"
+                className="navbar__footer--logout navbar__footer--user"
                 onClick={() => setShowUserMenu((v) => !v)}
                 title="Tài khoản"
               >
-                <FaUserCircle />
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="navbar__user-avatar" />
+                ) : (
+                  <FaUserCircle />
+                )}
               </button>
               {showUserMenu && (
                 <div className="navbar__user-dropdown">

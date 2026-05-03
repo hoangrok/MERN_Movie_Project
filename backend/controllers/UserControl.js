@@ -1,10 +1,14 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const path = require("path");
+const fs = require("fs");
+const sharp = require("sharp");
 const mongoose = require("mongoose");
 const User = require("../models/UserModel");
 const Movie = require("../models/Movie");
 const { sendMail } = require("../utils/mailer");
+const uploadFileToR2 = require("../utils/uploadFileToR2");
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -154,6 +158,47 @@ module.exports.loginUser = async (req, res) => {
       success: false,
       message: "Server error",
     });
+  }
+};
+
+// UPLOAD AVATAR
+module.exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.files?.avatar) {
+      return res.status(400).json({ success: false, message: "Không có file ảnh" });
+    }
+
+    const file = req.files.avatar;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return res.status(400).json({ success: false, message: "Chỉ chấp nhận JPG, PNG, WEBP" });
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: "Ảnh tối đa 5MB" });
+    }
+
+    const userId = req.user._id.toString();
+    const resizedPath = path.join(__dirname, "../tmp", `avatar-${userId}.webp`);
+
+    await sharp(file.tempFilePath)
+      .resize(200, 200, { fit: "cover", position: "centre" })
+      .webp({ quality: 85 })
+      .toFile(resizedPath);
+
+    const avatarUrl = await uploadFileToR2(resizedPath, `avatars/${userId}.webp`, "image/webp");
+
+    fs.unlink(resizedPath, () => {});
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { avatar: avatarUrl },
+      { new: true, select: "-password -resetToken -resetTokenExpiry" }
+    );
+
+    return res.json({ success: true, avatar: user.avatar });
+  } catch (err) {
+    console.error("uploadAvatar error:", err.message);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
