@@ -6,6 +6,8 @@ import {
   FaSearch,
   FaChevronDown,
   FaTimes,
+  FaUserCircle,
+  FaKey,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { logoutReducer } from "../../store/Slice/auth-slice";
@@ -29,7 +31,10 @@ const Navbar = ({ isScrolled }) => {
 
   const genreBoxRef = useRef(null);
   const searchBoxRef = useRef(null);
+  const userMenuRef = useRef(null);
   const genresRequestedRef = useRef(false);
+
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const movies = useSelector((state) => state.movie.movies || []);
   const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
@@ -81,9 +86,11 @@ const Navbar = ({ isScrolled }) => {
       if (genreBoxRef.current && !genreBoxRef.current.contains(e.target)) {
         setShowGenreDropdown(false);
       }
-
       if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
         setShowSearchResult(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
       }
     };
 
@@ -448,13 +455,34 @@ const Navbar = ({ isScrolled }) => {
           </div>
 
           {user && user.token ? (
-            <button
-              className="navbar__footer--logout"
-              onClick={logOutHandler}
-              title="Đăng xuất"
-            >
-              <FaPowerOff />
-            </button>
+            <div className="navbar__user-menu" ref={userMenuRef}>
+              <button
+                className="navbar__footer--logout"
+                onClick={() => setShowUserMenu((v) => !v)}
+                title="Tài khoản"
+              >
+                <FaUserCircle />
+              </button>
+              {showUserMenu && (
+                <div className="navbar__user-dropdown">
+                  <Link
+                    to="/change-password"
+                    className="navbar__user-item"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <FaKey />
+                    <span>Đổi mật khẩu</span>
+                  </Link>
+                  <button
+                    className="navbar__user-item navbar__user-item--logout"
+                    onClick={() => { setShowUserMenu(false); logOutHandler(); }}
+                  >
+                    <FaPowerOff />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <button
               className="navbar__footer--login"

@@ -155,6 +155,51 @@ module.exports.loginUser = async (req, res) => {
   }
 };
 
+// CHANGE PASSWORD
+module.exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng điền đầy đủ thông tin",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Mật khẩu mới phải ít nhất 6 ký tự",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Mật khẩu hiện tại không đúng",
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Đổi mật khẩu thành công",
+    });
+  } catch (err) {
+    console.log("changePassword error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 // GET PROFILE
 module.exports.getProfile = async (req, res) => {
   try {

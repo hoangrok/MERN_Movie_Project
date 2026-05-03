@@ -64,6 +64,31 @@ export const register = async ({ name, email, password }) => {
 };
 
 // ==============================
+// CHANGE PASSWORD
+// ==============================
+export const changePassword = async ({ currentPassword, newPassword, token }) => {
+  try {
+    const { data } = await axios.put(
+      `${API_URL}/users/change-password`,
+      { currentPassword, newPassword },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (data?.success) {
+      toast.success(data.message || "Đổi mật khẩu thành công");
+      return data;
+    }
+
+    toast.error(data?.message || "Đổi mật khẩu thất bại");
+    return data;
+  } catch (error) {
+    const message = error?.response?.data?.message || "Đổi mật khẩu thất bại";
+    toast.error(message);
+    return { success: false, message };
+  }
+};
+
+// ==============================
 // LOGOUT
 // ==============================
 export const signOutFromBackend = async () => {
