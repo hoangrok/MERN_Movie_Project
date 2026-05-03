@@ -2348,7 +2348,10 @@ export default function MovieDetail() {
             {!isWorldMovie && (
               <>
                 <AdSlot placement="movie_detail_below_player" variant="banner" />
-                <ExoBanner />
+                <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", margin: "8px 0" }}>
+                  <ExoBanner zoneId="5915992" className="eas6a97888e2" />
+                  <ExoBanner zoneId="5916232" className="eas6a97888e2" />
+                </div>
               </>
             )}
 

@@ -454,7 +454,10 @@ export default function Home() {
 
       <main className="homeLayout homeShell">
         <AdSlot placement="home_top" variant="banner" defer />
-        <ExoBanner />
+        <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", margin: "8px 0" }}>
+          <ExoBanner zoneId="5915992" className="eas6a97888e2" />
+          <ExoBanner zoneId="5916232" className="eas6a97888e2" />
+        </div>
 
         <div className="homeBoard">
           <aside className="homeBoard__left">
