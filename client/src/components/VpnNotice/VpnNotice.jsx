@@ -1,18 +1,20 @@
 import { useState, useEffect } from "react";
 
-const STORAGE_KEY = "vpn_notice_dismissed";
+const STORAGE_KEY = "vpn_notice_dismissed_at";
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export default function VpnNotice() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem(STORAGE_KEY)) {
+    const dismissed = localStorage.getItem(STORAGE_KEY);
+    if (!dismissed || Date.now() - Number(dismissed) > COOLDOWN_MS) {
       setVisible(true);
     }
   }, []);
 
   function dismiss() {
-    sessionStorage.setItem(STORAGE_KEY, "1");
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
     setVisible(false);
   }
 
