@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import Loader from "../components/Loader/Loader";
 import Navbar from "../components/Navbar/Navbar";
-import "../assets/styles/Movies.scss";
 import NotFound from "../components/NotFound/NotFound";
 import Card from "../components/Card/Card";
 import axios from "axios";
