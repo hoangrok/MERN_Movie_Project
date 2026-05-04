@@ -908,34 +908,40 @@ export default function MovieDetail() {
       "xem miễn phí", "HD", "Dam17+1", "clipdam18",
     ].filter(Boolean).join(", ");
 
-    const schema = {
+    const videoSchema = {
       "@context": "https://schema.org",
       "@type": "VideoObject",
       name: movie.title,
-      description: description,
-      keywords: keywords,
+      description,
+      keywords,
       thumbnailUrl: [movie.backdrop, movie.poster].filter(Boolean),
       uploadDate: movie.createdAt || new Date().toISOString(),
-      duration: movie.duration ? `PT${Math.round(movie.duration)}M` : undefined,
+      ...(movie.duration ? { duration: `PT${Math.round(movie.duration)}M` } : {}),
       contentUrl: canonical,
       embedUrl: canonical,
       inLanguage: "vi-VN",
       genre: genres,
+      ...(movie.cast?.length ? {
+        actor: movie.cast.slice(0, 5).map((name) => ({ "@type": "Person", name })),
+      } : {}),
+      ...(movie.director ? {
+        director: { "@type": "Person", name: movie.director },
+      } : {}),
       ...(movie.views ? {
         interactionStatistic: {
           "@type": "InteractionCounter",
           interactionType: "https://schema.org/WatchAction",
           userInteractionCount: movie.views,
-        }
+        },
       } : {}),
-      ...(movie.rating ? {
+      ...(movie.rating > 0 && movie.ratingCount > 0 ? {
         aggregateRating: {
           "@type": "AggregateRating",
           ratingValue: movie.rating,
-          bestRating: 10,
+          bestRating: 5,
           worstRating: 1,
-          ratingCount: Math.max(1, movie.views || 1),
-        }
+          ratingCount: movie.ratingCount,
+        },
       } : {}),
       publisher: {
         "@type": "Organization",
@@ -943,7 +949,18 @@ export default function MovieDetail() {
         url: "https://www.clipdam18.com",
       },
     };
-    script.textContent = JSON.stringify(schema);
+
+    const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Trang chủ", item: "https://www.clipdam18.com/" },
+        { "@type": "ListItem", position: 2, name: "Xem phim", item: "https://www.clipdam18.com/latest" },
+        { "@type": "ListItem", position: 3, name: movie.title, item: canonical },
+      ],
+    };
+
+    script.textContent = JSON.stringify([videoSchema, breadcrumbSchema]);
 
     setSEO({
       title: pageTitle,

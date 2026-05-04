@@ -9,8 +9,9 @@ async function recalcMovieRating(movieId) {
   ]);
 
   const avgRating = agg ? Math.round(agg.avg * 10) / 10 : 0;
-  await Movie.findByIdAndUpdate(movieId, { rating: avgRating });
-  return { avgRating, count: agg?.count || 0 };
+  const count = agg?.count || 0;
+  await Movie.findByIdAndUpdate(movieId, { rating: avgRating, ratingCount: count });
+  return { avgRating, count };
 }
 
 exports.rateMovie = async (req, res) => {
