@@ -57,19 +57,19 @@ export default function Profile() {
       const formData = new FormData();
       formData.append("avatar", avatarFile);
       const { data } = await axios.post(`${API_URL}/users/avatar`, formData, {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { Authorization: `Bearer ${user.token}` },
       });
       if (data.success) {
         dispatch(updateUserAvatar(data.avatar));
         setAvatarFile(null);
+      } else {
+        setError(data.message || "Upload ảnh thất bại");
       }
     } catch (err) {
       setError(err?.response?.data?.message || "Upload ảnh thất bại");
+    } finally {
+      setUploadingAvatar(false);
     }
-    setUploadingAvatar(false);
   };
 
   const handleSubmit = async (e) => {
