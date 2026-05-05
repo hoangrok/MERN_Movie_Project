@@ -60,6 +60,8 @@ function buildMasterPlaylist(variants) {
 
 function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}) {
   return new Promise((resolve, reject) => {
+    const withWatermark = options.withWatermark !== false;
+
     const baseVideoFilter = buildGeometryFilter({
       rotation: options.rotation || 0,
       targetWidth: variant.width,
@@ -67,28 +69,28 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
       allowUpscale: false,
       includeFormat: true,
     });
-    const { filterComplex: watermarkFilterComplex, logoPath } = buildWatermarkFilter(
-      variant.width,
-      variant.height,
-      { rotation: 0 }
-    );
-    const filterComplex = watermarkFilterComplex.replace(
-      "[0:v]",
-      `[0:v]${baseVideoFilter}[scaled];[scaled]`
-    );
 
     const playlistPath = path.join(outputDir, "index.m3u8");
     const segmentPattern = path.join(outputDir, "seg_%03d.ts");
 
     const command = ffmpeg(inputPath).inputOptions(["-noautorotate"]);
 
-    if (logoPath) {
-      command.input(logoPath);
+    let useFilterComplex = false;
+    let filterComplex = "";
+    let logoPath = "";
+
+    if (withWatermark) {
+      const wm = buildWatermarkFilter(variant.width, variant.height, { rotation: 0 });
+      logoPath = wm.logoPath;
+      filterComplex = wm.filterComplex.replace(
+        "[0:v]",
+        `[0:v]${baseVideoFilter}[scaled];[scaled]`
+      );
+      useFilterComplex = true;
+      if (logoPath) command.input(logoPath);
     }
 
     const outputOptions = [
-      "-filter_complex", filterComplex,
-      "-map [v]",
       "-preset veryfast",
       "-profile:v main",
       "-crf 20",
@@ -104,6 +106,12 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
       "-hls_flags independent_segments",
       `-hls_segment_filename ${segmentPattern}`,
     ];
+
+    if (useFilterComplex) {
+      outputOptions.unshift("-filter_complex", filterComplex, "-map [v]");
+    } else {
+      outputOptions.unshift("-vf", baseVideoFilter, "-map 0:v:0");
+    }
 
     if (withAudio) {
       outputOptions.push(
@@ -122,7 +130,7 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
       .outputOptions(outputOptions)
       .output(playlistPath)
       .on("start", (cmd) => {
-        console.log(`[HLS ${variant.name}] watermark=burn-in logo=${!!logoPath}`, cmd.slice(0, 140));
+        console.log(`[HLS ${variant.name}] watermark=${withWatermark} logo=${!!logoPath}`, cmd.slice(0, 140));
       })
       .on("end", () => resolve(variant))
       .on("error", reject)
@@ -137,6 +145,7 @@ async function encodeMultiBitrateHls({
   srcHeight,
   rotation = 0,
   withAudio = true,
+  withWatermark = (process.env.WATERMARK_ENABLED !== "false"),
 }) {
   if (!inputPath) throw new Error("inputPath is required");
   if (!outputDir) throw new Error("outputDir is required");
@@ -145,13 +154,14 @@ async function encodeMultiBitrateHls({
 
   const variants = createVariantDefinitions(srcWidth, srcHeight);
 
-  console.log("Starting multi-bitrate HLS with watermark burn-in:", variants.map((v) => v.name));
+  console.log(`Starting multi-bitrate HLS watermark=${withWatermark}:`, variants.map((v) => v.name));
 
   for (const variant of variants) {
     const variantDir = path.join(outputDir, variant.name);
     ensureDir(variantDir);
     await encodeVariantHls(inputPath, variantDir, variant, withAudio, {
       rotation,
+      withWatermark,
     });
   }
 
