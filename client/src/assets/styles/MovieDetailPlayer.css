@@ -18,8 +18,8 @@
 /* ─── Page shell ────────────────────────────────────── */
 .movie-detail-page {
   min-height: 100vh;
-  background-color: #f0f1f5;
-  color: #111118;
+  background-color: var(--bg);
+  color: var(--text);
   position: relative;
   overflow-x: hidden;
 }
@@ -426,13 +426,16 @@
 
 .nf-preview-inner { display: block; }
 
-.nf-progress-preview img {
+.nf-preview-media {
   width: 100%;
   height: 99px;
   display: block;
+  background: #0c0f17;
+}
+
+img.nf-preview-media {
   object-fit: cover;
   object-position: center;
-  background: #0c0f17;
 }
 
 .nf-progress-preview span {
@@ -1153,7 +1156,7 @@
     bottom: 32px;
   }
 
-  .nf-progress-preview img { height: 80px; }
+  .nf-preview-media { height: 80px; }
 
   .movie-action {
     flex: 1 1 calc(50% - 5px);
@@ -1448,4 +1451,106 @@
 
   .movie-lightbox__nav--prev { left: 6px; }
   .movie-lightbox__nav--next { right: 6px; }
+}
+
+/* ════════════════════════════════════════════════════
+   DARK MODE
+════════════════════════════════════════════════════ */
+[data-theme="dark"] .nf-player,
+[data-theme="dark"] .movie-info-card,
+[data-theme="dark"] .movie-side-card,
+[data-theme="dark"] .movie-recommend-card {
+  background: var(--panel);
+  border-color: var(--line);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .movie-title {
+  color: var(--text);
+}
+
+[data-theme="dark"] .movie-tags span {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--text-2);
+}
+
+[data-theme="dark"] .movie-action {
+  color: var(--text-2);
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .movie-action:hover {
+  background: #2a2f45;
+  border-color: var(--line-2);
+}
+
+[data-theme="dark"] .movie-click-tag {
+  color: var(--text-2);
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .movie-desc {
+  color: var(--text-2);
+}
+
+[data-theme="dark"] .movie-section-head h2,
+[data-theme="dark"] .movie-section-head h3 {
+  color: var(--text);
+}
+
+[data-theme="dark"] .related-card {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .related-card__thumb {
+  background: #2a2f45;
+}
+
+[data-theme="dark"] .related-card__title {
+  color: var(--text);
+}
+
+[data-theme="dark"] .movie-side-item {
+  color: var(--text);
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .movie-side-item:hover {
+  background: #2a2f45;
+  border-color: var(--line-2);
+}
+
+[data-theme="dark"] .movie-side-item__info h4 {
+  color: var(--text);
+}
+
+[data-theme="dark"] .movie-side-empty,
+[data-theme="dark"] .movie-loading-box {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .movie-poster-wrap {
+  background: #2a2f45;
+}
+
+[data-theme="dark"] .movie-gallery-thumb {
+  background: #2a2f45;
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .movie-detail-backdrop {
+  opacity: 0.22;
+}
+
+[data-theme="dark"] .movie-admin-message {
+  background: rgba(16, 185, 129, 0.1);
+  color: #4ade80;
+  border-color: rgba(16, 185, 129, 0.25);
 }

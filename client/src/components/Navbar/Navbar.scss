@@ -683,6 +683,183 @@
   }
 }
 
+.navbar__theme-toggle {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+  color: #4b5563;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 15px;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.navbar__theme-toggle:hover {
+  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #111118;
+}
+
+/* ── Dark mode overrides ── */
+[data-theme="dark"] {
+  .navbar__desktop {
+    background: #1a1d26;
+    border-color: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .navbar__content--links a {
+    color: #b0b8cc;
+  }
+
+  .navbar__content--links a:hover {
+    color: #e8eaf0;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .navbar__genre-trigger {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #b0b8cc;
+  }
+
+  .navbar__genre-trigger:hover,
+  .navbar__genre-trigger.active {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #e8eaf0;
+  }
+
+  .navbar__genre-mega {
+    background: #1a1d26;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .navbar__genre-mega-header h3 { color: #e8eaf0; }
+  .navbar__genre-mega-header p  { color: #6b7280; }
+
+  .navbar__genre-close {
+    background: rgba(255, 255, 255, 0.06);
+    color: #b0b8cc;
+    &:hover { background: rgba(255, 255, 255, 0.1); }
+  }
+
+  .navbar__genre-card {
+    background: #22263a;
+    border-color: rgba(255, 255, 255, 0.07);
+    color: #b0b8cc;
+    &:hover {
+      background: #2a2f45;
+      border-color: rgba(255, 255, 255, 0.11);
+    }
+  }
+
+  .navbar__genre-empty {
+    background: #22263a;
+    color: #6b7280;
+  }
+
+  .navbar__genre-btn--ghost {
+    background: rgba(255, 255, 255, 0.06);
+    color: #b0b8cc;
+    border-color: rgba(255, 255, 255, 0.09);
+    &:hover { background: rgba(255, 255, 255, 0.1); }
+  }
+
+  .navbar__footer--search {
+    background: #22263a;
+    border-color: rgba(255, 255, 255, 0.09);
+    &:focus-within {
+      background: #2a2f45;
+      border-color: rgba(229, 9, 20, 0.4);
+      box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.1);
+    }
+    input { color: #e8eaf0; }
+  }
+
+  .navbar__search-clear {
+    background: rgba(255, 255, 255, 0.07);
+    color: #6b7280;
+    &:hover { background: rgba(255, 255, 255, 0.12); }
+  }
+
+  .navbar__search-panel {
+    background: #1a1d26;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .navbar__search-section + .navbar__search-section {
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .navbar__search-section-title--result { color: #e8eaf0; }
+
+  .navbar__search-tag {
+    background: #22263a;
+    border-color: rgba(255, 255, 255, 0.07);
+    color: #b0b8cc;
+    &:hover { background: #2a2f45; }
+  }
+
+  .navbar__search-item:hover { background: #22263a; }
+
+  .navbar__search-thumb { background: #2a2f45; }
+
+  .navbar__search-info h4 { color: #e8eaf0; }
+
+  .navbar__search-empty {
+    background: #22263a;
+    color: #6b7280;
+  }
+
+  .navbar__footer--logout,
+  .navbar__footer--login {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.09);
+    color: #b0b8cc;
+    &:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+  }
+
+  .navbar__theme-toggle {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.09);
+    color: #b0b8cc;
+    &:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: #e8eaf0;
+    }
+  }
+
+  .navbar__user-dropdown {
+    background: #1a1d26;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .navbar__user-item {
+    color: #b0b8cc;
+    &:hover {
+      background: #22263a;
+      color: #e8eaf0;
+    }
+  }
+}
+
 @media (max-width: 1180px) {
   .navbar__desktop {
     flex-direction: column;

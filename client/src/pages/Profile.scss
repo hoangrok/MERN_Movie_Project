@@ -50,6 +50,19 @@
   }
 }
 
+[data-theme="dark"] {
+  .profile-avatar img {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .profile-avatar__save {
+    background: #e8eaf0;
+    color: #111118;
+
+    &:hover:not(:disabled) { background: #b0b8cc; }
+  }
+}
+
 .profile-avatar__save {
   padding: 7px 16px;
   border: 0;

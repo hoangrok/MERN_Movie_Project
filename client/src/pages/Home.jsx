@@ -25,6 +25,7 @@ import {
 } from "../utils/continueWatching";
 import { API_URL } from "../utils/api";
 import useDeferredMount from "../hooks/useDeferredMount";
+import { getPreviewFrames, normalizeImage } from "../utils/previewTimeline";
 import "../assets/styles/Home.scss";
 
 const AdPopup = lazy(() => import("../components/Ads/AdPopup"));
@@ -86,58 +87,9 @@ function scheduleDeferredTask(callback, timeout = 1200) {
   };
 }
 
-function normalizeImage(url) {
-  return typeof url === "string" && url.trim() ? url.trim() : "";
-}
-
-function dedupeImages(list = []) {
-  const seen = new Set();
-  return list.filter((item) => {
-    const key = normalizeImage(item);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function getTimelineFrames(movie, count = 3) {
-  const items = Array.isArray(movie?.previewTimeline?.items)
-    ? movie.previewTimeline.items
-    : [];
-  const targetCount = Math.max(1, Number(count) || 3);
-
-  const urls = dedupeImages(
-    items.map((item) => normalizeImage(item?.url)).filter(Boolean)
-  );
-
-  if (!urls.length) return [];
-  if (urls.length <= targetCount) return urls.slice(0, targetCount);
-
-  const ratios =
-    targetCount === 1
-      ? [0.5]
-      : targetCount === 4
-        ? [0.12, 0.38, 0.66, 0.88]
-        : Array.from({ length: targetCount }, (_item, index) => {
-            const ratio = index / Math.max(1, targetCount - 1);
-            return 0.08 + ratio * 0.84;
-          });
-
-  return dedupeImages(
-    ratios.map((ratio) => {
-      const index = Math.min(
-        urls.length - 1,
-        Math.floor((urls.length - 1) * ratio)
-      );
-      return urls[index];
-    })
-  ).slice(0, targetCount);
-}
-
 function getBestThumb(movie) {
   return (
     normalizeImage(movie?.backdrop) ||
-    getTimelineFrames(movie, 1)[0] ||
     normalizeImage(movie?.poster) ||
     FALLBACK_POSTER
   );
@@ -724,7 +676,7 @@ function PosterCard({ movie, badge = "" }) {
   const previewTimerRef = useRef(null);
   const showPreviewMedia = isHovered || previewReady || canPlayPreview;
   const previewFrames = useMemo(
-    () => (showPreviewMedia ? getTimelineFrames(movie, 10) : []),
+    () => (showPreviewMedia ? getPreviewFrames(movie, 10) : []),
     [movie, showPreviewMedia]
   );
 
@@ -732,11 +684,10 @@ function PosterCard({ movie, badge = "" }) {
     (item) => String(item?.id || item?._id) === String(movie._id)
   );
 
-  const frames = getTimelineFrames(movie, 2);
   const poster = normalizeImage(movie?.poster);
   const primary =
-    normalizeImage(movie?.backdrop) || frames[0] || poster || FALLBACK_POSTER;
-  const secondary = frames[1] || poster || primary;
+    normalizeImage(movie?.backdrop) || poster || FALLBACK_POSTER;
+  const secondary = poster || primary;
   const previewUrl = getDirectPreviewUrl(movie);
   const qualityBadge = getQualityBadgeLabel(movie);
   const qualityTone = getQualityBadgeTone(movie);
@@ -928,7 +879,7 @@ function ContinueCard({ movie, onRemove }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
   const previewFrames = useMemo(
-    () => (isHovered || canPlayPreview ? getTimelineFrames(movie, 8) : []),
+    () => (isHovered || canPlayPreview ? getPreviewFrames(movie, 8) : []),
     [movie, isHovered, canPlayPreview]
   );
 
@@ -1028,7 +979,7 @@ function TopCard({ movie, index }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
   const previewFrames = useMemo(
-    () => (isHovered || canPlayPreview ? getTimelineFrames(movie, 8) : []),
+    () => (isHovered || canPlayPreview ? getPreviewFrames(movie, 8) : []),
     [movie, isHovered, canPlayPreview]
   );
 

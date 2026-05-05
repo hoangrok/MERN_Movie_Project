@@ -397,6 +397,57 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     });
   };
 
+  const uploadVideoViaPresign = async (targetMovieId, file, { onProgress, isBatch = false } = {}) => {
+    if (!file) return null;
+
+    // 1. Get presigned PUT URL from backend
+    const presignRes = await fetch(`${API_URL}/upload/presign-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        movieId: targetMovieId,
+        filename: file.name,
+        contentType: file.type || "video/mp4",
+      }),
+    });
+    const presignData = await parseJsonSafe(presignRes);
+    if (!presignRes.ok || !presignData.success) {
+      throw new Error(presignData.message || "Không lấy được presign URL");
+    }
+    const { presignedUrl, r2Key, publicUrl } = presignData;
+
+    // 2. Upload file directly to R2 (bypasses Render — no 90s timeout)
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", presignedUrl, true);
+      xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+      xhr.upload.onprogress = (ev) => {
+        if (!ev.lengthComputable || !onProgress) return;
+        onProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Upload R2 thất bại (${xhr.status}). Kiểm tra CORS bucket R2.`));
+      };
+      xhr.onerror = () => reject(new Error("Không kết nối được R2. Kiểm tra CORS bucket."));
+      xhr.ontimeout = () => reject(new Error("Upload R2 timeout"));
+      xhr.timeout = 1000 * 60 * 120;
+      xhr.send(file);
+    });
+
+    // 3. Tell backend to queue processing from the R2 public URL
+    const processRes = await fetch(`${API_URL}/upload/process-from-url/${targetMovieId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ videoUrl: publicUrl, r2Key, isBatchUpload: isBatch }),
+    });
+    const processData = await parseJsonSafe(processRes);
+    if (!processRes.ok || !processData.success) {
+      throw new Error(processData.message || "Không đưa được vào queue xử lý");
+    }
+    return processData;
+  };
+
   const uploadVideoWithProgress = (targetMovieId, file) => {
     return new Promise((resolve, reject) => {
       if (!file) return resolve(null);
@@ -696,9 +747,13 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
       setMovieId(newMovieId);
 
       if (videoFile) {
-        await wakeServer();
-        setMessage("Đang upload video...");
-        const uploadData = await uploadVideoWithProgress(newMovieId, videoFile);
+        setMessage("Đang upload video lên storage...");
+        const uploadData = await uploadVideoViaPresign(newMovieId, videoFile, {
+          onProgress: (pct) => {
+            setUploadPercent(pct);
+            setMessage(`Đang upload video... ${pct}%`);
+          },
+        });
 
         if (!uploadData?.success) {
           throw new Error("Không đưa được video vào background queue");
@@ -1006,27 +1061,9 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
         createdMovieIds.push(newId);
         updateBatchFile(i, { movieId: newId });
 
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          const fd  = new FormData();
-          fd.append("video", item.file);
-          xhr.open("POST", `${API_URL}/upload/video/${newId}?batch=1`, true);
-          if (authToken) xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
-          xhr.upload.onprogress = (ev) => {
-            if (!ev.lengthComputable) return;
-            updateBatchFile(i, { percent: Math.round((ev.loaded / ev.total) * 100) });
-          };
-          xhr.onload = () => {
-            try {
-              const data = JSON.parse(xhr.responseText || "{}");
-              if (xhr.status >= 200 && xhr.status < 300 && data.success) resolve();
-              else reject(new Error(data.message || "Upload thất bại"));
-            } catch { reject(new Error("Response không hợp lệ")); }
-          };
-          xhr.onerror = () => reject(new Error("Lỗi kết nối"));
-          xhr.timeout = 1000 * 60 * 30;
-          xhr.ontimeout = () => reject(new Error("Timeout"));
-          xhr.send(fd);
+        await uploadVideoViaPresign(newId, item.file, {
+          onProgress: (pct) => updateBatchFile(i, { percent: pct }),
+          isBatch: true,
         });
 
         updateBatchFile(i, { status: "queued", percent: 100 });

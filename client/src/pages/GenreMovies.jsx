@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar/Navbar";
 import "../assets/styles/GenreMovies.scss";
 import { API_URL } from "../utils/api";
+import { normalizeImage } from "../utils/previewTimeline";
 import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
@@ -10,29 +11,10 @@ const FALLBACK_POSTER =
 const FALLBACK_BACKDROP =
   "https://dummyimage.com/1600x900/111/ffffff&text=Backdrop";
 
-function normalizeImage(url) {
-  return typeof url === "string" && url.trim() ? url.trim() : "";
-}
-
-function getTimelineFrames(movie, count = 3) {
-  const items = Array.isArray(movie?.previewTimeline?.items)
-    ? movie.previewTimeline.items
-    : [];
-  const urls = [...new Set(items.map((i) => normalizeImage(i?.url)).filter(Boolean))];
-  if (!urls.length) return [];
-  if (urls.length <= count) return urls.slice(0, count);
-  const ratios = count === 3 ? [0.15, 0.48, 0.8] : [0.12, 0.38, 0.66, 0.88];
-  return ratios
-    .map((r) => urls[Math.min(urls.length - 1, Math.floor((urls.length - 1) * r))])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .slice(0, count);
-}
-
 function getBestImage(movie) {
   const backdrop = normalizeImage(movie?.backdrop);
-  const frames = getTimelineFrames(movie, 1);
   const poster = normalizeImage(movie?.poster);
-  return backdrop || frames[0] || poster || FALLBACK_POSTER;
+  return backdrop || poster || FALLBACK_POSTER;
 }
 
 export default function GenreMovies() {

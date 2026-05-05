@@ -9,17 +9,21 @@ import {
   FaUserCircle,
   FaKey,
   FaUser,
+  FaMoon,
+  FaSun,
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { logoutReducer } from "../../store/Slice/auth-slice";
 import { searchMovies, clearSearch } from "../../store/Slice/movie-slice";
 import toast from "react-hot-toast";
 import { API_URL } from "../../utils/api";
+import useTheme from "../../hooks/useTheme";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/200x300/222/ffffff&text=No+Image";
 
 const Navbar = ({ isScrolled }) => {
+  const { theme, toggle: toggleTheme } = useTheme();
   const links = [
     { name: "Mới cập nhật", path: "/latest" },
     { name: "Top lượt xem", path: "/top-viewed" },
@@ -454,6 +458,16 @@ const Navbar = ({ isScrolled }) => {
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            className="navbar__theme-toggle"
+            onClick={toggleTheme}
+            aria-label="Chuyển giao diện"
+            title={theme === "dark" ? "Chế độ sáng" : "Chế độ tối"}
+          >
+            {theme === "dark" ? <FaSun /> : <FaMoon />}
+          </button>
 
           {user && user.token ? (
             <div className="navbar__user-menu" ref={userMenuRef}>

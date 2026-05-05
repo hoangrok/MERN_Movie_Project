@@ -1,10 +1,11 @@
-import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
 import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
+import { initScrollReveal } from "./utils/scrollReveal";
 
 const Home = lazy(() => import("./pages/Home"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -28,12 +29,16 @@ const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
 const TelegramWidget = lazy(() => import("./components/TelegramWidget/TelegramWidget"));
 
-function App() {
+function AppRoutes() {
   const { user } = useSelector((state) => state.auth);
-  const showDeferredChrome = useDeferredMount({ delay: 1400 });
+  const location = useLocation();
+
+  useEffect(() => {
+    initScrollReveal();
+  }, [location.pathname]);
 
   return (
-    <Suspense fallback={null}>
+    <div key={location.key} className="page-enter">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
@@ -81,6 +86,16 @@ function App() {
           }
         />
       </Routes>
+    </div>
+  );
+}
+
+function App() {
+  const showDeferredChrome = useDeferredMount({ delay: 1400 });
+
+  return (
+    <Suspense fallback={null}>
+      <AppRoutes />
       <VpnNotice />
       <SiteSupport />
       <ExoInterstitial />

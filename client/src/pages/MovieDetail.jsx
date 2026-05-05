@@ -21,6 +21,13 @@ import {
   cachePrefetchedStream,
   getPrefetchedStream,
 } from "../utils/streamPrefetch";
+import {
+  getAllPreviewFrames,
+  getPreviewAssetUrl,
+  getPreviewFrameAtTime,
+  getPreviewFrameStyle,
+  normalizeImage,
+} from "../utils/previewTimeline";
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/400x600/222/ffffff&text=Poster";
@@ -34,10 +41,6 @@ async function loadHlsModule() {
   }
 
   return hlsModulePromise;
-}
-
-function normalizeImage(url, fallback = "") {
-  return typeof url === "string" && url.trim() ? url.trim() : fallback;
 }
 
 function getQualityPixels(width = 0, height = 0) {
@@ -231,7 +234,7 @@ export default function MovieDetail() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewLeft, setPreviewLeft] = useState(0);
   const [previewTime, setPreviewTime] = useState(0);
-  const [previewImage, setPreviewImage] = useState("");
+  const [previewFrame, setPreviewFrame] = useState(null);
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [backdropSrc, setBackdropSrc] = useState(FALLBACK_BACKDROP);
   const [hlsLevels, setHlsLevels] = useState([]);
@@ -351,10 +354,13 @@ export default function MovieDetail() {
     throw new Error(streamData?.message || "Không lấy được stream");
   }, [id, user?.token]);
 
-  const preloadPreviewTimeline = (items = []) => {
-    items.slice(0, 16).forEach((item) => {
-      const url = normalizeImage(item?.url, "");
-      if (!url || previewCacheRef.current.has(url)) return;
+  const preloadPreviewTimeline = (frames = []) => {
+    const assets = [
+      ...new Set(frames.map((frame) => getPreviewAssetUrl(frame)).filter(Boolean)),
+    ];
+
+    assets.slice(0, 16).forEach((url) => {
+      if (previewCacheRef.current.has(url)) return;
 
       const img = new Image();
       img.onload = () => {
@@ -367,32 +373,22 @@ export default function MovieDetail() {
     });
   };
 
-  const previewItems = useMemo(() => {
-    const raw = Array.isArray(movie?.previewTimeline?.items)
-      ? movie.previewTimeline.items
-      : [];
-
-    return raw
-      .map((item) => ({
-        second: Number(item?.second ?? item?.time ?? item?.at ?? 0),
-        url: normalizeImage(item?.url, ""),
-      }))
-      .filter((item) => item.url)
-      .sort((a, b) => a.second - b.second);
+  const previewFrames = useMemo(() => {
+    return getAllPreviewFrames(movie);
   }, [movie]);
 
   const backdropImage = useMemo(() => {
     return (
-      normalizeImage(movie?.backdrop, "") ||
-      normalizeImage(movie?.poster, "") ||
+      normalizeImage(movie?.backdrop) ||
+      normalizeImage(movie?.poster) ||
       FALLBACK_BACKDROP
     );
   }, [movie]);
 
   const posterImage = useMemo(() => {
     return (
-      normalizeImage(movie?.poster, "") ||
-      normalizeImage(movie?.backdrop, "") ||
+      normalizeImage(movie?.poster) ||
+      normalizeImage(movie?.backdrop) ||
       FALLBACK_POSTER
     );
   }, [movie]);
@@ -406,19 +402,11 @@ export default function MovieDetail() {
 
   // Auto-select best thumbnail: backdrop (cinematic) > timeline 30% > poster
   const cardThumbImage = useMemo(() => {
-    const backdrop = normalizeImage(movie?.backdrop, "");
+    const backdrop = normalizeImage(movie?.backdrop);
     if (backdrop) return backdrop;
 
-    if (previewItems.length >= 3) {
-      const frame = normalizeImage(
-        previewItems[Math.floor(previewItems.length * 0.3)]?.url,
-        ""
-      );
-      if (frame) return frame;
-    }
-
-    return normalizeImage(movie?.poster, "") || FALLBACK_POSTER;
-  }, [movie, previewItems]);
+    return normalizeImage(movie?.poster) || FALLBACK_POSTER;
+  }, [movie]);
 
   useEffect(() => {
     setBackdropSrc(backdropImage || FALLBACK_BACKDROP);
@@ -1001,14 +989,11 @@ export default function MovieDetail() {
       episodeTitle: movie.episodeTitle || "",
     });
 
-    const firstTimelineImage = normalizeImage(
-      movie?.previewTimeline?.items?.[0]?.url,
-      ""
-    );
-    setPreviewImage(firstTimelineImage);
-    setPreviewLoaded(false);
-    preloadPreviewTimeline(movie?.previewTimeline?.items || []);
-  }, [movie]);
+    const firstTimelineFrame = previewFrames[0] || null;
+    setPreviewFrame(firstTimelineFrame);
+    setPreviewLoaded(Boolean(getPreviewAssetUrl(firstTimelineFrame)));
+    preloadPreviewTimeline(previewFrames);
+  }, [movie, previewFrames]);
 
   // Aggregate images from all episodes in the series
   useEffect(() => {
@@ -1343,24 +1328,8 @@ export default function MovieDetail() {
     }
   };
 
-  const getPreviewImageByTime = (timeInSeconds) => {
-    if (!previewItems.length) return "";
-
-    let chosen = previewItems[0];
-
-    for (const item of previewItems) {
-      if (item.second <= timeInSeconds) {
-        chosen = item;
-      } else {
-        break;
-      }
-    }
-
-    return normalizeImage(chosen?.url, "");
-  };
-
   const showPreviewAt = (clientX) => {
-    if (!duration || !progressWrapRef.current || !previewItems.length) return;
+    if (!duration || !progressWrapRef.current || !previewFrames.length) return;
 
     const rect = progressWrapRef.current.getBoundingClientRect();
     const x = Math.min(Math.max(0, clientX - rect.left), rect.width);
@@ -1373,14 +1342,15 @@ export default function MovieDetail() {
       Math.max(previewHalfWidth, rect.width - previewHalfWidth)
     );
 
-    const nextPreview = getPreviewImageByTime(time);
+    const nextPreview = getPreviewFrameAtTime(movie, time);
+    const nextAssetUrl = getPreviewAssetUrl(nextPreview);
 
     setPreviewLeft(safeX);
     setPreviewTime(time);
 
-    if (!nextPreview) {
+    if (!nextPreview || !nextAssetUrl) {
       setPreviewVisible(false);
-      setPreviewImage("");
+      setPreviewFrame(null);
       setPreviewLoaded(false);
       return;
     }
@@ -1397,8 +1367,24 @@ export default function MovieDetail() {
     }
 
     previewRafRef.current = requestAnimationFrame(() => {
-      setPreviewLoaded(false);
-      setPreviewImage(nextPreview);
+      const isAlreadyLoaded = previewCacheRef.current.get(nextAssetUrl) === true;
+      setPreviewFrame(nextPreview);
+      setPreviewLoaded(isAlreadyLoaded);
+
+      if (!isAlreadyLoaded) {
+        const img = new Image();
+        img.onload = () => {
+          previewCacheRef.current.set(nextAssetUrl, true);
+          setPreviewLoaded(true);
+        };
+        img.onerror = () => {
+          previewCacheRef.current.set(nextAssetUrl, false);
+          setPreviewLoaded(false);
+          setPreviewVisible(false);
+          setPreviewFrame(null);
+        };
+        img.src = nextAssetUrl;
+      }
     });
   };
 
@@ -2168,7 +2154,7 @@ export default function MovieDetail() {
                     onTouchEnd={hideProgressPreview}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {previewVisible && !!previewImage && (
+                    {previewVisible && !!previewFrame && (
                       <div
                         className={`nf-progress-preview show ${
                           previewLoaded ? "is-loaded" : ""
@@ -2176,23 +2162,29 @@ export default function MovieDetail() {
                         style={{ left: `${previewLeft}px` }}
                       >
                         <div className="nf-preview-inner">
-                          <img
-                            src={previewImage}
-                            alt=""
-                            draggable="false"
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              objectPosition: "center",
-                            }}
-                            onLoad={() => setPreviewLoaded(true)}
-                            onError={() => {
-                              setPreviewLoaded(false);
-                              setPreviewVisible(false);
-                              setPreviewImage("");
-                            }}
-                          />
+                          {previewFrame.type === "sprite" ? (
+                            <div
+                              className="nf-preview-media"
+                              aria-hidden="true"
+                              style={getPreviewFrameStyle(previewFrame, {
+                                width: "100%",
+                                height: "100%",
+                              })}
+                            />
+                          ) : (
+                            <img
+                              className="nf-preview-media"
+                              src={getPreviewAssetUrl(previewFrame)}
+                              alt=""
+                              draggable="false"
+                              onLoad={() => setPreviewLoaded(true)}
+                              onError={() => {
+                                setPreviewLoaded(false);
+                                setPreviewVisible(false);
+                                setPreviewFrame(null);
+                              }}
+                            />
+                          )}
                           <span>{formatTime(previewTime)}</span>
                         </div>
                       </div>
@@ -2528,8 +2520,9 @@ export default function MovieDetail() {
                       <div className="related-card__thumb">
                         <img
                           src={
-                            normalizeImage(item.backdrop, "") ||
-                            normalizeImage(item.poster, FALLBACK_POSTER)
+                            normalizeImage(item.backdrop) ||
+                            normalizeImage(item.poster) ||
+                            FALLBACK_POSTER
                           }
                           alt={item.title}
                           style={{
@@ -2575,8 +2568,9 @@ export default function MovieDetail() {
                     >
                       <img
                         src={
-                          normalizeImage(item.backdrop, "") ||
-                          normalizeImage(item.poster, FALLBACK_POSTER)
+                          normalizeImage(item.backdrop) ||
+                          normalizeImage(item.poster) ||
+                          FALLBACK_POSTER
                         }
                         alt={item.title}
                         style={{

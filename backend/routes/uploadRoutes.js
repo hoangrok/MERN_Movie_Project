@@ -6,7 +6,8 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const mongoose = require("mongoose");
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const r2 = require("../utils/r2");
 const Movie = require("../models/Movie");
@@ -61,6 +62,21 @@ const createSlug = (text = "") => {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 };
+
+const buildPreviewTimelineDocument = (previewResult = null) => ({
+  duration: Number(previewResult?.duration) || 0,
+  interval: Number(previewResult?.interval) || 0,
+  spriteUrl: String(previewResult?.spriteUrl || "").trim(),
+  spriteKey: String(previewResult?.spriteKey || "").trim(),
+  cols: Number(previewResult?.cols) || 0,
+  rows: Number(previewResult?.rows) || 0,
+  frameWidth: Number(previewResult?.frameWidth) || 0,
+  frameHeight: Number(previewResult?.frameHeight) || 0,
+  totalItems:
+    Number(previewResult?.totalItems) ||
+    (Array.isArray(previewResult?.items) ? previewResult.items.length : 0),
+  items: Array.isArray(previewResult?.items) ? previewResult.items : [],
+});
 
 const buildSegmentTitle = (movie, episodeNumber, totalSegments) => {
   const seriesBaseTitle = String(movie?.seriesTitle || movie?.title || "merged-video").trim();
@@ -428,11 +444,7 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
       : `/videos/${movieId}/hls/master.m3u8`;
 
     if (previewResult?.items?.length) {
-      movie.previewTimeline = {
-        duration: previewResult.duration || 0,
-        interval: previewResult.interval || 0,
-        items: previewResult.items || [],
-      };
+      movie.previewTimeline = buildPreviewTimelineDocument(previewResult);
 
       movie.thumbnailPickedAt = previewResult.bestFrame?.second || null;
     }
@@ -522,11 +534,7 @@ async function reprocessMovieMedia({
     }
 
     if (refreshPreview && previewResult?.items?.length) {
-      movie.previewTimeline = {
-        duration: previewResult.duration || 0,
-        interval: previewResult.interval || 0,
-        items: previewResult.items || [],
-      };
+      movie.previewTimeline = buildPreviewTimelineDocument(previewResult);
       movie.thumbnailPickedAt = previewResult.bestFrame?.second || null;
     }
 
@@ -558,6 +566,111 @@ router.options("/video/:movieId", (req, res) => res.sendStatus(204));
 router.options("/image", (req, res) => res.sendStatus(204));
 router.options("/status/:movieId", (req, res) => res.sendStatus(204));
 router.options("/queue", (req, res) => res.sendStatus(204));
+router.options("/presign-video", (req, res) => res.sendStatus(204));
+router.options("/process-from-url/:movieId", (req, res) => res.sendStatus(204));
+
+// ==========================
+// PRESIGN VIDEO — browser uploads directly to R2
+// ==========================
+
+router.post("/presign-video", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId, filename, contentType } = req.body;
+
+    if (!movieId || !mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ success: false, message: "movieId không hợp lệ" });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({ success: false, message: "Movie không tìm thấy" });
+    }
+
+    const ext = path.extname(String(filename || "video.mp4")).toLowerCase() || ".mp4";
+    const baseName = path.parse(String(filename || "video")).name;
+    const safeName = cleanFileBaseName(baseName);
+    const r2Key = `videos/${movieId}/raw/${Date.now()}-${safeName || "video"}${ext}`;
+    const resolvedContentType = contentType || "video/mp4";
+
+    const command = new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: r2Key,
+      ContentType: resolvedContentType,
+    });
+
+    const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 7200 });
+
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+    const publicUrl = `${publicBase}/${r2Key}`;
+
+    return res.json({ success: true, presignedUrl, r2Key, publicUrl });
+  } catch (err) {
+    console.error("presign-video error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================
+// PROCESS FROM URL — queue processVideoInBackground with an R2/https URL as source
+// ==========================
+
+router.post("/process-from-url/:movieId", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+    const { videoUrl, isBatchUpload = false, r2Key } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ success: false, message: "Invalid movie id" });
+    }
+
+    if (!videoUrl || !/^https?:\/\//i.test(String(videoUrl))) {
+      return res.status(400).json({ success: false, message: "videoUrl không hợp lệ" });
+    }
+
+    const movie = await Movie.findById(movieId);
+    if (!movie) {
+      return res.status(404).json({ success: false, message: "Movie không tìm thấy" });
+    }
+
+    movie.status = "queued";
+    movie.processingError = "";
+    if (r2Key) movie._rawR2Key = r2Key; // stored for post-processing cleanup
+    await movie.save();
+
+    addJob(async () => {
+      await processVideoInBackground({
+        movieId,
+        tempVideo: String(videoUrl),
+        isBatchUpload: Boolean(isBatchUpload),
+      });
+
+      // Delete the raw upload from R2 after HLS processing
+      if (r2Key) {
+        try {
+          await r2.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET, Key: r2Key }));
+          console.log("Deleted raw upload from R2:", r2Key);
+        } catch (delErr) {
+          console.warn("Could not delete raw R2 file:", delErr.message);
+        }
+      }
+    }, {
+      movieId,
+      title: movie.title || movie.seriesTitle || "Video from URL",
+      type: "video-process",
+    });
+
+    return res.json({
+      success: true,
+      queued: true,
+      movieId,
+      status: "queued",
+      message: "Video URL đã được đưa vào hàng chờ xử lý",
+    });
+  } catch (err) {
+    console.error("process-from-url error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ==========================
 // DEBUG QUEUE

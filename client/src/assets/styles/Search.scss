@@ -1,8 +1,8 @@
 .search-page {
   position: relative;
   min-height: 100vh;
-  background: #f0f1f5;
-  color: #111118;
+  background: var(--bg);
+  color: var(--text);
   overflow-x: hidden;
 }
 
@@ -198,5 +198,28 @@
 
   .search-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+[data-theme="dark"] {
+  .search-hero__badge { color: #e8eaf0; }
+
+  .search-hero__title { color: var(--text); }
+
+  .search-suggest__primary {
+    background: var(--panel-2);
+    border-color: var(--line);
+    color: var(--text);
+  }
+
+  .search-chip {
+    background: var(--panel-2);
+    color: var(--text);
+  }
+
+  .search-chip.active,
+  .search-chip:hover {
+    background: var(--panel);
+    color: var(--text);
   }
 }

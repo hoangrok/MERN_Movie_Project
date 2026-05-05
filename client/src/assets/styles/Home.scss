@@ -1,8 +1,8 @@
 .homePage {
   min-height: 100vh;
   overflow-x: hidden;
-  background: #f0f1f5;
-  color: #111118;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .homeLayout {
@@ -1288,4 +1288,56 @@
   .genreModal__grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Dark mode overrides ── */
+[data-theme="dark"] {
+  .homePanel {
+    background: var(--panel);
+    border-color: var(--line);
+  }
+
+  .homePanel--world {
+    background: #1a2035;
+    border-color: rgba(59, 130, 246, 0.18);
+  }
+
+  .homePanel--genres { background: var(--panel); }
+
+  .genrePill {
+    background: var(--panel-2);
+    border-color: var(--line);
+    color: var(--text-2);
+    &:hover { background: #2a2f45; border-color: var(--line-2); }
+  }
+
+  .sectionHead__title { color: var(--text); }
+
+  .continueItem,
+  .topItem {
+    background: var(--panel);
+    border-color: var(--line);
+  }
+
+  .continueItem__meta h3,
+  .topItem__meta h3 { color: var(--text); }
+
+  .posterCard {
+    background: var(--panel);
+    border-color: var(--line);
+  }
+
+  .posterCard__info {
+    background: var(--panel);
+    border-top-color: var(--line);
+    h3 { color: var(--text); }
+  }
+
+  .genreModal__box {
+    background: var(--panel);
+    border-color: var(--line);
+    h2 { color: var(--text); }
+  }
+
+  .genreModal__item:hover { background: var(--panel-2); }
 }

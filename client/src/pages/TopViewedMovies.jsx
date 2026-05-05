@@ -5,6 +5,7 @@ import AdSlot from "../components/Ads/AdSlot";
 import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import "../assets/styles/TopViewedMovies.scss";
 import { API_URL } from "../utils/api";
+import { getPreviewFrames } from "../utils/previewTimeline";
 import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
@@ -26,38 +27,13 @@ function getDirectPreviewUrl(movie) {
   return "";
 }
 
-function normalizeImage(url) {
-  return typeof url === "string" && url.trim() ? url.trim() : "";
-}
-
-function getTimelineFrames(movie, count = 4) {
-  const items = Array.isArray(movie?.previewTimeline?.items)
-    ? movie.previewTimeline.items
-    : [];
-  const seen = new Set();
-  const urls = items
-    .map((item) => normalizeImage(item?.url))
-    .filter((url) => {
-      if (!url || seen.has(url)) return false;
-      seen.add(url);
-      return true;
-    });
-
-  if (urls.length <= count) return urls;
-
-  return [0.08, 0.34, 0.62, 0.88]
-    .slice(0, count)
-    .map((ratio) => urls[Math.floor((urls.length - 1) * ratio)])
-    .filter(Boolean);
-}
-
 function TopViewedCard({ movie, index }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
 
   const imageSrc = movie.backdrop || movie.poster || FALLBACK_POSTER;
   const previewUrl = getDirectPreviewUrl(movie);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+  const previewFrames = useMemo(() => getPreviewFrames(movie, 4), [movie]);
 
   return (
     <Link

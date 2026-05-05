@@ -3,16 +3,45 @@
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position:  600px 0; }
+}
+
+@keyframes iconPop {
+  from { transform: rotate(-80deg) scale(0.5); opacity: 0; }
+  to   { transform: rotate(0deg)   scale(1);   opacity: 1; }
+}
+
 :root {
   --bg: #f0f1f5;
   --panel: #ffffff;
   --panel-2: #f7f8fa;
   --text: #111118;
+  --text-2: #374151;
   --muted: #6b7280;
   --line: rgba(0, 0, 0, 0.08);
+  --line-2: rgba(0, 0, 0, 0.12);
   --red: #e50914;
   --red-hover: #c8000c;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --panel: #1a1d26;
+  --panel-2: #22263a;
+  --text: #e8eaf0;
+  --text-2: #b0b8cc;
+  --muted: #6b7280;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-2: rgba(255, 255, 255, 0.1);
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -491,4 +520,84 @@ select {
   .hls-time-text {
     font-size: 12px;
   }
+}
+
+/* ══════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════ */
+
+/* ── Page enter ── */
+.page-enter {
+  animation: pageEnter 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity  0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Skeleton shimmer ── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--panel)   25%,
+    var(--panel-2) 50%,
+    var(--panel)   75%
+  ) !important;
+  background-size: 1200px 100% !important;
+  animation: shimmer 1.5s ease-in-out infinite !important;
+  border-radius: 8px;
+}
+
+/* ── Theme toggle icon ── */
+.navbar__theme-toggle svg {
+  animation: iconPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Enhanced card hover glow ── */
+.poster-card:hover {
+  box-shadow:
+    0 12px 36px rgba(229, 9, 20, 0.14),
+    0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.latest-card:hover,
+.genre-card:hover,
+.rank-card:hover {
+  box-shadow:
+    0 10px 32px rgba(229, 9, 20, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Smooth theme color transition ── */
+html {
+  transition: background-color 0.25s ease;
+}
+
+body,
+.navbar__desktop,
+.homePanel,
+.authPanel,
+.authShell,
+.movie-info-card,
+.movie-side-card,
+.movie-recommend-card,
+.nf-player,
+.latest-card,
+.genre-card,
+.rank-card {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }

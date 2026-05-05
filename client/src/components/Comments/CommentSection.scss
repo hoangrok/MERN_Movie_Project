@@ -173,6 +173,31 @@
   word-break: break-word;
 }
 
+/* ── Dark mode ── */
+[data-theme="dark"] {
+  .cmt-section { border-top-color: rgba(255, 255, 255, 0.07); }
+
+  .cmt-title { color: #e8eaf0; }
+
+  .cmt-input {
+    background: #22263a;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e8eaf0;
+
+    &:focus {
+      background: #2a2f45;
+      border-color: rgba(229, 9, 20, 0.5);
+      box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.12);
+    }
+  }
+
+  .cmt-item__header strong { color: #e8eaf0; }
+
+  .cmt-delete { color: #374151; }
+
+  .cmt-content { color: #b0b8cc; }
+}
+
 /* ── Load more ── */
 .cmt-more {
   display: block;
@@ -190,4 +215,12 @@
 
   &:hover:not(:disabled) { background: #edf0f4; }
   &:disabled { opacity: 0.6; cursor: wait; }
+}
+
+[data-theme="dark"] .cmt-more {
+  background: #22263a;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #b0b8cc;
+
+  &:hover:not(:disabled) { background: #2a2f45; }
 }
