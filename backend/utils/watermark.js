@@ -146,7 +146,7 @@ function buildWatermarkFilter(videoWidth = 1920, videoHeight = 1080, options = {
 
     const filterComplex = [
       `[0:v]${baseVideoFilter}[base]`,
-      `[1:v]format=rgba,colorchannelmixer=aa=${LOGO_OPACITY},scale=${logoW}:-2[logo]`,
+      `[1:v]format=rgba,scale=${logoW}:-2[logo]`,
       `[base]${glowLayer},${mainText},${ghostText}[vtxt]`,
       `[vtxt][logo]overlay=x='${logoX}':y='${logoY}'[v]`,
     ].join(";");
