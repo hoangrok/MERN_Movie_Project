@@ -6,7 +6,7 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const mongoose = require("mongoose");
-const { PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const r2 = require("../utils/r2");
@@ -637,10 +637,25 @@ router.post("/process-from-url/:movieId", protect, adminOnly, async (req, res) =
     if (r2Key) movie._rawR2Key = r2Key; // stored for post-processing cleanup
     await movie.save();
 
+    // If we have an r2Key, generate a presigned GET URL so ffmpeg can read
+    // the file even when the bucket's public access is disabled.
+    let tempVideoUrl = String(videoUrl);
+    if (r2Key) {
+      try {
+        const getCmd = new GetObjectCommand({
+          Bucket: process.env.R2_BUCKET,
+          Key: r2Key,
+        });
+        tempVideoUrl = await getSignedUrl(r2, getCmd, { expiresIn: 7200 });
+      } catch (signErr) {
+        console.warn("Could not create presigned GET URL, falling back to publicUrl:", signErr.message);
+      }
+    }
+
     addJob(async () => {
       await processVideoInBackground({
         movieId,
-        tempVideo: String(videoUrl),
+        tempVideo: tempVideoUrl,
         isBatchUpload: Boolean(isBatchUpload),
       });
 
