@@ -358,7 +358,8 @@ select {
   left: 0;
   top: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.42);
+  transition: width 0.4s linear;
 }
 
 .hls-timeline-progress {
@@ -455,6 +456,65 @@ select {
   width: 92px;
   accent-color: #e50914;
   cursor: pointer;
+}
+
+/* speed button */
+.hls-speed-btn {
+  min-width: 46px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* active state (PiP active) */
+.hls-ctrl-btn.active {
+  background: rgba(229, 9, 20, 0.28);
+  border-color: rgba(229, 9, 20, 0.5);
+  color: #fff;
+}
+
+/* seek hint (+5s / -5s) */
+@keyframes hlsSeekPop {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+.hls-seek-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  padding: 10px 22px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 10;
+  animation: hlsSeekPop 0.8s ease forwards;
+}
+
+/* keyboard shortcut hint bar */
+@keyframes hlsKbFadeOut {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+.hls-kb-hint {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.62);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: hlsKbFadeOut 4s ease forwards;
 }
 
 .hls-time-text {

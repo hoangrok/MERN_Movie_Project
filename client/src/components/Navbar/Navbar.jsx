@@ -186,11 +186,16 @@ const Navbar = ({ isScrolled }) => {
 
   const searchMovieHandler = (e) => {
     const value = e.target.value;
-    if (value.trim()) {
-      ensureGenresLoaded();
-    }
+    if (value.trim()) ensureGenresLoaded();
     setSearchedInput(value);
     setShowSearchResult(!!value.trim());
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === "Enter" && searchedInput.trim()) {
+      setShowSearchResult(false);
+      navigate(`/search?q=${encodeURIComponent(searchedInput.trim())}`);
+    }
   };
 
   const clearSearchHandler = () => {
@@ -374,6 +379,7 @@ const Navbar = ({ isScrolled }) => {
                 placeholder="Tìm phim, thể loại, mô tả..."
                 value={searchedInput}
                 onChange={searchMovieHandler}
+                onKeyDown={handleSearchKeyDown}
                 onFocus={() => {
                   if (searchedInput.trim()) setShowSearchResult(true);
                 }}
