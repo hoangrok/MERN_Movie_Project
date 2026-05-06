@@ -102,6 +102,20 @@ export default function HlsPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+
+        // Buffer ahead aggressively so seeking within buffered range is instant
+        maxBufferLength: 60,          // pre-load 60s ahead (default 30s)
+        maxMaxBufferLength: 240,      // allow up to 4 min of buffer
+        maxBufferSize: 80 * 1024 * 1024, // 80MB max buffer in memory
+        backBufferLength: 30,         // keep 30s behind current pos (saves RAM)
+
+        // Faster quality upgrade on good connections
+        startLevel: -1,              // auto-select start quality
+        abrEwmaDefaultEstimate: 1_500_000, // assume 1.5 Mbps initially
+
+        // Reduce stall on seek to unbuffered position
+        maxBufferHole: 0.5,
+        nudgeMaxRetry: 5,
       });
 
       hlsRef.current = hls;
