@@ -6,7 +6,15 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const mongoose = require("mongoose");
-const { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+} = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const r2 = require("../utils/r2");
@@ -614,6 +622,111 @@ router.post("/presign-video", protect, adminOnly, async (req, res) => {
     return res.json({ success: true, presignedUrl, r2Key, publicUrl });
   } catch (err) {
     console.error("presign-video error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================
+// MULTIPART UPLOAD — browser splits large file into chunks, uploads each chunk
+// directly to R2 in parallel, then calls complete to assemble
+// ==========================
+
+// 1. Initiate — returns uploadId + r2Key
+router.post("/multipart/init", protect, adminOnly, async (req, res) => {
+  try {
+    const { movieId, filename, contentType } = req.body;
+    if (!movieId || !mongoose.Types.ObjectId.isValid(movieId)) {
+      return res.status(400).json({ success: false, message: "movieId không hợp lệ" });
+    }
+    const movie = await Movie.findById(movieId);
+    if (!movie) return res.status(404).json({ success: false, message: "Movie không tìm thấy" });
+
+    const ext = path.extname(String(filename || "video.mp4")).toLowerCase() || ".mp4";
+    const base = path.parse(String(filename || "video")).name;
+    const r2Key = `videos/${movieId}/raw/${Date.now()}-${cleanFileBaseName(base) || "video"}${ext}`;
+    const resolvedType = contentType || "video/mp4";
+
+    const cmd = new CreateMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: r2Key,
+      ContentType: resolvedType,
+    });
+    const { UploadId } = await r2.send(cmd);
+
+    return res.json({ success: true, uploadId: UploadId, r2Key });
+  } catch (err) {
+    console.error("multipart/init error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 2. Presign each part — browser calls this per chunk, gets a signed PUT URL
+router.post("/multipart/presign-part", protect, adminOnly, async (req, res) => {
+  try {
+    const { r2Key, uploadId, partNumber } = req.body;
+    if (!r2Key || !uploadId || !partNumber) {
+      return res.status(400).json({ success: false, message: "Thiếu r2Key / uploadId / partNumber" });
+    }
+
+    const cmd = new UploadPartCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: r2Key,
+      UploadId: uploadId,
+      PartNumber: Number(partNumber),
+    });
+    const presignedUrl = await getSignedUrl(r2, cmd, { expiresIn: 3600 });
+
+    return res.json({ success: true, presignedUrl });
+  } catch (err) {
+    console.error("multipart/presign-part error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. Complete — assemble all parts into the final object
+router.post("/multipart/complete", protect, adminOnly, async (req, res) => {
+  try {
+    const { r2Key, uploadId, parts } = req.body;
+    // parts: [{ PartNumber, ETag }, ...]
+    if (!r2Key || !uploadId || !Array.isArray(parts) || parts.length === 0) {
+      return res.status(400).json({ success: false, message: "Thiếu r2Key / uploadId / parts" });
+    }
+
+    const cmd = new CompleteMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: r2Key,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: parts
+          .sort((a, b) => a.PartNumber - b.PartNumber)
+          .map(({ PartNumber, ETag }) => ({ PartNumber, ETag })),
+      },
+    });
+    await r2.send(cmd);
+
+    const publicBase = (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+    return res.json({ success: true, publicUrl: `${publicBase}/${r2Key}` });
+  } catch (err) {
+    console.error("multipart/complete error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Abort — clean up if user cancels mid-upload
+router.post("/multipart/abort", protect, adminOnly, async (req, res) => {
+  try {
+    const { r2Key, uploadId } = req.body;
+    if (!r2Key || !uploadId) {
+      return res.status(400).json({ success: false, message: "Thiếu r2Key / uploadId" });
+    }
+    await r2.send(new AbortMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: r2Key,
+      UploadId: uploadId,
+    }));
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("multipart/abort error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 });

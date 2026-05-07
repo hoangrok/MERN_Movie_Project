@@ -92,9 +92,8 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
     }
 
     const outputOptions = [
-      "-preset veryfast",
-      "-profile:v main",
-      "-crf 20",
+      "-preset ultrafast",
+      "-profile:v baseline",
       "-sc_threshold 0",
       "-g 48",
       "-keyint_min 48",

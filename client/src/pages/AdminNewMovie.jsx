@@ -449,54 +449,125 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     });
   };
 
+  const MULTIPART_THRESHOLD = 100 * 1024 * 1024; // 100 MB → dùng multipart
+  const CHUNK_SIZE          =  50 * 1024 * 1024; // 50 MB mỗi part
+  const CONCURRENT_PARTS    = 4;                 // upload 4 parts song song
+
+  // Upload 1 part, trả về { PartNumber, ETag }
+  const uploadOnePart = async (presignedUrl, chunk, contentType) => {
+    const res = await fetch(presignedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: chunk,
+    });
+    if (!res.ok) throw new Error(`Part upload thất bại (${res.status})`);
+    const etag = res.headers.get("ETag") || res.headers.get("etag") || "";
+    return etag.replace(/"/g, ""); // R2 returns ETag with quotes
+  };
+
   const uploadVideoViaPresign = async (targetMovieId, file, { onProgress, isBatch = false } = {}) => {
     if (!file) return null;
 
-    // 1. Get presigned PUT URL from backend
-    const presignRes = await fetch(`${API_URL}/upload/presign-video`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      body: JSON.stringify({
-        movieId: targetMovieId,
-        filename: file.name,
-        contentType: file.type || "video/mp4",
-      }),
-    });
-    const presignData = await parseJsonSafe(presignRes);
-    if (!presignRes.ok || !presignData.success) {
-      throw new Error(presignData.message || "Không lấy được presign URL");
+    const contentType = file.type || "video/mp4";
+    let r2Key, publicUrl;
+
+    if (file.size > MULTIPART_THRESHOLD) {
+      // ── Multipart path (file > 100 MB) ──────────────────────────────
+      // 1. Initiate
+      const initRes = await fetch(`${API_URL}/upload/multipart/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ movieId: targetMovieId, filename: file.name, contentType }),
+      });
+      const initData = await parseJsonSafe(initRes);
+      if (!initRes.ok || !initData.success) throw new Error(initData.message || "Không tạo được multipart upload");
+      const { uploadId } = initData;
+      r2Key = initData.r2Key;
+
+      // 2. Tạo danh sách chunks
+      const totalParts = Math.ceil(file.size / CHUNK_SIZE);
+      const partNumbers = Array.from({ length: totalParts }, (_, i) => i + 1);
+
+      // 3. Lấy tất cả presigned URLs trước (nhanh hơn lấy từng cái)
+      const presignedUrls = await Promise.all(
+        partNumbers.map(async (partNumber) => {
+          const r = await fetch(`${API_URL}/upload/multipart/presign-part`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+            body: JSON.stringify({ r2Key, uploadId, partNumber }),
+          });
+          const d = await parseJsonSafe(r);
+          if (!r.ok || !d.success) throw new Error(d.message || `Presign part ${partNumber} thất bại`);
+          return { partNumber, presignedUrl: d.presignedUrl };
+        })
+      );
+
+      // 4. Upload parts với concurrency limit
+      const completedParts = [];
+      let uploadedBytes = 0;
+
+      for (let i = 0; i < presignedUrls.length; i += CONCURRENT_PARTS) {
+        const batch = presignedUrls.slice(i, i + CONCURRENT_PARTS);
+        const batchResults = await Promise.all(
+          batch.map(async ({ partNumber, presignedUrl }) => {
+            const start = (partNumber - 1) * CHUNK_SIZE;
+            const chunk = file.slice(start, start + CHUNK_SIZE);
+            const etag = await uploadOnePart(presignedUrl, chunk, contentType);
+            uploadedBytes += chunk.size;
+            if (onProgress) onProgress(Math.round((uploadedBytes / file.size) * 95)); // cap at 95 until complete
+            return { PartNumber: partNumber, ETag: etag };
+          })
+        );
+        completedParts.push(...batchResults);
+      }
+
+      // 5. Complete
+      const completeRes = await fetch(`${API_URL}/upload/multipart/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ r2Key, uploadId, parts: completedParts }),
+      });
+      const completeData = await parseJsonSafe(completeRes);
+      if (!completeRes.ok || !completeData.success) throw new Error(completeData.message || "Hoàn thành multipart thất bại");
+      publicUrl = completeData.publicUrl;
+      if (onProgress) onProgress(100);
+
+    } else {
+      // ── Single PUT path (file ≤ 100 MB) ─────────────────────────────
+      const presignRes = await fetch(`${API_URL}/upload/presign-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ movieId: targetMovieId, filename: file.name, contentType }),
+      });
+      const presignData = await parseJsonSafe(presignRes);
+      if (!presignRes.ok || !presignData.success) throw new Error(presignData.message || "Không lấy được presign URL");
+      r2Key = presignData.r2Key;
+      publicUrl = presignData.publicUrl;
+
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", presignData.presignedUrl, true);
+        xhr.setRequestHeader("Content-Type", contentType);
+        xhr.upload.onprogress = (ev) => {
+          if (!ev.lengthComputable || !onProgress) return;
+          onProgress(Math.round((ev.loaded / ev.total) * 100));
+        };
+        xhr.onload  = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload R2 thất bại (${xhr.status}). Kiểm tra CORS bucket R2.`));
+        xhr.onerror = () => reject(new Error("Không kết nối được R2. Kiểm tra CORS bucket."));
+        xhr.ontimeout = () => reject(new Error("Upload R2 timeout"));
+        xhr.timeout = 1000 * 60 * 120;
+        xhr.send(file);
+      });
     }
-    const { presignedUrl, r2Key, publicUrl } = presignData;
 
-    // 2. Upload file directly to R2 (bypasses Render — no 90s timeout)
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", presignedUrl, true);
-      xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
-      xhr.upload.onprogress = (ev) => {
-        if (!ev.lengthComputable || !onProgress) return;
-        onProgress(Math.round((ev.loaded / ev.total) * 100));
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(`Upload R2 thất bại (${xhr.status}). Kiểm tra CORS bucket R2.`));
-      };
-      xhr.onerror = () => reject(new Error("Không kết nối được R2. Kiểm tra CORS bucket."));
-      xhr.ontimeout = () => reject(new Error("Upload R2 timeout"));
-      xhr.timeout = 1000 * 60 * 120;
-      xhr.send(file);
-    });
-
-    // 3. Tell backend to queue processing from the R2 public URL
+    // Queue xử lý backend
     const processRes = await fetch(`${API_URL}/upload/process-from-url/${targetMovieId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ videoUrl: publicUrl, r2Key, isBatchUpload: isBatch }),
     });
     const processData = await parseJsonSafe(processRes);
-    if (!processRes.ok || !processData.success) {
-      throw new Error(processData.message || "Không đưa được vào queue xử lý");
-    }
+    if (!processRes.ok || !processData.success) throw new Error(processData.message || "Không đưa được vào queue xử lý");
     return processData;
   };
 
