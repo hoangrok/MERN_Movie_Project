@@ -1,3 +1,4 @@
+/* Hidden by default — no mount, no scroll-jump */
 .adPopup__backdrop {
   position: fixed;
   inset: 0;
@@ -7,12 +8,18 @@
   padding: 16px;
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(6px);
-  animation: adBackdropIn 0.25s ease;
-}
 
-@keyframes adBackdropIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  /* Start invisible, non-interactive */
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+
+  &.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+  }
 }
 
 .adPopup__card {
@@ -26,12 +33,15 @@
     0 40px 100px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(229, 9, 20, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  animation: adCardIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
 
-@keyframes adCardIn {
-  from { opacity: 0; transform: scale(0.88) translateY(20px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  transform: scale(0.88) translateY(20px);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+  opacity: 0;
+
+  .adPopup__backdrop.is-visible & {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 .adPopup__close {

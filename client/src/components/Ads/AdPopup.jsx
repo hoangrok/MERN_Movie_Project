@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FaTelegram, FaTimes, FaBullhorn, FaCheckCircle } from "react-icons/fa";
 import "./AdPopup.scss";
 
@@ -11,11 +11,12 @@ const PERKS = [
 
 export default function AdPopup() {
   const [visible, setVisible] = useState(false);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     if (sessionStorage.getItem("adPopupSeen")) return;
-    const t = setTimeout(() => setVisible(true), 800);
-    return () => clearTimeout(t);
+    timerRef.current = setTimeout(() => setVisible(true), 800);
+    return () => clearTimeout(timerRef.current);
   }, []);
 
   const close = () => {
@@ -23,13 +24,19 @@ export default function AdPopup() {
     setVisible(false);
   };
 
-  if (!visible) return null;
-
+  // Always rendered — visibility toggled via CSS class to avoid scroll-jump on mount
   return (
-    <div className="adPopup__backdrop" onClick={close} role="dialog" aria-modal="true" aria-label="Quảng cáo">
+    <div
+      className={`adPopup__backdrop${visible ? " is-visible" : ""}`}
+      onClick={close}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Quảng cáo"
+      aria-hidden={!visible}
+    >
       <div className="adPopup__card" onClick={(e) => e.stopPropagation()}>
 
-        <button className="adPopup__close" onClick={close} aria-label="Đóng quảng cáo">
+        <button className="adPopup__close" onClick={close} aria-label="Đóng quảng cáo" tabIndex={visible ? 0 : -1}>
           <FaTimes />
         </button>
 
@@ -62,13 +69,14 @@ export default function AdPopup() {
             href="https://t.me/kikomino"
             target="_blank"
             rel="noopener noreferrer"
+            tabIndex={visible ? 0 : -1}
           >
             <FaTelegram />
             @kikomino
           </a>
         </div>
 
-        <button className="adPopup__dismiss" onClick={close}>
+        <button className="adPopup__dismiss" onClick={close} tabIndex={visible ? 0 : -1}>
           Không, cảm ơn
         </button>
       </div>

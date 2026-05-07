@@ -65,6 +65,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Inter", sans-serif;
+  scrollbar-gutter: stable;
 }
 
 a {
