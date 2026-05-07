@@ -421,3 +421,50 @@
     width: min(calc(88dvh * 16 / 9), calc(100vw - 24px));
   }
 }
+
+/* ── Reorder ── */
+.epList__reorderBtn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.epList__reorderBtn:hover { background: rgba(255,255,255,0.16); }
+.epList__reorderBtn--save {
+  background: rgba(229,9,20,0.22);
+  border-color: rgba(229,9,20,0.45);
+  color: #fff;
+}
+.epList__reorderBtn--save:hover { background: rgba(229,9,20,0.38); }
+
+.epList__reorderBtns {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 4;
+}
+.epList__reorderBtns button {
+  width: 26px;
+  height: 22px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(0,0,0,0.62);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.epList__reorderBtns button:disabled { opacity: 0.28; cursor: default; }
+.epList__reorderBtns button:not(:disabled):hover { background: rgba(229,9,20,0.55); }

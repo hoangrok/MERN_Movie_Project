@@ -74,6 +74,24 @@
   transform: scale(1.06);
 }
 
+/* watch progress bar */
+.movieCard__progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  z-index: 4;
+}
+
+.movieCard__progress-fill {
+  height: 100%;
+  background: #e50914;
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s ease;
+}
+
 .movieCard__gradient {
   position: absolute;
   inset: 0;

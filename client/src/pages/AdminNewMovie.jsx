@@ -55,6 +55,58 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
     loading: false,
     message: "",
   });
+
+  // TMDB auto-fill
+  const [tmdbQuery, setTmdbQuery]     = useState("");
+  const [tmdbResults, setTmdbResults] = useState([]);
+  const [tmdbLoading, setTmdbLoading] = useState(false);
+  const [tmdbOpen, setTmdbOpen]       = useState(false);
+  const tmdbDebounce                  = useRef(null);
+
+  const handleTmdbInput = (e) => {
+    const q = e.target.value;
+    setTmdbQuery(q);
+    setTmdbOpen(!!q.trim());
+    if (tmdbDebounce.current) clearTimeout(tmdbDebounce.current);
+    if (!q.trim()) { setTmdbResults([]); return; }
+    tmdbDebounce.current = setTimeout(async () => {
+      setTmdbLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/movies/tmdb-search?q=${encodeURIComponent(q)}`, {
+          headers: { ...getAuthHeaders() },
+        });
+        const data = await res.json();
+        setTmdbResults(data.results || []);
+      } catch { setTmdbResults([]); }
+      finally { setTmdbLoading(false); }
+    }, 420);
+  };
+
+  const applyTmdb = async (result) => {
+    setTmdbOpen(false);
+    setTmdbQuery(result.title);
+    // Fill immediately with search data
+    setForm((prev) => ({
+      ...prev,
+      title: result.title || prev.title,
+      description: result.overview || prev.description,
+      poster: result.poster || prev.poster,
+      backdrop: result.backdrop || prev.backdrop,
+      year: result.year || prev.year,
+      rating: result.rating ? String(result.rating) : prev.rating,
+      genre: result.genres?.join(", ") || prev.genre,
+    }));
+    // Then fetch full details for runtime
+    try {
+      const res = await fetch(`${API_URL}/movies/tmdb-details/${result.tmdbId}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      const d = await res.json();
+      if (d.success && d.duration) {
+        setForm((prev) => ({ ...prev, duration: String(d.duration) }));
+      }
+    } catch {}
+  };
   const pollRef = useRef(null);
   const batchPollRef = useRef(null);
   const batchFilesRef = useRef([]);
@@ -1561,6 +1613,65 @@ export default function AdminNewMovie({ forcedContentArea = "" }) {
 
         {/* SINGLE MOVIE MODE */}
         {mode === "single" && (<>
+
+        {/* TMDB auto-fill */}
+        <div style={{ position: "relative", marginBottom: 18 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "rgba(1,180,228,0.07)", border: "1px solid rgba(1,180,228,0.22)",
+            borderRadius: 10, padding: "10px 14px",
+          }}>
+            <span style={{ fontSize: 18 }}>🎬</span>
+            <input
+              placeholder="Tìm phim trên TMDB để tự điền thông tin..."
+              value={tmdbQuery}
+              onChange={handleTmdbInput}
+              onFocus={() => tmdbQuery.trim() && setTmdbOpen(true)}
+              style={{ ...inputStyle, border: "none", background: "transparent", padding: "0", flex: 1 }}
+            />
+            {tmdbLoading && <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>Đang tìm...</span>}
+            {tmdbQuery && (
+              <button type="button" onClick={() => { setTmdbQuery(""); setTmdbResults([]); setTmdbOpen(false); }}
+                style={{ background: "none", border: "none", color: "rgba(255,255,255,0.45)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+                ×
+              </button>
+            )}
+          </div>
+
+          {tmdbOpen && tmdbResults.length > 0 && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+              background: "#1a1a1a", border: "1px solid #333", borderRadius: 10,
+              overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            }}>
+              {tmdbResults.map((r) => (
+                <button key={r.tmdbId} type="button" onClick={() => applyTmdb(r)}
+                  style={{
+                    display: "flex", gap: 12, alignItems: "center", width: "100%",
+                    padding: "10px 14px", background: "none", border: "none",
+                    borderBottom: "1px solid #2a2a2a", cursor: "pointer", textAlign: "left",
+                    transition: "background 0.12s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.06)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                >
+                  {r.poster
+                    ? <img src={r.poster} alt="" style={{ width: 38, height: 56, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />
+                    : <div style={{ width: 38, height: 56, background: "#333", borderRadius: 4, flexShrink: 0 }} />
+                  }
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {r.title}
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
+                      {r.year}{r.rating ? ` · ⭐ ${r.rating}` : ""}{r.genres?.length ? ` · ${r.genres.slice(0,2).join(", ")}` : ""}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {message && (
           <p style={{ marginBottom: 12, color: "#f5c542", fontWeight: 700 }}>

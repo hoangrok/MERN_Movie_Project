@@ -7,6 +7,7 @@ import {
   getPrefetchedStream,
   prefetchMovieStream,
 } from "../../utils/streamPrefetch";
+import { normalizeImage } from "../../utils/previewTimeline";
 import "./EpisodeList.css";
 
 export default function EpisodeList({ movie, variant = "default" }) {
@@ -19,6 +20,8 @@ export default function EpisodeList({ movie, variant = "default" }) {
   const [playerOpen, setPlayerOpen] = useState(false);
   const [playerVisible, setPlayerVisible] = useState(false);
   const [deletingEpisodeId, setDeletingEpisodeId] = useState("");
+  const [reorderMode, setReorderMode] = useState(false);
+  const [reorderSaving, setReorderSaving] = useState(false);
 
   useEffect(() => {
     if (!movie?.seriesId) return;
@@ -170,6 +173,36 @@ export default function EpisodeList({ movie, variant = "default" }) {
     }
   };
 
+  const moveEpisode = (index, dir) => {
+    setEpisodes((prev) => {
+      const next = [...prev];
+      const target = index + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const saveReorder = async () => {
+    if (!movie?.seriesId || !user?.token) return;
+    setReorderSaving(true);
+    try {
+      const order = episodes.map((ep, i) => ({ _id: ep._id, episode: i + 1 }));
+      const res = await fetch(`${API_URL}/movies/series/${movie.seriesId}/reorder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ season: movie.season || 1, order }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) throw new Error(data?.message || "Lỗi lưu thứ tự");
+      setReorderMode(false);
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      setReorderSaving(false);
+    }
+  };
+
   const normalizedEpisodes = useMemo(() => {
     return episodes.map((ep) => {
       const width = Number(ep?.videoWidth) || 0;
@@ -177,9 +210,8 @@ export default function EpisodeList({ movie, variant = "default" }) {
       const ratio =
         width > 0 && height > 0 ? `${width} / ${height}` : "16 / 9";
       const thumb =
-        ep?.backdrop ||
-        ep?.previewTimeline?.items?.[0]?.url ||
-        ep?.poster ||
+        normalizeImage(ep?.backdrop) ||
+        normalizeImage(ep?.poster) ||
         "";
 
       return {
@@ -207,11 +239,32 @@ export default function EpisodeList({ movie, variant = "default" }) {
     >
       <div className="epList__head">
         <span className="epList__title">📺 {movie.seriesTitle || "Danh sách tập"}</span>
-        <span className="epList__count">{normalizedEpisodes.length} tập</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="epList__count">{normalizedEpisodes.length} tập</span>
+          {user?.isAdmin && (
+            reorderMode ? (
+              <>
+                <button type="button" className="epList__reorderBtn epList__reorderBtn--save"
+                  onClick={saveReorder} disabled={reorderSaving}>
+                  {reorderSaving ? "Đang lưu..." : "💾 Lưu"}
+                </button>
+                <button type="button" className="epList__reorderBtn"
+                  onClick={() => { setReorderMode(false); }} disabled={reorderSaving}>
+                  Huỷ
+                </button>
+              </>
+            ) : (
+              <button type="button" className="epList__reorderBtn"
+                onClick={() => setReorderMode(true)}>
+                ↕ Sắp xếp
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       <div className="epList__row">
-        {normalizedEpisodes.map((ep) => {
+        {normalizedEpisodes.map((ep, index) => {
           const isRouteActive = ep.slug === movie.slug || ep._id === movie._id;
           const isActive =
             variant === "world"
@@ -290,7 +343,13 @@ export default function EpisodeList({ movie, variant = "default" }) {
                 </>
               )}
               </button>
-              {user?.isAdmin && ep?._id ? (
+              {user?.isAdmin && ep?._id && reorderMode ? (
+                <div className="epList__reorderBtns">
+                  <button type="button" disabled={index === 0} onClick={() => moveEpisode(index, -1)}>▲</button>
+                  <button type="button" disabled={index === normalizedEpisodes.length - 1} onClick={() => moveEpisode(index, 1)}>▼</button>
+                </div>
+              ) : null}
+              {user?.isAdmin && ep?._id && !reorderMode ? (
                 <button
                   type="button"
                   className="epList__delete"
