@@ -214,12 +214,15 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
     console.log("video rotation:", videoRotation);
     console.log("preview profile:", isBatchUpload ? "batch-lite" : "full");
 
-    movie.videoWidth = Number(videoWidth) || 0;
+    movie.videoWidth  = Number(videoWidth)  || 0;
     movie.videoHeight = Number(videoHeight) || 0;
 
     const masterPath = path.join(outputDir, "master.m3u8");
 
     console.log("3 - Convert adaptive multi-bitrate HLS");
+
+    const hlsKeyBase = (process.env.HLS_KEY_BASE_URL || "").replace(/\/+$/, "");
+    const keyDeliveryUrl = hlsKeyBase ? `${hlsKeyBase}/api/hls-key/${movieId}` : "";
 
     const adaptiveResult = await withTimeout(
       encodeMultiBitrateHls({
@@ -229,6 +232,7 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
         srcHeight: videoHeight,
         rotation: videoRotation,
         withAudio: true,
+        keyDeliveryUrl,
       }),
       1000 * 60 * 30,
       "Adaptive HLS convert"
@@ -455,6 +459,10 @@ async function processVideoInBackground({ movieId, tempVideo, isBatchUpload = fa
 
     if (backdropResult?.backdropUrl) {
       movie.backdrop = backdropResult.backdropUrl;
+    }
+
+    if (adaptiveResult?.encryptKeyHex) {
+      movie.hlsKey = adaptiveResult.encryptKeyHex;
     }
 
     movie.status = "ready";

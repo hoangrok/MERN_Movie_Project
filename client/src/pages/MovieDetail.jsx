@@ -531,6 +531,7 @@ export default function MovieDetail() {
         const Hls = await loadHlsModule().catch(() => null);
 
         if (Hls?.isSupported()) {
+          const authTok = user?.token || "";
           const hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
@@ -547,6 +548,11 @@ export default function MovieDetail() {
             levelLoadingRetryDelay: 1000,
             capLevelToPlayerSize: true,
             abrEwmaDefaultEstimate: 5000000,
+            xhrSetup: authTok ? (xhr, reqUrl) => {
+              if (reqUrl.includes("/hls-key/")) {
+                xhr.setRequestHeader("Authorization", `Bearer ${authTok}`);
+              }
+            } : undefined,
           });
 
           hlsRef.current = hls;

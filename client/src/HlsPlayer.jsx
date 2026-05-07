@@ -21,6 +21,7 @@ export default function HlsPlayer({
   title = "Video",
   autoPlay = false,
   aspectRatio = "16 / 9",
+  authToken = "",
 }) {
   const videoRef     = useRef(null);
   const containerRef = useRef(null);
@@ -115,6 +116,11 @@ export default function HlsPlayer({
         abrEwmaDefaultEstimate: 1_500_000,
         maxBufferHole: 0.5,
         nudgeMaxRetry: 5,
+        xhrSetup: authToken ? (xhr, reqUrl) => {
+          if (reqUrl.includes("/hls-key/")) {
+            xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+          }
+        } : undefined,
       });
 
       hlsRef.current = hls;

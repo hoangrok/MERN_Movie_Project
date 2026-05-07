@@ -125,6 +125,27 @@ router.get("/tmdb-details/:tmdbId", protect, adminOnly, async (req, res) => {
   }
 });
 
+// HLS AES-128 key delivery — requires auth so yt-dlp can't decrypt without a session
+router.get("/hls-key/:movieId", protect, async (req, res) => {
+  try {
+    const { movieId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(movieId)) return res.status(404).end();
+
+    const movie = await Movie.findById(movieId).select("hlsKey");
+    if (!movie?.hlsKey) return res.status(404).end();
+
+    const keyBuf = Buffer.from(movie.hlsKey, "hex");
+    res
+      .set("Content-Type", "application/octet-stream")
+      .set("Content-Length", String(keyBuf.length))
+      .set("Cache-Control", "no-store, no-cache, must-revalidate, private")
+      .send(keyBuf);
+  } catch (err) {
+    console.error("hls-key error:", err);
+    res.status(500).end();
+  }
+});
+
 // Admin CRUD
 router.post("/", protect, adminOnly, createMovie);
 router.put("/:id", protect, adminOnly, updateMovie);

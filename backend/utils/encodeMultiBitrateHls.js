@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
@@ -107,6 +108,11 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
       `-hls_segment_filename ${segmentPattern}`,
     ];
 
+    // AES-128 encryption — keyInfoPath is a keyinfo.txt shared by all variants
+    if (options.keyInfoPath) {
+      outputOptions.push(`-hls_key_info_file ${options.keyInfoPath}`);
+    }
+
     if (useFilterComplex) {
       outputOptions.unshift("-filter_complex", filterComplex, "-map [v]");
     } else {
@@ -130,7 +136,7 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
       .outputOptions(outputOptions)
       .output(playlistPath)
       .on("start", (cmd) => {
-        console.log(`[HLS ${variant.name}] watermark=${withWatermark} logo=${!!logoPath}`, cmd.slice(0, 140));
+        console.log(`[HLS ${variant.name}] encrypt=${!!options.keyInfoPath} watermark=${withWatermark}`, cmd.slice(0, 140));
       })
       .on("end", () => resolve(variant))
       .on("error", reject)
@@ -146,6 +152,7 @@ async function encodeMultiBitrateHls({
   rotation = 0,
   withAudio = true,
   withWatermark = (process.env.WATERMARK_ENABLED !== "false"),
+  keyDeliveryUrl = "",  // e.g. "https://api.clipdam18.com/api/hls-key/MOVIE_ID"
 }) {
   if (!inputPath) throw new Error("inputPath is required");
   if (!outputDir) throw new Error("outputDir is required");
@@ -154,7 +161,27 @@ async function encodeMultiBitrateHls({
 
   const variants = createVariantDefinitions(srcWidth, srcHeight);
 
-  console.log(`Starting multi-bitrate HLS parallel watermark=${withWatermark}:`, variants.map((v) => v.name));
+  // AES-128: generate key once, shared by all variants
+  let encryptKeyHex = null;
+  let keyInfoPath = null;
+
+  if (keyDeliveryUrl) {
+    const keyBytes = crypto.randomBytes(16);
+    encryptKeyHex = keyBytes.toString("hex");
+
+    const keyFilePath = path.join(outputDir, "hls.key");
+    fs.writeFileSync(keyFilePath, keyBytes);
+
+    // keyinfo format: line1=key URI, line2=local key file path
+    // use forward slashes so ffmpeg on Linux handles it correctly
+    keyInfoPath = path.join(outputDir, "keyinfo.txt");
+    const keyFileForFfmpeg = keyFilePath.replace(/\\/g, "/");
+    fs.writeFileSync(keyInfoPath, `${keyDeliveryUrl}\n${keyFileForFfmpeg}\n`);
+
+    console.log(`HLS AES-128 encryption enabled → ${keyDeliveryUrl}`);
+  }
+
+  console.log(`Starting multi-bitrate HLS parallel watermark=${withWatermark} encrypt=${!!keyDeliveryUrl}:`, variants.map((v) => v.name));
 
   await Promise.all(
     variants.map((variant) => {
@@ -163,6 +190,7 @@ async function encodeMultiBitrateHls({
       return encodeVariantHls(inputPath, variantDir, variant, withAudio, {
         rotation,
         withWatermark,
+        keyInfoPath,
       });
     })
   );
@@ -173,8 +201,7 @@ async function encodeMultiBitrateHls({
   return {
     variants,
     masterPath: path.join(outputDir, "master.m3u8"),
-    watermarkEnabled: true,
-    watermarkType: "text+logo-burn-in",
+    encryptKeyHex,
   };
 }
 

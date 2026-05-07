@@ -400,6 +400,7 @@ export default function EpisodeList({ movie, variant = "default" }) {
                   title={activeEpisode.episodeTitle || activeEpisode.title || "Video"}
                   autoPlay={true}
                   aspectRatio={activeEpisode.__ratio || "16 / 9"}
+                  authToken={user?.token || ""}
                 />
               ) : (
                 <div className="epList__playerLoading">Dang mo video...</div>

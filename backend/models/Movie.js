@@ -62,13 +62,23 @@ const movieSchema = new mongoose.Schema(
     episodeLabel: { type: String, default: "" },
     episodeTitle: { type: String, default: "" },
 
+    hlsKey: { type: String, default: "" },
+
     previewTimeline: {
       duration: { type: Number, default: 0 },
       interval: { type: Number, default: 10 },
+      spriteUrl: { type: String, default: "" },
+      spriteKey: { type: String, default: "" },
+      cols: { type: Number, default: 0 },
+      rows: { type: Number, default: 0 },
+      frameWidth: { type: Number, default: 0 },
+      frameHeight: { type: Number, default: 0 },
+      totalItems: { type: Number, default: 0 },
       items: [
         {
           second: { type: Number, default: 0 },
           url: { type: String, default: "" },
+          frameIndex: { type: Number, default: 0 },
         },
       ],
     },
