@@ -125,8 +125,8 @@ router.get("/tmdb-details/:tmdbId", protect, adminOnly, async (req, res) => {
   }
 });
 
-// HLS AES-128 key delivery — requires auth so yt-dlp can't decrypt without a session
-router.get("/hls-key/:movieId", protect, async (req, res) => {
+// HLS AES-128 key delivery — open endpoint, protection comes from signed+expiring segment URLs
+router.get("/hls-key/:movieId", async (req, res) => {
   try {
     const { movieId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(movieId)) return res.status(404).end();
