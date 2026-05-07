@@ -73,7 +73,7 @@ function encodeVariantHls(inputPath, outputDir, variant, withAudio, options = {}
     const playlistPath = path.join(outputDir, "index.m3u8");
     const segmentPattern = path.join(outputDir, "seg_%03d.ts");
 
-    const command = ffmpeg(inputPath).inputOptions(["-noautorotate"]);
+    const command = ffmpeg(inputPath).inputOptions(["-noautorotate", "-threads 2"]);
 
     let useFilterComplex = false;
     let filterComplex = "";
@@ -154,16 +154,18 @@ async function encodeMultiBitrateHls({
 
   const variants = createVariantDefinitions(srcWidth, srcHeight);
 
-  console.log(`Starting multi-bitrate HLS watermark=${withWatermark}:`, variants.map((v) => v.name));
+  console.log(`Starting multi-bitrate HLS parallel watermark=${withWatermark}:`, variants.map((v) => v.name));
 
-  for (const variant of variants) {
-    const variantDir = path.join(outputDir, variant.name);
-    ensureDir(variantDir);
-    await encodeVariantHls(inputPath, variantDir, variant, withAudio, {
-      rotation,
-      withWatermark,
-    });
-  }
+  await Promise.all(
+    variants.map((variant) => {
+      const variantDir = path.join(outputDir, variant.name);
+      ensureDir(variantDir);
+      return encodeVariantHls(inputPath, variantDir, variant, withAudio, {
+        rotation,
+        withWatermark,
+      });
+    })
+  );
 
   const masterContent = buildMasterPlaylist(variants);
   fs.writeFileSync(path.join(outputDir, "master.m3u8"), masterContent, "utf8");
