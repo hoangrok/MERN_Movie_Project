@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../utils/api";
-import {
-  getPreviewAssetUrl,
-  getPreviewFrameStyle,
-} from "../../utils/previewTimeline";
+import { getPreviewAssetUrl } from "../../utils/previewTimeline";
 
 const signedUrlCache = new Map();
 let hlsModulePromise = null;
@@ -351,11 +348,22 @@ export default function HoverPreviewVideo({
               frameVisible && !visible ? "is-visible" : ""
             }`.trim()}
             aria-hidden="true"
-            style={getPreviewFrameStyle(frame, {
-              width: "100%",
-              height: "100%",
-            })}
-          />
+            style={{ position: "absolute", inset: 0, overflow: "hidden" }}
+          >
+            <img
+              src={frame.spriteUrl}
+              alt=""
+              draggable="false"
+              style={{
+                position: "absolute",
+                width: `${frame.cols * 100}%`,
+                height: `${frame.rows * 100}%`,
+                left: `-${(frame.frameIndex % frame.cols) * 100}%`,
+                top: `-${Math.floor(frame.frameIndex / frame.cols) * 100}%`,
+                objectFit: "fill",
+              }}
+            />
+          </div>
         ) : (
           <img
             className={`${className} ${
