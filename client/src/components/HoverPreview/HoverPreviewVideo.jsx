@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../utils/api";
+import {
+  getPreviewAssetUrl,
+  getPreviewFrameStyle,
+} from "../../utils/previewTimeline";
 
 const signedUrlCache = new Map();
 let hlsModulePromise = null;
@@ -74,7 +78,8 @@ export default function HoverPreviewVideo({
   useEffect(() => {
     if (!active || !frames.length) return;
 
-    const preloaders = frames.map((src) => {
+    const assets = [...new Set(frames.map((frame) => getPreviewAssetUrl(frame)).filter(Boolean))];
+    const preloaders = assets.map((src) => {
       const img = new Image();
       img.decoding = "async";
       img.src = src;
@@ -206,9 +211,20 @@ export default function HoverPreviewVideo({
 
         if (disposed) return;
         videoPreviewVisible = true;
-        setVisible(true);
-        setFrameVisible(false);
-        notifyVisible(true);
+
+        // Show video only after first real frame renders to avoid black flash
+        const onPlaying = () => {
+          if (disposed) return;
+          setVisible(true);
+          setFrameVisible(false);
+          notifyVisible(true);
+        };
+
+        if (!video.paused && video.readyState >= 3) {
+          onPlaying();
+        } else {
+          video.addEventListener("playing", onPlaying, { once: true });
+        }
       } catch (err) {
         failVideoPreview(err);
       }
@@ -323,20 +339,34 @@ export default function HoverPreviewVideo({
     onError,
   ]);
 
-  const frameSrc = frames[frameIndex] || "";
+  const frame = frames[frameIndex] || null;
+  const frameSrc = getPreviewAssetUrl(frame);
 
   return (
     <>
       {frameSrc ? (
-        <img
-          className={`${className} ${
-            frameVisible && !visible ? "is-visible" : ""
-          }`.trim()}
-          src={frameSrc}
-          alt=""
-          aria-hidden="true"
-          draggable="false"
-        />
+        frame?.type === "sprite" ? (
+          <div
+            className={`${className} ${
+              frameVisible && !visible ? "is-visible" : ""
+            }`.trim()}
+            aria-hidden="true"
+            style={getPreviewFrameStyle(frame, {
+              width: "100%",
+              height: "100%",
+            })}
+          />
+        ) : (
+          <img
+            className={`${className} ${
+              frameVisible && !visible ? "is-visible" : ""
+            }`.trim()}
+            src={frameSrc}
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+          />
+        )
       ) : null}
 
       <video

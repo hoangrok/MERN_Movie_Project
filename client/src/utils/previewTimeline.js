@@ -177,17 +177,18 @@ export function getPreviewFrameStyle(frame, options = {}) {
   if (frame.type === "sprite") {
     const cols = Math.max(1, Number(frame.cols) || 1);
     const rows = Math.max(1, Number(frame.rows) || 1);
-    const frameWidth = Math.max(1, Number(frame.frameWidth) || 1);
-    const frameHeight = Math.max(1, Number(frame.frameHeight) || 1);
     const frameIndex = Math.max(0, Number(frame.frameIndex) || 0);
     const col = frameIndex % cols;
     const row = Math.floor(frameIndex / cols);
 
+    const bgPosX = cols <= 1 ? "0%" : `${(col / (cols - 1)) * 100}%`;
+    const bgPosY = rows <= 1 ? "0%" : `${(row / (rows - 1)) * 100}%`;
+
     return {
       ...baseStyle,
       backgroundImage: `url(${frame.spriteUrl})`,
-      backgroundPosition: `-${col * frameWidth}px -${row * frameHeight}px`,
-      backgroundSize: `${frameWidth * cols}px ${frameHeight * rows}px`,
+      backgroundPosition: `${bgPosX} ${bgPosY}`,
+      backgroundSize: `${cols * 100}% ${rows * 100}%`,
     };
   }
 
