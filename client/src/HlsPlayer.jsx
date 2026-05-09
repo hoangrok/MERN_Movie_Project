@@ -108,12 +108,14 @@ export default function HlsPlayer({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        maxBufferLength: 60,
-        maxMaxBufferLength: 240,
-        maxBufferSize: 80 * 1024 * 1024,
+        maxBufferLength: 120,           // 2 min ahead
+        maxMaxBufferLength: 1800,       // 30 min cap
+        maxBufferSize: 200 * 1024 * 1024,
         backBufferLength: 30,
         startLevel: -1,
-        abrEwmaDefaultEstimate: 1_500_000,
+        abrEwmaDefaultEstimate: 3_000_000,
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
         maxBufferHole: 0.5,
         nudgeMaxRetry: 5,
         xhrSetup: authToken ? (xhr, reqUrl) => {
@@ -126,6 +128,19 @@ export default function HlsPlayer({
       hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
+
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        const bw = hls.bandwidthEstimate;
+        if (bw > 15_000_000) {
+          hls.config.maxBufferLength = 600;
+          hls.config.maxMaxBufferLength = 7200;
+          hls.config.maxBufferSize = 500 * 1024 * 1024;
+        } else if (bw > 5_000_000) {
+          hls.config.maxBufferLength = 240;
+          hls.config.maxMaxBufferLength = 3600;
+          hls.config.maxBufferSize = 300 * 1024 * 1024;
+        }
+      });
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
         const parsedLevels = (data?.levels || hls.levels || []).map((level, index) => ({

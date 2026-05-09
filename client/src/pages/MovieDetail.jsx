@@ -116,12 +116,6 @@ const modalStyle = {
   boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
 };
 
-const adminGridStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 16,
-};
-
 const adminFieldStyle = {
   display: "grid",
   gap: 8,
@@ -148,14 +142,6 @@ const adminTextareaStyle = {
   resize: "vertical",
 };
 
-const adminActionsStyle = {
-  display: "flex",
-  gap: 12,
-  justifyContent: "flex-end",
-  marginTop: 20,
-  flexWrap: "wrap",
-};
-
 const adminButtonStyle = {
   border: "none",
   borderRadius: 10,
@@ -163,6 +149,15 @@ const adminButtonStyle = {
   cursor: "pointer",
   fontWeight: 700,
 };
+
+const PREDEFINED_GENRES = [
+  "Action", "Adventure", "Animation", "Comedy", "Crime",
+  "Documentary", "Drama", "Fantasy", "History", "Horror",
+  "Music", "Mystery", "Romance", "Sci-Fi", "Thriller",
+  "War", "Western", "Family", "Sport", "TV Movie",
+  "Hành Động", "Tình Cảm", "Hài", "Kinh Dị", "Tâm Lý",
+  "Phiêu Lưu", "Hoạt Hình", "Tài Liệu", "Võ Thuật", "Cổ Trang",
+];
 
 export default function MovieDetail() {
   const { id } = useParams();
@@ -190,6 +185,7 @@ export default function MovieDetail() {
   const isMountedRef = useRef(false);
   const isSeekingRef = useRef(false);
   const adminStatusPollRef = useRef(null);
+  const genreInputRef = useRef(null);
 
   const [movie, setMovie] = useState(null);
   const [related, setRelated] = useState([]);
@@ -230,6 +226,10 @@ export default function MovieDetail() {
   const [seriesEditorLoading, setSeriesEditorLoading] = useState(false);
   const [seriesEditorSaving, setSeriesEditorSaving] = useState(false);
   const [seriesEditorItems, setSeriesEditorItems] = useState([]);
+  const [editTab, setEditTab] = useState("info");
+  const [genreInput, setGenreInput] = useState("");
+  const [genreSuggestion, setGenreSuggestion] = useState("");
+  const [showGenreDropdown, setShowGenreDropdown] = useState(false);
 
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewLeft, setPreviewLeft] = useState(0);
@@ -263,6 +263,19 @@ export default function MovieDetail() {
     episodeLabel: "",
     episodeTitle: "",
   });
+
+  const genreTags = useMemo(
+    () => editForm.genre.split(",").map((s) => s.trim()).filter(Boolean),
+    [editForm.genre]
+  );
+  const filteredGenres = useMemo(() =>
+    PREDEFINED_GENRES.filter((g) => {
+      if (genreTags.includes(g)) return false;
+      if (!genreInput.trim()) return true;
+      return g.toLowerCase().includes(genreInput.toLowerCase());
+    }),
+    [genreTags, genreInput]
+  );
 
   const seededMovie = useMemo(() => {
     const candidate = location.state?.prefetchedMovie;
@@ -536,9 +549,9 @@ export default function MovieDetail() {
             enableWorker: true,
             lowLatencyMode: false,
             backBufferLength: 90,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            maxBufferSize: 30 * 1000 * 1000,
+            maxBufferLength: 120,           // buffer 2 min ahead
+            maxMaxBufferLength: 1800,       // allow up to 30 min buffered (whole episode on fast net)
+            maxBufferSize: 200 * 1024 * 1024, // 200 MB cap
             maxBufferHole: 1,
             highBufferWatchdogPeriod: 2,
             nudgeOffset: 0.1,
@@ -547,7 +560,9 @@ export default function MovieDetail() {
             manifestLoadingRetryDelay: 1000,
             levelLoadingRetryDelay: 1000,
             capLevelToPlayerSize: true,
-            abrEwmaDefaultEstimate: 5000000,
+            abrEwmaDefaultEstimate: 5_000_000,
+            abrBandWidthFactor: 0.95,
+            abrBandWidthUpFactor: 0.7,
             xhrSetup: authTok ? (xhr, reqUrl) => {
               if (reqUrl.includes("/hls-key/")) {
                 xhr.setRequestHeader("Authorization", `Bearer ${authTok}`);
@@ -558,6 +573,20 @@ export default function MovieDetail() {
           hlsRef.current = hls;
           hls.loadSource(url);
           hls.attachMedia(video);
+
+          // Expand buffer caps when bandwidth is high (fast network = load whole episode)
+          hls.on(Hls.Events.FRAG_LOADED, () => {
+            const bw = hls.bandwidthEstimate; // bits/sec
+            if (bw > 15_000_000) {            // > 15 Mbps
+              hls.config.maxBufferLength = 600;
+              hls.config.maxMaxBufferLength = 7200;
+              hls.config.maxBufferSize = 500 * 1024 * 1024;
+            } else if (bw > 5_000_000) {      // > 5 Mbps
+              hls.config.maxBufferLength = 240;
+              hls.config.maxMaxBufferLength = 3600;
+              hls.config.maxBufferSize = 300 * 1024 * 1024;
+            }
+          });
 
           hls.on(Hls.Events.MANIFEST_PARSED, async () => {
             const levels = hls.levels
@@ -785,6 +814,10 @@ export default function MovieDetail() {
         }
 
         setMovie(movieData.movie);
+
+        if (movieData.movie?.status === "failed" && movieData.movie?.processingError) {
+          setAdminMessage(movieData.movie.processingError);
+        }
 
         try {
           const relatedRes = await fetch(`${API_URL}/movies/${id}/related`, {
@@ -1565,6 +1598,48 @@ export default function MovieDetail() {
     }));
   };
 
+  const addGenreTag = useCallback((tag) => {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    setEditForm((prev) => {
+      const current = prev.genre.split(",").map((s) => s.trim()).filter(Boolean);
+      if (current.includes(trimmed)) return prev;
+      return { ...prev, genre: [...current, trimmed].join(", ") };
+    });
+    setGenreInput("");
+    setGenreSuggestion("");
+    setShowGenreDropdown(false);
+  }, []);
+
+  const removeGenreTag = useCallback((tag) => {
+    setEditForm((prev) => {
+      const next = prev.genre.split(",").map((s) => s.trim()).filter((t) => t && t !== tag);
+      return { ...prev, genre: next.join(", ") };
+    });
+  }, []);
+
+  const handleGenreInputChange = useCallback((val) => {
+    setGenreInput(val);
+    if (!val.trim()) { setGenreSuggestion(""); return; }
+    const match = PREDEFINED_GENRES.find((g) => g.toLowerCase().startsWith(val.toLowerCase()));
+    setGenreSuggestion(match || "");
+  }, []);
+
+  const handleGenreKeyDown = useCallback((e) => {
+    if (e.key === "Tab" && genreSuggestion) {
+      e.preventDefault();
+      addGenreTag(genreSuggestion);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (genreInput.trim()) addGenreTag(genreInput);
+    } else if (e.key === "Backspace" && !genreInput) {
+      setEditForm((prev) => {
+        const current = prev.genre.split(",").map((s) => s.trim()).filter(Boolean);
+        return { ...prev, genre: current.slice(0, -1).join(", ") };
+      });
+    }
+  }, [genreSuggestion, genreInput, addGenreTag]);
+
   const handleUploadImage = async (file, field) => {
     if (!file || !user?.token) return;
 
@@ -1754,6 +1829,10 @@ export default function MovieDetail() {
     setAdminMessage("");
     setGalleryImages([]);
     setGalleryImagePreviews([]);
+    setEditTab("info");
+    setGenreInput("");
+    setGenreSuggestion("");
+    setShowGenreDropdown(false);
     setShowAdminModal(true);
   };
 
@@ -2126,6 +2205,26 @@ export default function MovieDetail() {
                 <div className="nf-loader">
                   <div className="nf-loader__spinner" />
                   <span>{isReady ? "Đang buffer..." : "Đang tải video..."}</span>
+                </div>
+              )}
+
+              {user?.isAdmin && ["queued", "processing", "failed"].includes(String(movie?.status || "").toLowerCase()) && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.7)", zIndex: 30, gap: 10, padding: 20, textAlign: "center" }}>
+                  {movie.status === "failed" ? (
+                    <>
+                      <span style={{ fontSize: 28 }}>⚠️</span>
+                      <span style={{ color: "#fca5a5", fontWeight: 700, fontSize: 15 }}>Xử lý video thất bại</span>
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, maxWidth: 340 }}>{movie.processingError}</span>
+                      <button onClick={handleReencodeHls} disabled={adminLoading} style={{ marginTop: 8, padding: "9px 18px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
+                        {adminLoading ? "Đang xử lý..." : "🔄 Re-encode HLS"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ width: 32, height: 32, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                      <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 14 }}>{movie.status === "queued" ? "Đang chờ encode..." : "Đang encode HLS..."}</span>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -2612,545 +2711,281 @@ export default function MovieDetail() {
 
       {showAdminModal && user?.isAdmin && (
         <div style={modalOverlayStyle} onClick={handleCloseAdminModal}>
-          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                marginBottom: 20,
-              }}
-            >
+          <div
+            style={{ ...modalStyle, padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* ── Header ── */}
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 28 }}>Sửa phim</h2>
-                <p
-                  style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.7)" }}
-                >
-                  Chỉnh sửa trực tiếp thông tin phim
-                </p>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Sửa phim</h2>
+                <p style={{ margin: "3px 0 0", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{movie?.title}</p>
               </div>
-
-              <button
-                onClick={handleCloseAdminModal}
-                style={{
-                  ...adminButtonStyle,
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#fff",
-                }}
-              >
-                Đóng
-              </button>
+              <button onClick={handleCloseAdminModal} style={{ ...adminButtonStyle, background: "rgba(255,255,255,0.08)", color: "#fff", padding: "8px 14px", fontSize: 14 }}>✕</button>
             </div>
 
-            <form onSubmit={handleUpdateMovie}>
-              <div style={adminGridStyle}>
-                <div style={adminFieldStyle}>
-                  <label style={adminLabelStyle}>Tên phim</label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={editForm.title}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                    required
-                  />
-                </div>
-
-                <div style={adminFieldStyle}>
-                  <label style={adminLabelStyle}>Năm</label>
-                  <input
-                    type="number"
-                    name="year"
-                    value={editForm.year}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-                </div>
-
-                <div style={adminFieldStyle}>
-                  <label style={adminLabelStyle}>Rating</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    name="rating"
-                    value={editForm.rating}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-                </div>
-
-                <div style={adminFieldStyle}>
-                  <label style={adminLabelStyle}>Thời lượng (phút)</label>
-                  <input
-                    type="number"
-                    name="duration"
-                    value={editForm.duration}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-                </div>
-
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
-                  <label style={adminLabelStyle}>
-                    Thể loại (cách nhau bằng dấu phẩy)
-                  </label>
-                  <input
-                    type="text"
-                    name="genre"
-                    value={editForm.genre}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                    placeholder="Action, Drama, Romance"
-                  />
-                </div>
-
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
-                  <label style={adminLabelStyle}>Mô tả</label>
-                  <textarea
-                    name="description"
-                    value={editForm.description}
-                    onChange={handleEditInputChange}
-                    style={adminTextareaStyle}
-                  />
-                </div>
-
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
-                  <label style={adminLabelStyle}>Poster URL</label>
-                  <input
-                    type="text"
-                    name="poster"
-                    value={editForm.poster}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "center",
-                      marginTop: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <label
-                      style={{
-                        ...adminButtonStyle,
-                        background: "#1f2937",
-                        color: "#fff",
-                        display: "inline-block",
-                      }}
-                    >
-                      {uploadingPoster ? "Đang upload..." : "Upload Poster"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        hidden
-                        onChange={(e) =>
-                          handleUploadImage(e.target.files?.[0], "poster")
-                        }
-                      />
-                    </label>
-
-                    {editForm.poster && (
-                      <img
-                        src={editForm.poster}
-                        alt="poster preview"
-                        style={{
-                          width: 70,
-                          height: 96,
-                          objectFit: "cover",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.12)",
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
-                  <label style={adminLabelStyle}>Backdrop URL</label>
-                  <input
-                    type="text"
-                    name="backdrop"
-                    value={editForm.backdrop}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "center",
-                      marginTop: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <label
-                      style={{
-                        ...adminButtonStyle,
-                        background: "#1f2937",
-                        color: "#fff",
-                        display: "inline-block",
-                      }}
-                    >
-                      {uploadingBackdrop ? "Đang upload..." : "Upload Backdrop"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        hidden
-                        onChange={(e) =>
-                          handleUploadImage(e.target.files?.[0], "backdrop")
-                        }
-                      />
-                    </label>
-
-                    {editForm.backdrop && (
-                      <img
-                        src={editForm.backdrop}
-                        alt="backdrop preview"
-                        style={{
-                          width: 140,
-                          height: 80,
-                          objectFit: "cover",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.12)",
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1" }}>
-                  <label style={adminLabelStyle}>HLS URL</label>
-                  <input
-                    type="text"
-                    name="hlsUrl"
-                    value={editForm.hlsUrl}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  />
-                </div>
-
-                <div style={adminFieldStyle}>
-                  <label style={adminLabelStyle}>Khu vuc noi dung</label>
-                  <select
-                    name="contentArea"
-                    value={editForm.contentArea}
-                    onChange={handleEditInputChange}
-                    style={adminInputStyle}
-                  >
-                    <option value="default">Noi dung thuong</option>
-                    <option value="world">The gioi</option>
-                  </select>
-                </div>
-
-                {/* ── SERIES ── */}
-                <div style={{ ...adminFieldStyle, gridColumn: "1 / -1", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 16 }}>
-                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 10 }}>
-                    📺 Seri phim (để trống nếu là phim lẻ)
-                  </p>
-                  <div style={{ display: "grid", gap: 10 }}>
-                    <div>
-                      <label style={adminLabelStyle}>Series ID</label>
-                      <input name="seriesId" placeholder='ID chung cho tất cả tập (VD: "ten-seri-abc")' value={editForm.seriesId} onChange={handleEditInputChange} style={adminInputStyle} />
-                    </div>
-                    <div>
-                      <label style={adminLabelStyle}>Tên seri</label>
-                      <input name="seriesTitle" placeholder="Tên seri đầy đủ" value={editForm.seriesTitle} onChange={handleEditInputChange} style={adminInputStyle} />
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      <div>
-                        <label style={adminLabelStyle}>Mùa (Season)</label>
-                        <input name="season" type="number" min="1" placeholder="1" value={editForm.season} onChange={handleEditInputChange} style={adminInputStyle} />
-                      </div>
-                      <div>
-                        <label style={adminLabelStyle}>Số tập (Episode)</label>
-                        <input name="episode" type="number" min="1" placeholder="1" value={editForm.episode} onChange={handleEditInputChange} style={adminInputStyle} />
-                        <input
-                          name="episodeLabel"
-                          placeholder="Nhan tap hien thi (abc, xyz...)"
-                          value={editForm.episodeLabel}
-                          onChange={handleEditInputChange}
-                          style={{ ...adminInputStyle, marginTop: 10 }}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label style={adminLabelStyle}>Tên tập</label>
-                      <input name="episodeTitle" placeholder="VD: Khởi đầu" value={editForm.episodeTitle} onChange={handleEditInputChange} style={adminInputStyle} />
-                    </div>
-                  </div>
-                </div>
-
-                <div
+            {/* ── Tabs ── */}
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "0 24px", flexShrink: 0 }}>
+              {[["info", "📋 Thông tin"], ["images", "🖼 Ảnh"], ["series", "📺 Seri"]].map(([tab, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setEditTab(tab)}
                   style={{
-                    ...adminFieldStyle,
-                    gridColumn: "1 / -1",
-                    borderTop: "1px solid rgba(255,255,255,0.08)",
-                    paddingTop: 16,
+                    padding: "12px 16px", border: "none", background: "none",
+                    color: editTab === tab ? "#e50914" : "rgba(255,255,255,0.5)",
+                    borderBottom: editTab === tab ? "2px solid #e50914" : "2px solid transparent",
+                    cursor: "pointer", fontWeight: editTab === tab ? 700 : 400,
+                    fontSize: 13, transition: "color 0.15s",
                   }}
                 >
-                  <label style={adminLabelStyle}>Ảnh dưới player</label>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-                  {/* Already-uploaded images */}
-                  {movie?.images?.length > 0 && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>
-                        Ảnh đã upload ({movie.images.length})
+            <form onSubmit={handleUpdateMovie} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+              {/* ── Body (scrollable) ── */}
+              <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+
+                {/* ── Tab: Thông tin ── */}
+                {editTab === "info" && (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Tên phim</label>
+                      <input type="text" name="title" value={editForm.title} onChange={handleEditInputChange} style={adminInputStyle} required />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Năm</label>
+                        <input type="number" name="year" value={editForm.year} onChange={handleEditInputChange} style={adminInputStyle} />
                       </div>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Rating</label>
+                        <input type="number" step="0.1" name="rating" value={editForm.rating} onChange={handleEditInputChange} style={adminInputStyle} />
+                      </div>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Thời lượng (phút)</label>
+                        <input type="number" name="duration" value={editForm.duration} onChange={handleEditInputChange} style={adminInputStyle} />
+                      </div>
+                    </div>
+
+                    {/* Genre chip input */}
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Thể loại</label>
                       <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-                          gap: 8,
-                        }}
+                        style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", minHeight: 48, alignItems: "center", cursor: "text" }}
+                        onClick={() => genreInputRef.current?.focus()}
                       >
-                        {movie.images.map((src, index) => (
-                          <div key={src || index} style={{ position: "relative" }}>
-                            <img
-                              src={src}
-                              alt={`gallery ${index + 1}`}
-                              style={{
-                                width: "100%",
-                                aspectRatio: "16/9",
-                                objectFit: "cover",
-                                borderRadius: 8,
-                                border: "1px solid rgba(255,255,255,0.12)",
-                                display: "block",
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteGalleryImage(src)}
-                              style={{
-                                position: "absolute",
-                                top: 4,
-                                right: 4,
-                                background: "rgba(220,38,38,0.85)",
-                                border: "none",
-                                borderRadius: 4,
-                                color: "#fff",
-                                fontSize: 11,
-                                padding: "2px 6px",
-                                cursor: "pointer",
-                                lineHeight: 1.4,
-                              }}
-                            >
-                              Xoá
-                            </button>
-                          </div>
+                        {genreTags.map((tag) => (
+                          <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(229,9,20,0.18)", border: "1px solid rgba(229,9,20,0.4)", color: "#fff", borderRadius: 6, padding: "3px 8px", fontSize: 13 }}>
+                            {tag}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); removeGenreTag(tag); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", padding: 0, fontSize: 15, lineHeight: 1 }}>×</button>
+                          </span>
                         ))}
+                        <input
+                          ref={genreInputRef}
+                          type="text"
+                          value={genreInput}
+                          onChange={(e) => handleGenreInputChange(e.target.value)}
+                          onKeyDown={handleGenreKeyDown}
+                          onFocus={() => setShowGenreDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowGenreDropdown(false), 150)}
+                          placeholder={genreTags.length === 0 ? "Nhập thể loại..." : ""}
+                          style={{ background: "none", border: "none", outline: "none", color: "#fff", fontSize: 13, flex: 1, minWidth: 100 }}
+                        />
+                      </div>
+                      {showGenreDropdown && filteredGenres.length > 0 && (
+                        <div style={{ background: "#1a1d24", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", maxHeight: 200, overflowY: "auto" }}>
+                          {filteredGenres.map((g) => (
+                            <button
+                              key={g}
+                              type="button"
+                              onMouseDown={() => addGenreTag(g)}
+                              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", background: "none", border: "none", borderBottom: "1px solid rgba(255,255,255,0.05)", color: "#fff", cursor: "pointer", fontSize: 13 }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(229,9,20,0.15)"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                            >
+                              {g}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {genreSuggestion && (
+                        <p style={{ margin: "4px 0 0", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>
+                          Nhấn <kbd style={{ background: "rgba(255,255,255,0.1)", padding: "1px 5px", borderRadius: 3, fontSize: 11 }}>Tab</kbd> để thêm &ldquo;{genreSuggestion}&rdquo;
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Mô tả</label>
+                      <textarea name="description" value={editForm.description} onChange={handleEditInputChange} style={adminTextareaStyle} />
+                    </div>
+
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>HLS URL</label>
+                      <input type="text" name="hlsUrl" value={editForm.hlsUrl} onChange={handleEditInputChange} style={adminInputStyle} />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Khu vực nội dung</label>
+                        <select name="contentArea" value={editForm.contentArea} onChange={handleEditInputChange} style={adminInputStyle}>
+                          <option value="default">Nội dung thường</option>
+                          <option value="world">Thế giới</option>
+                        </select>
+                      </div>
+                      <div style={{ ...adminFieldStyle, justifyContent: "flex-end" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: "auto" }}>
+                          <input type="checkbox" name="isPublished" checked={!!editForm.isPublished} onChange={handleEditInputChange} style={{ width: 16, height: 16 }} />
+                          <span style={adminLabelStyle}>Hiển thị công khai</span>
+                        </label>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* New image picker */}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleGalleryImageChange}
-                    style={adminInputStyle}
-                  />
-
-                  {galleryImagePreviews.length > 0 && (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-                        gap: 8,
-                        marginTop: 8,
-                      }}
-                    >
-                      {galleryImagePreviews.map((src, index) => (
-                        <img
-                          key={src || index}
-                          src={src}
-                          alt="preview"
-                          style={{
-                            width: "100%",
-                            aspectRatio: "16/9",
-                            objectFit: "cover",
-                            borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,0.12)",
-                          }}
-                        />
-                      ))}
+                {/* ── Tab: Ảnh ── */}
+                {editTab === "images" && (
+                  <div style={{ display: "grid", gap: 20 }}>
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Poster</label>
+                      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        {editForm.poster && (
+                          <img src={editForm.poster} alt="poster" style={{ width: 76, height: 108, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", flexShrink: 0 }} />
+                        )}
+                        <div style={{ flex: 1, display: "grid", gap: 8 }}>
+                          <input type="text" name="poster" value={editForm.poster} onChange={handleEditInputChange} style={adminInputStyle} placeholder="URL ảnh poster" />
+                          <label style={{ ...adminButtonStyle, background: "#1f2937", color: "#fff", display: "inline-block", cursor: "pointer", padding: "10px 14px", fontSize: 13 }}>
+                            {uploadingPoster ? "Đang upload..." : "⬆ Upload Poster"}
+                            <input type="file" accept="image/*" hidden onChange={(e) => handleUploadImage(e.target.files?.[0], "poster")} />
+                          </label>
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  <button
-                    type="button"
-                    onClick={handleUploadGalleryImages}
-                    disabled={uploadingGallery || galleryImages.length === 0}
-                    style={{
-                      ...adminButtonStyle,
-                      marginTop: 8,
-                      background:
-                        galleryImages.length === 0
-                          ? "rgba(255,255,255,0.08)"
-                          : "#14532d",
-                      color: "#fff",
-                    }}
-                  >
-                    {uploadingGallery
-                      ? "Đang upload ảnh..."
-                      : `Upload ${galleryImages.length || 0} ảnh`}
-                  </button>
-                </div>
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Backdrop</label>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {editForm.backdrop && (
+                          <img src={editForm.backdrop} alt="backdrop" style={{ width: "100%", maxWidth: 380, aspectRatio: "16/9", objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)" }} />
+                        )}
+                        <input type="text" name="backdrop" value={editForm.backdrop} onChange={handleEditInputChange} style={adminInputStyle} placeholder="URL ảnh backdrop" />
+                        <label style={{ ...adminButtonStyle, background: "#1f2937", color: "#fff", display: "inline-block", cursor: "pointer", padding: "10px 14px", fontSize: 13 }}>
+                          {uploadingBackdrop ? "Đang upload..." : "⬆ Upload Backdrop"}
+                          <input type="file" accept="image/*" hidden onChange={(e) => handleUploadImage(e.target.files?.[0], "backdrop")} />
+                        </label>
+                      </div>
+                    </div>
 
-                {!!editForm.seriesId.trim() && (
-                  <div
-                    style={{
-                      ...adminFieldStyle,
-                      gridColumn: "1 / -1",
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
-                      paddingTop: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <label style={adminLabelStyle}>Danh sách các tập cùng seri</label>
-                      <button
-                        type="button"
-                        onClick={handleSaveSeriesEditor}
-                        disabled={seriesEditorSaving || seriesEditorItems.length === 0}
-                        style={{
-                          ...adminButtonStyle,
-                          background: "#1d4ed8",
-                          color: "#fff",
-                          padding: "8px 12px",
-                        }}
-                      >
-                        {seriesEditorSaving ? "Dang luu danh sach..." : "Luu danh sach tap"}
+                    <div style={adminFieldStyle}>
+                      <label style={adminLabelStyle}>Ảnh dưới player ({(movie?.images || []).length} ảnh)</label>
+                      {movie?.images?.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+                          {movie.images.map((src, i) => (
+                            <div key={src || i} style={{ position: "relative", borderRadius: 8, overflow: "hidden" }}>
+                              <img src={src} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+                              <button type="button" onClick={() => handleDeleteGalleryImage(src)} style={{ position: "absolute", top: 4, right: 4, background: "rgba(220,38,38,0.9)", border: "none", borderRadius: 4, color: "#fff", fontSize: 11, padding: "2px 7px", cursor: "pointer" }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "18px 16px", borderRadius: 10, cursor: "pointer", border: "2px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>
+                        <span style={{ fontSize: 22 }}>⬆</span>
+                        <span>{galleryImages.length > 0 ? `${galleryImages.length} ảnh đã chọn` : "Chọn ảnh để upload"}</span>
+                        <input type="file" accept="image/*" multiple hidden onChange={handleGalleryImageChange} />
+                      </label>
+                      {galleryImagePreviews.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+                          {galleryImagePreviews.map((src, i) => (
+                            <img key={i} src={src} alt="" style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)" }} />
+                          ))}
+                        </div>
+                      )}
+                      <button type="button" onClick={handleUploadGalleryImages} disabled={uploadingGallery || galleryImages.length === 0}
+                        style={{ ...adminButtonStyle, background: galleryImages.length === 0 ? "rgba(255,255,255,0.06)" : "#14532d", color: galleryImages.length === 0 ? "rgba(255,255,255,0.3)" : "#fff" }}>
+                        {uploadingGallery ? "Đang upload ảnh..." : `Upload ${galleryImages.length || 0} ảnh`}
                       </button>
                     </div>
+                  </div>
+                )}
 
-                    {seriesEditorLoading ? (
-                      <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>
-                        Dang tai danh sach tap...
+                {/* ── Tab: Seri ── */}
+                {editTab === "series" && (
+                  <div style={{ display: "grid", gap: 16 }}>
+                    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", display: "grid", gap: 12 }}>
+                      <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tập này thuộc seri</p>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Series ID</label>
+                        <input name="seriesId" placeholder='ID chung cho tất cả tập (VD: "ten-seri-abc")' value={editForm.seriesId} onChange={handleEditInputChange} style={adminInputStyle} />
                       </div>
-                    ) : seriesEditorItems.length > 0 ? (
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {seriesEditorItems.map((item, index) => (
-                          <div
-                            key={item._id || index}
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "80px 120px 1fr auto",
-                              gap: 8,
-                              alignItems: "center",
-                              background: "rgba(255,255,255,0.04)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              borderRadius: 10,
-                              padding: "10px 12px",
-                            }}
-                          >
-                            <input
-                              type="number"
-                              min="1"
-                              value={item.episode || index + 1}
-                              onChange={(e) =>
-                                handleSeriesEditorChange(index, "episode", e.target.value)
-                              }
-                              style={adminInputStyle}
-                            />
-                            <input
-                              type="text"
-                              value={item.episodeLabel || ""}
-                              placeholder="Nhan tap"
-                              onChange={(e) =>
-                                handleSeriesEditorChange(index, "episodeLabel", e.target.value)
-                              }
-                              style={adminInputStyle}
-                            />
-                            <input
-                              type="text"
-                              value={item.episodeTitle || ""}
-                              placeholder="Ten tap"
-                              onChange={(e) =>
-                                handleSeriesEditorChange(index, "episodeTitle", e.target.value)
-                              }
-                              style={adminInputStyle}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/movie/${item.slug || item._id}`)}
-                              style={{
-                                ...adminButtonStyle,
-                                padding: "8px 12px",
-                                background: "rgba(255,255,255,0.08)",
-                                color: "#fff",
-                              }}
-                            >
-                              Mo
-                            </button>
+                      <div style={adminFieldStyle}>
+                        <label style={adminLabelStyle}>Tên seri</label>
+                        <input name="seriesTitle" placeholder="Tên seri đầy đủ" value={editForm.seriesTitle} onChange={handleEditInputChange} style={adminInputStyle} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+                        <div style={adminFieldStyle}>
+                          <label style={adminLabelStyle}>Mùa</label>
+                          <input name="season" type="number" min="1" placeholder="1" value={editForm.season} onChange={handleEditInputChange} style={adminInputStyle} />
+                        </div>
+                        <div style={adminFieldStyle}>
+                          <label style={adminLabelStyle}>Tập số</label>
+                          <input name="episode" type="number" min="1" placeholder="1" value={editForm.episode} onChange={handleEditInputChange} style={adminInputStyle} />
+                        </div>
+                        <div style={adminFieldStyle}>
+                          <label style={adminLabelStyle}>Nhãn tập</label>
+                          <input name="episodeLabel" placeholder="abc, xyz..." value={editForm.episodeLabel} onChange={handleEditInputChange} style={adminInputStyle} />
+                        </div>
+                        <div style={adminFieldStyle}>
+                          <label style={adminLabelStyle}>Tên tập</label>
+                          <input name="episodeTitle" placeholder="VD: Khởi đầu" value={editForm.episodeTitle} onChange={handleEditInputChange} style={adminInputStyle} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {!!editForm.seriesId.trim() && (
+                      <div style={adminFieldStyle}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                          <label style={adminLabelStyle}>Danh sách tập ({seriesEditorItems.length} tập)</label>
+                          <button type="button" onClick={handleSaveSeriesEditor} disabled={seriesEditorSaving || seriesEditorItems.length === 0}
+                            style={{ ...adminButtonStyle, background: "#1d4ed8", color: "#fff", padding: "8px 14px", fontSize: 13 }}>
+                            {seriesEditorSaving ? "Đang lưu..." : "💾 Lưu danh sách"}
+                          </button>
+                        </div>
+                        {seriesEditorLoading ? (
+                          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, padding: "12px 0" }}>Đang tải...</div>
+                        ) : seriesEditorItems.length > 0 ? (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "56px 90px 1fr 64px", gap: 8, padding: "4px 12px" }}>
+                              {["Tập", "Nhãn", "Tên tập", ""].map((h, i) => (
+                                <span key={i} style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontWeight: 600, textTransform: "uppercase" }}>{h}</span>
+                              ))}
+                            </div>
+                            {seriesEditorItems.map((item, index) => (
+                              <div key={item._id || index} style={{ display: "grid", gridTemplateColumns: "56px 90px 1fr 64px", gap: 8, alignItems: "center", background: String(item._id) === String(movie?._id) ? "rgba(229,9,20,0.08)" : "rgba(255,255,255,0.03)", border: String(item._id) === String(movie?._id) ? "1px solid rgba(229,9,20,0.35)" : "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "8px 12px" }}>
+                                <input type="number" min="1" value={item.episode || index + 1} onChange={(e) => handleSeriesEditorChange(index, "episode", e.target.value)} style={{ ...adminInputStyle, padding: "7px 8px", fontSize: 13 }} />
+                                <input type="text" value={item.episodeLabel || ""} placeholder="Nhãn" onChange={(e) => handleSeriesEditorChange(index, "episodeLabel", e.target.value)} style={{ ...adminInputStyle, padding: "7px 8px", fontSize: 13 }} />
+                                <input type="text" value={item.episodeTitle || ""} placeholder="Tên tập" onChange={(e) => handleSeriesEditorChange(index, "episodeTitle", e.target.value)} style={{ ...adminInputStyle, padding: "7px 8px", fontSize: 13 }} />
+                                <button type="button" onClick={() => navigate(`/movie/${item.slug || item._id}`)} style={{ ...adminButtonStyle, padding: "7px 0", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 12, textAlign: "center" }}>Mở</button>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
-                        Chua co danh sach tap trong seri nay.
+                        ) : (
+                          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, padding: "10px 0" }}>Chưa có tập nào trong seri này.</div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
-
-                <div
-                  style={{
-                    ...adminFieldStyle,
-                    gridColumn: "1 / -1",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <input
-                    id="isPublished"
-                    type="checkbox"
-                    name="isPublished"
-                    checked={!!editForm.isPublished}
-                    onChange={handleEditInputChange}
-                  />
-                  <label htmlFor="isPublished" style={adminLabelStyle}>
-                    Hiển thị phim công khai
-                  </label>
-                </div>
               </div>
 
-              <div style={adminActionsStyle}>
-                <button
-                  type="button"
-                  onClick={handleCloseAdminModal}
-                  style={{
-                    ...adminButtonStyle,
-                    background: "rgba(255,255,255,0.08)",
-                    color: "#fff",
-                  }}
-                >
-                  Hủy
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={adminLoading}
-                  style={{
-                    ...adminButtonStyle,
-                    background: "#2563eb",
-                    color: "#fff",
-                  }}
-                >
-                  {adminLoading ? "Đang lưu..." : "Lưu thay đổi"}
+              {/* ── Footer ── */}
+              <div style={{ padding: "14px 24px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, justifyContent: "flex-end", flexShrink: 0 }}>
+                <button type="button" onClick={handleCloseAdminModal} style={{ ...adminButtonStyle, background: "rgba(255,255,255,0.08)", color: "#fff" }}>Hủy</button>
+                <button type="submit" disabled={adminLoading} style={{ ...adminButtonStyle, background: "#2563eb", color: "#fff" }}>
+                  {adminLoading ? "Đang lưu..." : "💾 Lưu thay đổi"}
                 </button>
               </div>
             </form>

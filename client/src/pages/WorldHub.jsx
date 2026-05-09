@@ -6,6 +6,10 @@ import AdSlot from "../components/Ads/AdSlot";
 import HoverPreviewVideo from "../components/HoverPreview/HoverPreviewVideo";
 import "../assets/styles/LatestMovies.scss";
 import { API_URL } from "../utils/api";
+import {
+  getPreviewFrames,
+  normalizeImage,
+} from "../utils/previewTimeline";
 import { setSEO } from "../utils/seo";
 
 const FALLBACK_POSTER =
@@ -24,10 +28,6 @@ const WORLD_COUNTRIES = [
   { value: "Châu Âu", label: "🇪🇺 Châu Âu" },
   { value: "Khác", label: "Khác" },
 ];
-
-function normalizeImage(url) {
-  return typeof url === "string" && url.trim() ? url.trim() : "";
-}
 
 function getFirstGalleryImage(movie) {
   return Array.isArray(movie?.images)
@@ -49,27 +49,6 @@ function getDirectPreviewUrl(movie) {
   return "";
 }
 
-function getTimelineFrames(movie, count = 4) {
-  const items = Array.isArray(movie?.previewTimeline?.items)
-    ? movie.previewTimeline.items
-    : [];
-  const seen = new Set();
-  const urls = items
-    .map((item) => normalizeImage(item?.url))
-    .filter((url) => {
-      if (!url || seen.has(url)) return false;
-      seen.add(url);
-      return true;
-    });
-
-  if (urls.length <= count) return urls;
-
-  return [0.08, 0.34, 0.62, 0.88]
-    .slice(0, count)
-    .map((ratio) => urls[Math.floor((urls.length - 1) * ratio)])
-    .filter(Boolean);
-}
-
 function WorldCard({ movie, index, isAdmin = false, isDeleting = false, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [canPlayPreview, setCanPlayPreview] = useState(false);
@@ -80,7 +59,7 @@ function WorldCard({ movie, index, isAdmin = false, isDeleting = false, onDelete
     normalizeImage(movie.poster) ||
     FALLBACK_POSTER;
   const previewUrl = getDirectPreviewUrl(movie);
-  const previewFrames = useMemo(() => getTimelineFrames(movie, 4), [movie]);
+  const previewFrames = useMemo(() => getPreviewFrames(movie, 4), [movie]);
   return (
     <div
       className="latest-cardShell"

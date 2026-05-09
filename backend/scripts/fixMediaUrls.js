@@ -57,6 +57,14 @@ async function run() {
         });
       }
 
+      if (movie.previewTimeline?.spriteUrl) {
+        const nextSpriteUrl = replaceBase(movie.previewTimeline.spriteUrl);
+        if (nextSpriteUrl !== movie.previewTimeline.spriteUrl) {
+          movie.previewTimeline.spriteUrl = nextSpriteUrl;
+          changed = true;
+        }
+      }
+
       if (changed) {
         await movie.save();
         updatedCount++;

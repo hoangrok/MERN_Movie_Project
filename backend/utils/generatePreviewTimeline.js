@@ -23,6 +23,10 @@ function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+function isRemoteSource(value = "") {
+  return /^https?:\/\//i.test(String(value).trim());
+}
+
 function randomId(len = 8) {
   return crypto.randomBytes(len).toString("hex");
 }
@@ -123,14 +127,48 @@ function getAutoPreviewCount(duration) {
   return 10;
 }
 
-async function buildJpegBuffer(filePath, width, height, quality = 84, fit = "cover") {
-  return sharp(filePath)
-    .resize(width, height, {
-      fit,
-      position: "centre",
-      background: { r: 5, g: 7, b: 12, alpha: 1 },
-      withoutEnlargement: false,
+async function buildSpriteSheetBuffer(
+  frames = [],
+  {
+    cols = 1,
+    rows = 1,
+    frameWidth = 320,
+    frameHeight = 180,
+    quality = 86,
+  } = {}
+) {
+  const composites = await Promise.all(
+    frames.map(async (frame, index) => {
+      const buffer = await sharp(frame.path)
+        .resize(frameWidth, frameHeight, {
+          fit: "cover",
+          position: "centre",
+          background: { r: 5, g: 7, b: 12, alpha: 1 },
+          withoutEnlargement: false,
+        })
+        .jpeg({ quality, mozjpeg: true })
+        .toBuffer();
+
+      const left = (index % cols) * frameWidth;
+      const top = Math.floor(index / cols) * frameHeight;
+
+      return {
+        input: buffer,
+        left,
+        top,
+      };
     })
+  );
+
+  return sharp({
+    create: {
+      width: cols * frameWidth,
+      height: rows * frameHeight,
+      channels: 3,
+      background: { r: 5, g: 7, b: 12 },
+    },
+  })
+    .composite(composites)
     .jpeg({ quality, mozjpeg: true })
     .toBuffer();
 }
@@ -153,11 +191,18 @@ module.exports = async function generatePreviewTimeline(
   const tempFiles = [];
 
   try {
-    if (!videoPath || !fs.existsSync(videoPath)) {
+    if (!videoPath || (!isRemoteSource(videoPath) && !fs.existsSync(videoPath))) {
       console.warn("generatePreviewTimeline: missing videoPath", videoPath);
       return {
         duration: 0,
         interval: 0,
+        spriteUrl: "",
+        spriteKey: "",
+        cols: 0,
+        rows: 0,
+        frameWidth: 0,
+        frameHeight: 0,
+        totalItems: 0,
         items: [],
         posterUrl: "",
         posterKey: "",
@@ -170,6 +215,13 @@ module.exports = async function generatePreviewTimeline(
       return {
         duration: 0,
         interval: 0,
+        spriteUrl: "",
+        spriteKey: "",
+        cols: 0,
+        rows: 0,
+        frameWidth: 0,
+        frameHeight: 0,
+        totalItems: 0,
         items: [],
         posterUrl: "",
         posterKey: "",
@@ -226,6 +278,13 @@ module.exports = async function generatePreviewTimeline(
       return {
         duration: Number(duration.toFixed(2)),
         interval: 0,
+        spriteUrl: "",
+        spriteKey: "",
+        cols: 0,
+        rows: 0,
+        frameWidth: 0,
+        frameHeight: 0,
+        totalItems: 0,
         items: [],
         posterUrl: "",
         posterKey: "",
@@ -264,27 +323,26 @@ module.exports = async function generatePreviewTimeline(
 
     chosen.sort((a, b) => a.second - b.second);
 
-    const previewItems = [];
-    for (let i = 0; i < chosen.length; i++) {
-      const frame = chosen[i];
-      const previewBuffer = await buildJpegBuffer(
-        frame.path,
-        previewWidth,
-        previewHeight,
-        92,
-        "contain"
-      );
+    const spriteCols = Math.max(
+      1,
+      Math.min(10, Number(options.spriteCols) || Math.ceil(Math.sqrt(chosen.length)))
+    );
+    const spriteRows = Math.max(1, Math.ceil(chosen.length / spriteCols));
+    const spriteBuffer = await buildSpriteSheetBuffer(chosen, {
+      cols: spriteCols,
+      rows: spriteRows,
+      frameWidth: previewWidth,
+      frameHeight: previewHeight,
+      quality: 88,
+    });
+    const spriteKey = `previews/${movieId}/${Date.now()}-sprite-${randomId(6)}.jpg`;
+    const spriteUrl = await uploadBufferToR2(spriteBuffer, spriteKey, "image/jpeg");
 
-      const key = `previews/${movieId}/${Date.now()}-${i + 1}-${randomId(4)}.jpg`;
-      const url = await uploadBufferToR2(previewBuffer, key, "image/jpeg");
-
-        previewItems.push({
-        second: frame.second,
-        url,
-        key,
-        score: frame.frameScore,
-      });
-    }
+    const previewItems = chosen.map((frame, index) => ({
+      second: frame.second,
+      frameIndex: index,
+      score: frame.frameScore,
+    }));
 
     const posterBuffer = await buildPosterBuffer(bestFrame.path, {
       width: posterWidth,
@@ -297,9 +355,9 @@ module.exports = async function generatePreviewTimeline(
 
     await cleanupFiles(tempFiles, []);
 
-    return {
-      duration: Number(duration.toFixed(2)),
-      interval:
+      return {
+        duration: Number(duration.toFixed(2)),
+        interval:
         previewItems.length > 1
           ? Number(
               (
@@ -309,6 +367,13 @@ module.exports = async function generatePreviewTimeline(
               ).toFixed(2)
             )
           : 0,
+      spriteUrl,
+      spriteKey,
+      cols: spriteCols,
+      rows: spriteRows,
+      frameWidth: previewWidth,
+      frameHeight: previewHeight,
+      totalItems: previewItems.length,
       items: previewItems,
       posterUrl,
       posterKey,
@@ -349,6 +414,13 @@ module.exports = async function generatePreviewTimeline(
     return {
       duration: 0,
       interval: 0,
+      spriteUrl: "",
+      spriteKey: "",
+      cols: 0,
+      rows: 0,
+      frameWidth: 0,
+      frameHeight: 0,
+      totalItems: 0,
       items: [],
       posterUrl: "",
       posterKey: "",

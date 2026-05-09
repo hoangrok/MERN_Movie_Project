@@ -157,7 +157,7 @@ async function recoverInterruptedVideoJobs() {
   if (!interruptedJobs.length) return;
 
   const interruptedIds = interruptedJobs.map((item) => item._id);
-  const recoveryMessage = `Server restarted at ${SERVER_BOOT_AT.toISOString()} while this video job was running. Please upload again.`;
+  const recoveryMessage = `Server restarted at ${SERVER_BOOT_AT.toISOString()} while this video job was running. Video file is still in R2 — click "Re-encode HLS" to retry.`;
 
   const result = await Movie.updateMany(
     {
