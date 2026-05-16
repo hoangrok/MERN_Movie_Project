@@ -1491,21 +1491,11 @@ router.post("/folder-merge", protect, adminOnly, async (req, res) => {
     const mergedPath = path.join(tmpDir, `${movieId}-fmerged.mp4`);
 
     addJob(async () => {
-      console.log(`[FOLDER-MERGE] ${videoFiles.length} files → 1 video  movieId=${movieId}`);
+      console.log(`[FOLDER-MERGE] ${orderedPaths.length} files → 1 video  movieId=${movieId}`);
       cleanOldTmpFiles(tmpDir, 6);
       try {
-        const videosWithInfo = await Promise.all(
-          orderedPaths.map(async (p) => {
-            try {
-              const info = await getVideoInfo(p);
-              return { path: p, duration: info.duration, info };
-            } catch {
-              return { path: p, duration: 0, info: null };
-            }
-          })
-        );
-
-        const mergeResult = await mergeVideos(videosWithInfo.map((v) => v.path), mergedPath, { copyMode: true });
+        // orderedPaths is string[] — mergeVideos probes internally
+        const mergeResult = await mergeVideos(orderedPaths, mergedPath, { copyMode: true });
         console.log(`[FOLDER-MERGE] Merge done: ${mergeResult.duration}s`);
 
         await processVideoInBackground({ movieId: movie._id, tempVideo: mergedPath, isBatchUpload: false });
