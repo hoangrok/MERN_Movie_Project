@@ -1505,7 +1505,7 @@ router.post("/folder-merge", protect, adminOnly, async (req, res) => {
           })
         );
 
-        const mergeResult = await mergeVideos(videosWithInfo, mergedPath, { copyMode: true });
+        const mergeResult = await mergeVideos(videosWithInfo.map((v) => v.path), mergedPath, { copyMode: true });
         console.log(`[FOLDER-MERGE] Merge done: ${mergeResult.duration}s`);
 
         await processVideoInBackground({ movieId: movie._id, tempVideo: mergedPath, isBatchUpload: false });
