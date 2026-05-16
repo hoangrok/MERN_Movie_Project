@@ -151,22 +151,24 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     let cancelScheduledSync = () => {};
+    let lastServerSync = 0;
+    const SYNC_COOLDOWN = 60_000; // tối đa 1 lần / phút
 
     const loadCW = ({ syncWithServer = false } = {}) => {
       const localList = getContinueWatching() || [];
-      if (alive) {
-        setContinueWatching(localList);
-      }
+      if (alive) setContinueWatching(localList);
 
       cancelScheduledSync();
 
       if (!syncWithServer) return;
 
+      const now = Date.now();
+      if (now - lastServerSync < SYNC_COOLDOWN) return;
+      lastServerSync = now;
+
       cancelScheduledSync = scheduleDeferredTask(() => {
         syncContinueWatchingWithServer().then((syncedList) => {
-          if (alive) {
-            setContinueWatching(syncedList || []);
-          }
+          if (alive) setContinueWatching(syncedList || []);
         });
       }, 1400);
     };
