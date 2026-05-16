@@ -18,6 +18,7 @@ const {
   incrementView,
   getTrending,
   getSeriesEpisodes,
+  getSuggestions,
 } = require("../controllers/movieController");
 
 const { protect, optionalAuth } = require("../middleware/authMiddleware");
@@ -32,6 +33,9 @@ const TMDB_GENRE_MAP = {
 
 // List / Search
 router.get("/", getMovies);
+
+// Search suggestions (autocomplete)
+router.get("/suggest", getSuggestions);
 
 // Special pages
 router.get("/trending", getTrending);

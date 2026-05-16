@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Navbar.scss";
 import {
@@ -14,7 +14,6 @@ import {
 } from "react-icons/fa";
 import { useDispatch, useSelector } from "react-redux";
 import { logoutReducer } from "../../store/Slice/auth-slice";
-import { searchMovies, clearSearch } from "../../store/Slice/movie-slice";
 import toast from "react-hot-toast";
 import { API_URL } from "../../utils/api";
 import useTheme from "../../hooks/useTheme";
@@ -41,8 +40,6 @@ const Navbar = ({ isScrolled }) => {
 
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const movies = useSelector((state) => state.movie.movies || []);
-  const searchedMovies = useSelector((state) => state.movie.searchedMovies || []);
   const { user } = useSelector((state) => state.auth);
   const linksWithWorld = [
     ...links.slice(0, 2),
@@ -60,11 +57,14 @@ const Navbar = ({ isScrolled }) => {
     : linksWithWorld;
 
   const [searchedInput, setSearchedInput] = useState("");
-  const [debouncedInput, setDebouncedInput] = useState("");
   const [showSearchResult, setShowSearchResult] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [keywords, setKeywords] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
   const [genres, setGenres] = useState([]);
   const [showGenreDropdown, setShowGenreDropdown] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
+  const suggestAbortRef = useRef(null);
 
   const ensureGenresLoaded = async () => {
     if (genresRequestedRef.current) return;
@@ -117,58 +117,40 @@ const Navbar = ({ isScrolled }) => {
   }, [location.search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedInput(searchedInput.trim());
+    const q = searchedInput.trim();
+    if (!q || q.length < 2) {
+      setSuggestions([]);
+      setKeywords([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (suggestAbortRef.current) suggestAbortRef.current.abort();
+      suggestAbortRef.current = new AbortController();
+
+      setSuggestLoading(true);
+      try {
+        const res = await fetch(
+          `${API_URL}/movies/suggest?q=${encodeURIComponent(q)}`,
+          { signal: suggestAbortRef.current.signal }
+        );
+        const data = await res.json();
+        if (data.success) {
+          setSuggestions(data.movies || []);
+          setKeywords(data.keywords || []);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setSuggestions([]);
+          setKeywords([]);
+        }
+      } finally {
+        setSuggestLoading(false);
+      }
     }, 250);
 
     return () => clearTimeout(timer);
   }, [searchedInput]);
-
-  useEffect(() => {
-    if (!debouncedInput) {
-      dispatch(clearSearch());
-      return;
-    }
-
-    dispatch(searchMovies({ query: debouncedInput }));
-  }, [debouncedInput, dispatch]);
-
-  const suggestedGenres = useMemo(() => {
-    if (!searchedInput.trim()) return [];
-
-    const keyword = searchedInput.toLowerCase().trim();
-
-    return genres
-      .filter((genre) => genre.toLowerCase().includes(keyword))
-      .slice(0, 5);
-  }, [searchedInput, genres]);
-
-  const quickSuggestions = useMemo(() => {
-    if (!searchedInput.trim()) return [];
-
-    const keyword = searchedInput.toLowerCase().trim();
-
-    return movies
-      .filter((movie) => {
-        const title = String(movie.title || "").toLowerCase();
-        const desc = String(movie.description || "").toLowerCase();
-        const movieGenres = Array.isArray(movie.genres)
-          ? movie.genres.join(" ").toLowerCase()
-          : Array.isArray(movie.genre)
-          ? movie.genre.join(" ").toLowerCase()
-          : String(movie.genre || "").toLowerCase();
-
-        return (
-          title.includes(keyword) ||
-          desc.includes(keyword) ||
-          movieGenres.includes(keyword)
-        );
-      })
-      .slice(0, 6);
-  }, [searchedInput, movies]);
-
-  const resultsToShow =
-    searchedMovies.length > 0 ? searchedMovies : quickSuggestions;
 
   const logOutHandler = () => {
     dispatch(logoutReducer());
@@ -200,9 +182,10 @@ const Navbar = ({ isScrolled }) => {
 
   const clearSearchHandler = () => {
     setSearchedInput("");
-    setDebouncedInput("");
+    setSuggestions([]);
+    setKeywords([]);
     setShowSearchResult(false);
-    dispatch(clearSearch());
+    if (suggestAbortRef.current) suggestAbortRef.current.abort();
   };
 
   const toggleGenre = (genre) => {
@@ -399,21 +382,20 @@ const Navbar = ({ isScrolled }) => {
 
             {showSearchResult && searchedInput.trim() && (
               <div className="navbar__search-panel">
-                {suggestedGenres.length > 0 && (
+                {keywords.length > 0 && (
                   <div className="navbar__search-section">
                     <div className="navbar__search-section-title">
-                      Gợi ý thể loại
+                      Từ khoá liên quan
                     </div>
-
                     <div className="navbar__search-tags-wrap">
-                      {suggestedGenres.map((genre, index) => (
+                      {keywords.map((kw, index) => (
                         <button
                           key={index}
                           type="button"
                           className="navbar__search-tag"
-                          onClick={() => applySuggestedGenre(genre)}
+                          onClick={() => applySuggestedGenre(kw)}
                         >
-                          {genre}
+                          {kw}
                         </button>
                       ))}
                     </div>
@@ -422,12 +404,12 @@ const Navbar = ({ isScrolled }) => {
 
                 <div className="navbar__search-section">
                   <div className="navbar__search-section-title navbar__search-section-title--result">
-                    Kết quả tìm kiếm
+                    {suggestLoading ? "Đang tìm..." : "Kết quả gợi ý"}
                   </div>
 
                   <div className="navbar__search-results">
-                    {resultsToShow.length > 0 ? (
-                      resultsToShow.map((movie) => (
+                    {suggestions.length > 0 ? (
+                      suggestions.map((movie) => (
                         <Link
                           key={movie._id}
                           to={`/movie/${movie.slug || movie._id}`}

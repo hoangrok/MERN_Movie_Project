@@ -130,6 +130,27 @@ const escapeRegex = (value = "") => {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
+// Build a regex pattern that matches both accented and non-accented Vietnamese
+const buildVietnamesePattern = (text = "") => {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const map = {
+    a: "aàáảãạăằắẳẵặâầấẩẫậ",
+    d: "dđ",
+    e: "eèéẻẽẹêềếểễệ",
+    i: "iìíỉĩị",
+    o: "oòóỏõọôồốổỗộơờớởỡợ",
+    u: "uùúủũụưừứửữự",
+    y: "yỳýỷỹỵ",
+  };
+  return normalized
+    .split("")
+    .map((c) => {
+      const variants = map[c];
+      return variants ? `[${variants}]` : escapeRegex(c);
+    })
+    .join("");
+};
+
 const normalizeImage = (value = "") => {
   const next = cleanString(value);
   return next || "";
@@ -339,7 +360,7 @@ const getMovies = async (req, res) => {
 
     const query = cleanString(q).slice(0, 80);
     if (query) {
-      const pattern = escapeRegex(query);
+      const pattern = buildVietnamesePattern(query);
       filter.$or = [
         { title: { $regex: pattern, $options: "i" } },
         { description: { $regex: pattern, $options: "i" } },
@@ -1089,6 +1110,46 @@ const getSeriesEpisodes = async (req, res) => {
   }
 };
 
+const getSuggestions = async (req, res) => {
+  try {
+    setPublicCache(res, "public, max-age=10, s-maxage=30");
+
+    const q = cleanString(req.query.q);
+    if (!q || q.length < 2) {
+      return res.json({ success: true, movies: [], keywords: [] });
+    }
+
+    const pattern = buildVietnamesePattern(q.slice(0, 50));
+
+    const movies = await Movie.find({
+      isPublished: true,
+      $or: [
+        { title: { $regex: pattern, $options: "i" } },
+        { seriesTitle: { $regex: pattern, $options: "i" } },
+        { genre: { $regex: pattern, $options: "i" } },
+      ],
+    })
+      .select("title slug poster backdrop genre views year")
+      .sort({ views: -1 })
+      .limit(8)
+      .lean();
+
+    // Extract related genre keywords from matched movies
+    const genreSet = new Set();
+    movies.forEach((m) => {
+      (Array.isArray(m.genre) ? m.genre : [m.genre])
+        .filter(Boolean)
+        .forEach((g) => genreSet.add(g));
+    });
+    const keywords = [...genreSet].slice(0, 6);
+
+    return res.json({ success: true, movies, keywords });
+  } catch (err) {
+    console.error("getSuggestions error:", err);
+    return res.status(500).json({ success: false, movies: [], keywords: [] });
+  }
+};
+
 module.exports = {
   getMovies,
   getLatestMovies,
@@ -1104,4 +1165,5 @@ module.exports = {
   incrementView,
   getTrending,
   getSeriesEpisodes,
+  getSuggestions,
 };
