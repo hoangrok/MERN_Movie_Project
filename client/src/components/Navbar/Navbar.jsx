@@ -51,7 +51,6 @@ const Navbar = ({ isScrolled }) => {
         ...linksWithWorld,
         { name: "Admin Up", path: "/admin/new-movie" },
         { name: "Admin TG", path: "/admin/the-gioi" },
-        { name: "Batch", path: "/admin/folder-merge" },
         { name: "Ads", path: "/admin/ads" },
         { name: "Feedback", path: "/admin/feedback" },
       ]
