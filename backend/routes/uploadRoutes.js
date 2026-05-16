@@ -1414,4 +1414,124 @@ router.post("/video/:movieId", protect, adminOnly, async (req, res) => {
   }
 });
 
+// ==========================
+// FOLDER MERGE UPLOAD
+// Upload nhiều video từ 1 folder → ghép thành 1 video dài → HLS
+// ==========================
+
+router.post("/folder-merge", protect, adminOnly, async (req, res) => {
+  let uploadDir = null;
+  let tempPaths = [];
+
+  try {
+    const title = String(req.body?.title || "").trim() || "Merged Video";
+    const sortBy = String(req.body?.sortBy || "name"); // name | time | manual
+    const contentArea = String(req.body?.contentArea || "default");
+    const year = parseInt(req.body?.year) || new Date().getFullYear();
+    const genre = String(req.body?.genre || "").trim();
+
+    const files = req.files?.videos;
+    if (!files) {
+      return res.status(400).json({ success: false, message: "Chưa có video nào được gửi lên" });
+    }
+    const videoFiles = Array.isArray(files) ? files : [files];
+    if (videoFiles.length === 0) {
+      return res.status(400).json({ success: false, message: "Không có video" });
+    }
+
+    const tmpDir = path.join(__dirname, "../tmp");
+    ensureDir(tmpDir);
+    const batchId = crypto.randomBytes(8).toString("hex");
+    uploadDir = path.join(tmpDir, `fmerge-${batchId}`);
+    ensureDir(uploadDir);
+
+    // Save files preserving original name for sort
+    for (const file of videoFiles) {
+      const ext = path.extname(file.name || "video.mp4").toLowerCase() || ".mp4";
+      const baseName = cleanFileBaseName(path.parse(file.name || "video").name) || "video";
+      const saveName = `${baseName}-${Date.now()}${ext}`;
+      const savePath = path.join(uploadDir, saveName);
+      await file.mv(savePath);
+      tempPaths.push({ path: savePath, originalName: file.name || saveName });
+    }
+
+    // Determine sort order
+    let orderedPaths;
+    if (sortBy === "manual" && req.body?.order) {
+      try {
+        const orderArr = JSON.parse(req.body.order);
+        const nameMap = Object.fromEntries(tempPaths.map((v) => [v.originalName, v.path]));
+        orderedPaths = orderArr.map((n) => nameMap[n]).filter(Boolean);
+        const orderedSet = new Set(orderedPaths);
+        for (const v of tempPaths) {
+          if (!orderedSet.has(v.path)) orderedPaths.push(v.path);
+        }
+      } catch {
+        orderedPaths = sortVideos(tempPaths.map((v) => v.path), "name");
+      }
+    } else {
+      orderedPaths = sortVideos(tempPaths.map((v) => v.path), sortBy);
+    }
+
+    // Create movie record immediately so frontend can poll status
+    const slug = `${createSlug(title) || "merged"}-${Date.now()}`;
+    const movie = await Movie.create({
+      title,
+      slug,
+      description: "",
+      genre: genre ? [genre] : [],
+      year,
+      contentArea,
+      isPublished: false,
+      status: "queued",
+      processingError: "",
+    });
+
+    const movieId = String(movie._id);
+    const mergedPath = path.join(tmpDir, `${movieId}-fmerged.mp4`);
+
+    addJob(async () => {
+      console.log(`[FOLDER-MERGE] ${videoFiles.length} files → 1 video  movieId=${movieId}`);
+      cleanOldTmpFiles(tmpDir, 6);
+      try {
+        const videosWithInfo = await Promise.all(
+          orderedPaths.map(async (p) => {
+            try {
+              const info = await getVideoInfo(p);
+              return { path: p, duration: info.duration, info };
+            } catch {
+              return { path: p, duration: 0, info: null };
+            }
+          })
+        );
+
+        const mergeResult = await mergeVideos(videosWithInfo, mergedPath, { copyMode: true });
+        console.log(`[FOLDER-MERGE] Merge done: ${mergeResult.duration}s`);
+
+        await processVideoInBackground({ movieId: movie._id, tempVideo: mergedPath, isBatchUpload: false });
+      } catch (err) {
+        console.error("[FOLDER-MERGE] Error:", err);
+        await Movie.findByIdAndUpdate(movie._id, {
+          status: "failed",
+          processingError: err.message || "Merge failed",
+        });
+      } finally {
+        cleanup(uploadDir, mergedPath);
+      }
+    }, { movieId, title: movie.title, type: "folder-merge" });
+
+    return res.json({
+      success: true,
+      movieId,
+      status: "queued",
+      fileCount: videoFiles.length,
+      message: `Đã nhận ${videoFiles.length} video. Đang ghép và mã hoá...`,
+    });
+  } catch (err) {
+    console.error("folder-merge error:", err);
+    cleanup(uploadDir, ...tempPaths.map((v) => v.path));
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

@@ -14,6 +14,7 @@ const Search = lazy(() => import("./pages/Search"));
 const AdminNewMovie = lazy(() => import("./pages/AdminNewMovie"));
 const AdminAds = lazy(() => import("./pages/AdminAds"));
 const AdminFeedback = lazy(() => import("./pages/AdminFeedback"));
+const AdminFolderMerge = lazy(() => import("./pages/AdminFolderMerge"));
 const LatestMovies = lazy(() => import("./pages/LatestMovies"));
 const TopViewedMovies = lazy(() => import("./pages/TopViewedMovies"));
 const WorldHub = lazy(() => import("./pages/WorldHub"));
@@ -86,6 +87,10 @@ function AppRoutes() {
               <Navigate to="/login" replace />
             )
           }
+        />
+        <Route
+          path="/admin/folder-merge"
+          element={user?.isAdmin ? <AdminFolderMerge /> : <Navigate to="/login" replace />}
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
