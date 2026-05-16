@@ -6,6 +6,7 @@ import VpnNotice from "./components/VpnNotice/VpnNotice";
 import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
 import { initScrollReveal } from "./utils/scrollReveal";
+import PageLoader from "./components/PageLoader/PageLoader";
 
 const Home = lazy(() => import("./pages/Home"));
 const MovieDetail = lazy(() => import("./pages/MovieDetail"));
@@ -25,6 +26,7 @@ const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Profile = lazy(() => import("./pages/Profile"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
 const TelegramWidget = lazy(() => import("./components/TelegramWidget/TelegramWidget"));
@@ -38,7 +40,7 @@ function AppRoutes() {
   }, [location.pathname]);
 
   return (
-    <div key={location.key} className="page-enter">
+    <div className="page-enter">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
@@ -85,6 +87,7 @@ function AppRoutes() {
             )
           }
         />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );
@@ -94,7 +97,7 @@ function App() {
   const showDeferredChrome = useDeferredMount({ delay: 1400 });
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoader />}>
       <AppRoutes />
       <VpnNotice />
       <SiteSupport />

@@ -149,9 +149,9 @@ export default function WorldHub() {
 
   useEffect(() => {
     setSEO({
-      title: "The gioi - Dam17+1",
+      title: "Thế Giới - Dam17+1",
       description:
-        "Khu video The gioi: mot noi dung co the gom rat nhieu tap va bo anh di kem.",
+        "Khu video Thế Giới: nội dung có thể gồm nhiều tập và bộ ảnh đi kèm, mở vào là thấy ngay danh sách để bấm từng phần nhanh hơn.",
       url: "https://www.clipdam18.com/the-gioi",
       image: "https://www.clipdam18.com/og-image.jpg",
     });
@@ -239,10 +239,10 @@ export default function WorldHub() {
       <div className="latest-shell">
         <div className="latest-hero">
           <div className="latest-hero__badge">THE GIOI</div>
-          <h1 className="latest-hero__title">Thu vien The gioi</h1>
+          <h1 className="latest-hero__title">Thư Viện Thế Giới</h1>
           <p className="latest-hero__desc">
-            Noi dung co nhieu tap, nhieu anh, mo vao la thay ngay danh sach de
-            bam tung phan nhanh hon.
+            Nội dung có nhiều tập, nhiều ảnh — mở vào là thấy ngay danh sách
+            để bấm từng phần nhanh hơn.
           </p>
           {user?.isAdmin ? (
             <Link
@@ -259,7 +259,7 @@ export default function WorldHub() {
                 fontWeight: 700,
               }}
             >
-              Admin upload The gioi
+              Admin upload Thế Giới
             </Link>
           ) : null}
         </div>

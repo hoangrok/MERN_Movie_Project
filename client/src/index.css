@@ -4,8 +4,8 @@
 }
 
 @keyframes pageEnter {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0.6; transform: translateY(5px); }
+  to   { opacity: 1;   transform: translateY(0); }
 }
 
 @keyframes shimmer {
@@ -589,7 +589,7 @@ select {
 
 /* ── Page enter ── */
 .page-enter {
-  animation: pageEnter 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pageEnter 0.18s ease-out both;
 }
 
 /* ── Scroll reveal ── */
