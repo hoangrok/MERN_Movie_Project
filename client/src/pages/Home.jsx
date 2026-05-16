@@ -128,6 +128,7 @@ export default function Home() {
   const [continueWatching, setContinueWatching] = useState([]);
   const [showGenreModal, setShowGenreModal] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
+  const [forYou, setForYou] = useState({ movies: [], reason: "", personalized: false, loading: true });
   useEffect(() => {
     setSEO({
       title: "Dam17+1 - Video mới cập nhật hằng ngày",
@@ -191,6 +192,21 @@ export default function Home() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const headers = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+    setForYou((prev) => ({ ...prev, loading: true }));
+    fetch(`${API_URL}/movies/for-you`, { headers })
+      .then((r) => r.json())
+      .then((data) => {
+        if (alive && data.success) {
+          setForYou({ movies: data.movies || [], reason: data.reason || "", personalized: !!data.personalized, loading: false });
+        }
+      })
+      .catch(() => { if (alive) setForYou((prev) => ({ ...prev, loading: false })); });
+    return () => { alive = false; };
+  }, [user?.token]);
 
   const allGenres = useMemo(() => {
     const set = new Set();
@@ -484,33 +500,33 @@ export default function Home() {
             </div>
             <div className="homePanel">
               <SectionHeadButton
-                title="Vi ban da xem..."
+                title={forYou.personalized ? `🤖 ${forYou.reason}` : "🤖 Dành cho bạn"}
                 onClick={handleRecommendedMore}
               />
               <div className="posterRow">
-                {isMoviesLoading && becauseYouWatchedMovies.length === 0 ? (
+                {forYou.loading ? (
                   <>
                     <PosterSkeleton />
                     <PosterSkeleton />
                     <PosterSkeleton />
                   </>
-                ) : becauseYouWatchedMovies.length > 0 ? (
-                  becauseYouWatchedMovies.map((movie, index) => (
+                ) : forYou.movies.length > 0 ? (
+                  forYou.movies.map((movie, index) => (
                     <PosterCard
                       key={movie._id || index}
                       movie={movie}
-                      badge={index === 0 ? "Tiep gu cua ban" : ""}
+                      badge={index === 0 ? (forYou.personalized ? "Dành cho bạn" : "Nổi bật") : ""}
                     />
                   ))
                 ) : (
-                  <EmptyBox text="Chua du du lieu xem de goi y sau hon" />
+                  <EmptyBox text="Xem thêm vài video để hệ thống hiểu gu hơn" />
                 )}
               </div>
             </div>
 
             <div className="homePanel">
               <SectionHeadButton
-                title="Theo genre ban xem gan day"
+                title={`🎯 Theo thể loại${recommendationGenres[0] ? ` · ${recommendationGenres[0]}` : ""}`}
                 onClick={handleRecommendedMore}
               />
               <div className="posterRow">
@@ -537,11 +553,11 @@ export default function Home() {
                     <PosterCard
                       key={movie._id || index}
                       movie={movie}
-                      badge={index === 0 ? "De xuat" : ""}
+                      badge={index === 0 ? "Đề xuất" : ""}
                     />
                   ))
                 ) : (
-                  <EmptyBox text="Xem them vai video de he thong hieu gu hon" />
+                  <EmptyBox text="Xem thêm vài video để hệ thống hiểu gu hơn" />
                 )}
               </div>
             </div>

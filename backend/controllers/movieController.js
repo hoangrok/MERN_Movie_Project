@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Movie = require("../models/Movie");
 const User = require("../models/UserModel");
+const Progress = require("../models/Progress");
 const { makeStreamUrl } = require("../utils/streamToken");
 const { generateVideoBackdrop } = require("../utils/generateVideoBackdrop");
 
@@ -1112,16 +1113,21 @@ const getSeriesEpisodes = async (req, res) => {
 
 const getSuggestions = async (req, res) => {
   try {
-    setPublicCache(res, "public, max-age=10, s-maxage=30");
-
     const q = cleanString(req.query.q);
     if (!q || q.length < 2) {
       return res.json({ success: true, movies: [], keywords: [] });
     }
 
+    const userId = req.user?._id;
+    if (userId) {
+      setNoStore(res);
+    } else {
+      setPublicCache(res, "public, max-age=10, s-maxage=30");
+    }
+
     const pattern = buildVietnamesePattern(q.slice(0, 50));
 
-    const movies = await Movie.find({
+    const raw = await Movie.find({
       isPublished: true,
       $or: [
         { title: { $regex: pattern, $options: "i" } },
@@ -1131,10 +1137,53 @@ const getSuggestions = async (req, res) => {
     })
       .select("title slug poster backdrop genre views year")
       .sort({ views: -1 })
-      .limit(8)
+      .limit(20)
       .lean();
 
-    // Extract related genre keywords from matched movies
+    let movies = raw;
+
+    // Boost results by user's genre preferences when logged in
+    if (userId && raw.length > 0) {
+      try {
+        const progress = await Progress.find({ userId: String(userId) })
+          .select("movieId")
+          .sort({ updatedAt: -1 })
+          .limit(30)
+          .lean();
+
+        if (progress.length > 0) {
+          const watched = await Movie.find({
+            _id: { $in: progress.map((p) => p.movieId) },
+          })
+            .select("genre")
+            .lean();
+
+          const genreScores = {};
+          for (const m of watched) {
+            for (const g of m.genre || []) {
+              genreScores[g] = (genreScores[g] || 0) + 1;
+            }
+          }
+
+          movies = raw
+            .map((m) => {
+              let boost = 0;
+              for (const g of m.genre || []) boost += genreScores[g] || 0;
+              return { ...m, _boost: boost };
+            })
+            .sort((a, b) =>
+              b._boost !== a._boost
+                ? b._boost - a._boost
+                : (b.views || 0) - (a.views || 0)
+            );
+        }
+      } catch (_err) {
+        // fall back to default sort
+      }
+    }
+
+    movies = movies.slice(0, 8);
+
     const genreSet = new Set();
     movies.forEach((m) => {
       (Array.isArray(m.genre) ? m.genre : [m.genre])
@@ -1147,6 +1196,101 @@ const getSuggestions = async (req, res) => {
   } catch (err) {
     console.error("getSuggestions error:", err);
     return res.status(500).json({ success: false, movies: [], keywords: [] });
+  }
+};
+
+const FOR_YOU_PROJECTION =
+  "title slug poster backdrop genre views year rating videoWidth videoHeight previewTimeline seriesId seriesTitle season episode episodeLabel duration";
+
+const getForYou = async (req, res) => {
+  try {
+    setNoStore(res);
+    const userId = req.user?._id;
+
+    let genreScores = {};
+    let excludeIds = [];
+
+    if (userId) {
+      const [progress, user] = await Promise.all([
+        Progress.find({ userId: String(userId) })
+          .select("movieId")
+          .sort({ updatedAt: -1 })
+          .limit(50)
+          .lean(),
+        User.findById(userId).select("likedMovies").lean(),
+      ]);
+
+      const watchedIds = [...new Set(progress.map((p) => p.movieId.toString()))];
+      const likedIds = (user?.likedMovies || [])
+        .map((m) => String(m?._id || m?.id || m))
+        .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+      const likedSet = new Set(likedIds);
+      excludeIds = [...new Set([...watchedIds, ...likedIds])].filter((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+      );
+
+      if (excludeIds.length > 0) {
+        const interacted = await Movie.find({ _id: { $in: excludeIds } })
+          .select("_id genre")
+          .lean();
+
+        for (const movie of interacted) {
+          const weight = likedSet.has(movie._id.toString()) ? 2.5 : 1;
+          for (const g of movie.genre || []) {
+            genreScores[g] = (genreScores[g] || 0) + weight;
+          }
+        }
+      }
+    }
+
+    const topGenres = Object.entries(genreScores)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([g]) => g);
+
+    let movies, reason, personalized;
+
+    if (topGenres.length === 0) {
+      movies = await Movie.find({
+        isPublished: true,
+        contentArea: { $ne: "world" },
+      })
+        .sort({ views: -1 })
+        .limit(12)
+        .select(FOR_YOU_PROJECTION)
+        .lean();
+      reason = "Phim nổi bật";
+      personalized = false;
+    } else {
+      const candidates = await Movie.find({
+        isPublished: true,
+        contentArea: { $ne: "world" },
+        _id: { $nin: excludeIds },
+        genre: { $in: topGenres },
+      })
+        .select(FOR_YOU_PROJECTION)
+        .limit(60)
+        .lean();
+
+      const scored = candidates.map((movie) => {
+        let gs = 0;
+        for (const g of movie.genre || []) gs += genreScores[g] || 0;
+        const pop = Math.log((movie.views || 0) + 1) / 9.21;
+        const rat = ((movie.rating || 0) / 10) * 0.3;
+        return { ...movie, _score: gs * (1 + pop * 0.4 + rat) };
+      });
+
+      scored.sort((a, b) => b._score - a._score);
+      movies = scored.slice(0, 12);
+      reason = `Vì bạn thích ${topGenres.slice(0, 2).join(", ")}`;
+      personalized = true;
+    }
+
+    return res.json({ success: true, movies, reason, personalized, topGenres });
+  } catch (err) {
+    console.error("for-you error:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -1166,4 +1310,5 @@ module.exports = {
   getTrending,
   getSeriesEpisodes,
   getSuggestions,
+  getForYou,
 };

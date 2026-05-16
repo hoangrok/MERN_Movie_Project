@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Navbar.scss";
 import {
@@ -188,6 +188,23 @@ const Navbar = ({ isScrolled }) => {
     if (suggestAbortRef.current) suggestAbortRef.current.abort();
   };
 
+  const sortedGenres = useMemo(() => {
+    if (!genres.length) return genres;
+    try {
+      const cw = JSON.parse(localStorage.getItem("dam18_continue_watching") || "[]");
+      const scores = {};
+      for (const item of cw) {
+        for (const g of item.genre || []) {
+          scores[g] = (scores[g] || 0) + 1;
+        }
+      }
+      if (!Object.keys(scores).length) return genres;
+      return [...genres].sort((a, b) => (scores[b] || 0) - (scores[a] || 0));
+    } catch {
+      return genres;
+    }
+  }, [genres]);
+
   const toggleGenre = (genre) => {
     setSelectedGenres((prev) => {
       if (prev.includes(genre)) {
@@ -307,8 +324,8 @@ const Navbar = ({ isScrolled }) => {
                 </div>
 
                 <div className="navbar__genre-mega-grid">
-                  {genres.length > 0 ? (
-                    genres.map((genre, index) => {
+                  {sortedGenres.length > 0 ? (
+                    sortedGenres.map((genre, index) => {
                       const active = selectedGenres.includes(genre);
 
                       return (
