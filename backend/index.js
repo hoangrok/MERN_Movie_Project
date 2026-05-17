@@ -27,6 +27,7 @@ const allowedOrigins = [
   "https://mern-movie-project-henna.vercel.app",
   "https://clipdam18.com",
   "https://www.clipdam18.com",
+  "https://m.clipdam18.com",
   "https://api.clipdam18.com",
 ].filter(Boolean);
 
