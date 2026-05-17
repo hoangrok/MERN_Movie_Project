@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { setSEO } from "../utils/seo";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -24,11 +24,8 @@ import {
   syncContinueWatchingWithServer,
 } from "../utils/continueWatching";
 import { API_URL } from "../utils/api";
-import useDeferredMount from "../hooks/useDeferredMount";
 import { getPreviewFrames, normalizeImage } from "../utils/previewTimeline";
 import "../assets/styles/Home.scss";
-
-const AdPopup = lazy(() => import("../components/Ads/AdPopup"));
 
 const FALLBACK_POSTER =
   "https://dummyimage.com/1280x720/111827/ffffff&text=ClipDam18";
@@ -112,8 +109,6 @@ function getDirectPreviewUrl(movie) {
 export default function Home() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const showDeferredPopup = useDeferredMount({ delay: 1800 });
-
   const movies = useSelector((state) => state.movie.movies || []);
   const trendingMovies = useSelector((state) => state.movie.trending || []);
   const moviesStatus = useSelector(
@@ -415,11 +410,6 @@ export default function Home() {
 
   return (
     <div className="homePage">
-      {showDeferredPopup ? (
-        <Suspense fallback={null}>
-          <AdPopup />
-        </Suspense>
-      ) : null}
       <Navbar isScrolled={isScrolling} />
 
       <main className="homeLayout homeShell">

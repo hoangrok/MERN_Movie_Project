@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
+import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
 import { initScrollReveal } from "./utils/scrollReveal";
 import PageLoader from "./components/PageLoader/PageLoader";
@@ -27,6 +28,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Profile = lazy(() => import("./pages/Profile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdSlot = lazy(() => import("./components/Ads/AdSlot"));
+const AdPopup = lazy(() => import("./components/Ads/AdPopup"));
 const FeedbackWidget = lazy(() => import("./components/FeedbackWidget/FeedbackWidget"));
 const TelegramWidget = lazy(() => import("./components/TelegramWidget/TelegramWidget"));
 
@@ -99,10 +101,12 @@ function App() {
     <Suspense fallback={<PageLoader />}>
       <AppRoutes />
       <VpnNotice />
+      <SiteSupport />
       <ExoInterstitial />
       {showDeferredChrome ? (
         <>
           <AdSlot placement="floating_bottom" variant="floating" defer />
+          <AdPopup />
           <FeedbackWidget />
           <TelegramWidget />
         </>
