@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
-import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
 import { initScrollReveal } from "./utils/scrollReveal";
 import PageLoader from "./components/PageLoader/PageLoader";
@@ -100,7 +99,6 @@ function App() {
     <Suspense fallback={<PageLoader />}>
       <AppRoutes />
       <VpnNotice />
-      <SiteSupport />
       <ExoInterstitial />
       {showDeferredChrome ? (
         <>

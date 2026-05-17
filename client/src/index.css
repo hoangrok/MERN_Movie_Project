@@ -58,6 +58,7 @@ body,
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -66,6 +67,7 @@ body {
   color: var(--text);
   font-family: "Inter", sans-serif;
   scrollbar-gutter: stable;
+  overflow-x: hidden;
 }
 
 a {
@@ -114,7 +116,7 @@ select {
 }
 
 .section-title {
-  font-size: 1.9rem;
+  font-size: clamp(1.25rem, 4vw, 1.9rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   margin: 0 0 18px;

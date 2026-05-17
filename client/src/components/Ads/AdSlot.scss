@@ -94,7 +94,7 @@
   position: fixed;
   z-index: 150;
   left: 50%;
-  bottom: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
   width: min(760px, calc(100% - 28px));
   transform: translateX(-50%);
   margin: 0;
