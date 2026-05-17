@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isMobileSite, setPreferDesktop } from "../../hooks/useDomain";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./Navbar.scss";
 import {
@@ -463,6 +464,17 @@ const Navbar = ({ isScrolled }) => {
               </div>
             )}
           </div>
+
+          {isMobileSite() && (
+            <a
+              href={`https://www.clipdam18.com${window.location.pathname}${window.location.search}`}
+              className="navbar__desktop-link"
+              onClick={() => setPreferDesktop(true)}
+              title="Xem bản đầy đủ"
+            >
+              🖥️
+            </a>
+          )}
 
           <button
             type="button"

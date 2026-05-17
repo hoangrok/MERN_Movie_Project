@@ -5,7 +5,10 @@ import { Provider } from "react-redux";
 
 import App from "./App";
 import { store } from "./store/store";
+import { runMobileRedirect } from "./hooks/useDomain";
 import "./index.css";
+
+runMobileRedirect();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <Provider store={store}>

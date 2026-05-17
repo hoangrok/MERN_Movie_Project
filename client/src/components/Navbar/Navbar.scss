@@ -683,6 +683,26 @@
   }
 }
 
+.navbar__desktop-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 17px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: rgba(0, 0, 0, 0.08);
+  }
+}
+
 .navbar__theme-toggle {
   width: 42px;
   height: 42px;
