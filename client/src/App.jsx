@@ -2,9 +2,12 @@ import { lazy, Suspense, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
+import { isMobileSite } from "./hooks/useDomain";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
 import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
+
+const MOBILE = isMobileSite();
 import { initScrollReveal } from "./utils/scrollReveal";
 import PageLoader from "./components/PageLoader/PageLoader";
 
@@ -97,16 +100,22 @@ function AppRoutes() {
 function App() {
   const showDeferredChrome = useDeferredMount({ delay: 1400 });
 
+  useEffect(() => {
+    if (MOBILE) {
+      window.AdProvider = { push: () => {} };
+    }
+  }, []);
+
   return (
     <Suspense fallback={<PageLoader />}>
       <AppRoutes />
       <VpnNotice />
-      <SiteSupport />
-      <ExoInterstitial />
+      {!MOBILE && <SiteSupport />}
+      {!MOBILE && <ExoInterstitial />}
       {showDeferredChrome ? (
         <>
-          <AdSlot placement="floating_bottom" variant="floating" defer />
-          <AdPopup />
+          {!MOBILE && <AdSlot placement="floating_bottom" variant="floating" defer />}
+          {!MOBILE && <AdPopup />}
           <FeedbackWidget />
           <TelegramWidget />
         </>

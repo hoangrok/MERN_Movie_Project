@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { API_URL } from "../../utils/api";
+import { isMobileSite } from "../../hooks/useDomain";
 import "./AdSlot.scss";
 
 function buildHtmlDocument(html = "") {
@@ -92,6 +93,7 @@ export default function AdSlot({
   defer = false,
   deferMs = 1200,
 }) {
+  if (isMobileSite()) return null;
   const [ads, setAds] = useState([]);
   const [dismissed, setDismissed] = useState(false);
   const [shouldLoad, setShouldLoad] = useState(!defer);
