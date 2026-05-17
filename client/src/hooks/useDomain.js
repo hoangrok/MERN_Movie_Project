@@ -28,12 +28,6 @@ export function runMobileRedirect() {
   if (onMainSite && !preferDesktop && isMobileDevice()) {
     const dest = `https://${MOBILE_HOST}${window.location.pathname}${window.location.search}`;
     window.location.replace(dest);
-    return;
-  }
-
-  if (onMobileSite && !isMobileDevice()) {
-    const dest = `https://${WWW_HOST}${window.location.pathname}${window.location.search}`;
-    window.location.replace(dest);
   }
 }
 
