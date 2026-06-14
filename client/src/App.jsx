@@ -4,7 +4,6 @@ import { useSelector } from "react-redux";
 import useDeferredMount from "./hooks/useDeferredMount";
 import { isMobileSite } from "./hooks/useDomain";
 import VpnNotice from "./components/VpnNotice/VpnNotice";
-import SiteSupport from "./components/SiteSupport/SiteSupport";
 import ExoInterstitial from "./components/Ads/ExoInterstitial";
 
 const MOBILE = isMobileSite();
@@ -110,7 +109,6 @@ function App() {
     <Suspense fallback={<PageLoader />}>
       <AppRoutes />
       <VpnNotice />
-      {!MOBILE && <SiteSupport />}
       {!MOBILE && <ExoInterstitial />}
       {showDeferredChrome ? (
         <>
