@@ -922,6 +922,8 @@ function ContinueCard({ movie, onRemove }) {
           className={canPlayPreview ? "is-hidden" : ""}
           src={thumb}
           alt={movie.title || "movie"}
+          loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
@@ -1013,6 +1015,8 @@ function TopCard({ movie, index }) {
           className={canPlayPreview ? "is-hidden" : ""}
           src={thumb}
           alt={movie.title || "movie"}
+          loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}

@@ -249,9 +249,12 @@ const Navbar = ({ isScrolled }) => {
           <div className="navbar__content--logo">
             <Link to="/" className="navbar__logo-link">
               <img
-                src="/logo.png"
+                src="/logo.webp"
                 alt="ClipDam18"
                 className="navbar__logo-img"
+                width="66"
+                height="44"
+                fetchpriority="high"
               />
             </Link>
           </div>

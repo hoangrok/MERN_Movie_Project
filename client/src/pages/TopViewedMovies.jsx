@@ -50,6 +50,8 @@ function TopViewedCard({ movie, index }) {
           className={`rank-card__image ${canPlayPreview ? "is-hidden" : ""}`}
           src={imageSrc}
           alt={movie.title}
+          loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.src = FALLBACK_POSTER;
           }}
